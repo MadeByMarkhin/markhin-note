@@ -7563,5 +7563,47 @@ window.attachWrapperEvents = function(categoryId){
 })();
 </script>
 
+<script>
+/* =========================================================================
+   5) PASTE-AS-PLAIN-TEXT FOR NOTE TEXT BOXES
+   Pasting from outside (Word, a website, another app) brings along the
+   source's own inline styles — color:#000, a tiny font-size, a different
+   font-family — which override the theme's color/font on the .text-box
+   and make the pasted chunk unreadable (black text, wrong size) even
+   though everything typed by hand looks fine. This strips that inline
+   styling on paste so pasted text always matches the current theme,
+   exactly like text typed directly into the note.
+   ========================================================================= */
+(function(){
+    function mu3_handleTextBoxPaste(e){
+        const box = e.target && e.target.closest && e.target.closest('.text-box[contenteditable="true"]');
+        if (!box) return;
+        const cd = e.clipboardData || window.clipboardData;
+        if (!cd) return;
+        const text = cd.getData('text/plain');
+        // No text on the clipboard (e.g. a copied screenshot/image) — let the
+        // browser's normal paste handle that case untouched.
+        if (!text) return;
+
+        e.preventDefault();
+
+        if (document.queryCommandSupported && document.queryCommandSupported('insertText')) {
+            document.execCommand('insertText', false, text);
+        } else {
+            const sel = window.getSelection();
+            if (!sel || !sel.rangeCount) return;
+            const range = sel.getRangeAt(0);
+            range.deleteContents();
+            range.insertNode(document.createTextNode(text));
+            range.collapse(false);
+            sel.removeAllRanges();
+            sel.addRange(range);
+            box.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+    }
+    document.addEventListener('paste', mu3_handleTextBoxPaste);
+})();
+</script>
+
 </body>
 </html>
