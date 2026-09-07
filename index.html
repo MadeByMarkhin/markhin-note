@@ -1432,6 +1432,7 @@ html, body, button, input, textarea, select, [contenteditable="true"] {
   }
 }
 </style>
+    <script src="https://telegram.org/js/telegram-web-app.js?63"></script>
 </head>
 <body class="theme-oceanic">
 <script>
@@ -3184,22 +3185,13 @@ window.mu_syncHtmlBg = function(){
             });
             if (chosenName === null) return;
             const fileName = `${chosenName}.png`;
-            // Fast path: plain anchor click on the data URL (works almost everywhere).
             try {
-                const a = document.createElement('a');
-                a.href = imgSrc;
-                a.download = fileName;
-                document.body.appendChild(a);
-                a.click();
-                setTimeout(() => { a.remove(); }, 100);
-                return;
-            } catch (e) { console.warn('Direct image download failed, trying alternatives…', e); }
-            // Fallback path: convert to a real Blob and run the full download chain
-            // (File System Access / Share / new tab / legacy saver / data URL).
-            try {
+                // Use the common download engine so drawings behave exactly like
+                // PNG/JPG/PDF/DOCX/ZIP and other exports inside Telegram.
                 const res = await fetch(imgSrc);
                 const blob = await res.blob();
-                await robustDownload(blob, fileName, blob.type || 'image/png');
+                const method = await robustDownload(blob, fileName, blob.type || 'image/png');
+                console.log('drawing download method:', method);
             } catch (e) {
                 console.error(e);
                 alert(currentLang === 'fa' ? 'دانلود تصویر انجام نشد. دوباره امتحان کن.' : 'The image download failed. Please try again.');
@@ -4475,11 +4467,28 @@ window.mu_syncHtmlBg = function(){
         let __downloadLock = false;
         async function robustDownload(blob, filename, mime) {
             const safeName = sanitizeFilename(filename || 'download') || 'download';
+            const fileMime = mime || blob.type || 'application/octet-stream';
+            const isTelegram = !!(window.Telegram && window.Telegram.WebApp);
 
-            // Method 1: normal Blob-anchor download. Fast, silent, and works on
-            // the vast majority of desktop/mobile browsers — tried first so the
-            // common case stays a simple, unobtrusive download to the user's
-            // Downloads folder.
+            // Telegram Mini Apps use a WebView. Prefer the native OS share/save
+            // sheet when available. Telegram's downloadFile() requires a public
+            // HTTPS URL, so a locally-created Blob cannot be passed to it directly.
+            if (isTelegram) {
+                try {
+                    if (navigator.share && typeof File !== 'undefined') {
+                        const file = new File([blob], safeName, {type: fileMime});
+                        if (!navigator.canShare || navigator.canShare({files:[file]})) {
+                            await navigator.share({title: safeName, files: [file]});
+                            return 'telegram-share';
+                        }
+                    }
+                } catch (e) {
+                    if (e?.name === 'AbortError') return 'cancelled';
+                    console.warn('Telegram share failed, trying browser fallbacks…', e);
+                }
+            }
+
+            // Method 1: normal Blob-anchor download.
             let url = null;
             try {
                 url = URL.createObjectURL(blob);
@@ -4489,62 +4498,78 @@ window.mu_syncHtmlBg = function(){
                 document.body.appendChild(a); a.click(); a.remove();
                 setTimeout(() => { try { URL.revokeObjectURL(url); } catch (_) {} }, 30000);
                 return 'blob';
-            } catch (e) { if (url) try { URL.revokeObjectURL(url); } catch (_) {} console.warn('Anchor download failed, trying alternatives…', e); }
+            } catch (e) {
+                if (url) try { URL.revokeObjectURL(url); } catch (_) {}
+                console.warn('Anchor download failed, trying alternatives…', e);
+            }
 
-            // Method 2: File System Access API where supported — lets the user
-            // pick exactly where to save.
+            // Method 2: File System Access API where supported.
             try {
-                if (window.showSaveFilePicker && !/Android/i.test(navigator.userAgent)) {
+                if (window.showSaveFilePicker && !/Android|Telegram/i.test(navigator.userAgent)) {
                     const ext = String(safeName).split('.').pop().toLowerCase();
-                    const types = [{ description: mime || 'File', accept: {[mime || 'application/octet-stream']:[`.${ext}`]} }];
-                    const handle = await window.showSaveFilePicker({ suggestedName: safeName, types });
+                    const types = [{description: fileMime || 'File', accept: {[fileMime]: [`.${ext}`]}}];
+                    const handle = await window.showSaveFilePicker({suggestedName: safeName, types});
                     const writable = await handle.createWritable();
                     await writable.write(blob); await writable.close();
                     return 'filesystem';
                 }
-            } catch (e) { if (e?.name === 'AbortError') return 'cancelled'; console.warn('File picker fallback failed', e); }
+            } catch (e) {
+                if (e?.name === 'AbortError') return 'cancelled';
+                console.warn('File picker fallback failed', e);
+            }
 
-            // Method 3: native OS share/save sheet. Especially useful on Android when
-            // the browser blocks automatic downloads from local HTML files.
+            // Method 3: Web Share fallback.
             try {
                 if (navigator.share && typeof File !== 'undefined') {
-                    const file = new File([blob], safeName, {type: mime || blob.type || 'application/octet-stream'});
+                    const file = new File([blob], safeName, {type: fileMime});
                     if (!navigator.canShare || navigator.canShare({files:[file]})) {
                         await navigator.share({title:safeName, files:[file]});
                         return 'share';
                     }
                 }
-            } catch (e) { if (e?.name === 'AbortError') return 'cancelled'; console.warn('Share fallback failed', e); }
+            } catch (e) {
+                if (e?.name === 'AbortError') return 'cancelled';
+                console.warn('Share fallback failed', e);
+            }
 
             // Method 4: open the file in a new tab for manual Save/Download.
             try {
                 url = URL.createObjectURL(blob);
                 const w = window.open(url, '_blank', 'noopener');
-                if (w) { setTimeout(() => { try { URL.revokeObjectURL(url); } catch (_) {} }, 60000); return 'open'; }
+                if (w) {
+                    setTimeout(() => { try { URL.revokeObjectURL(url); } catch (_) {} }, 60000);
+                    return 'open';
+                }
                 URL.revokeObjectURL(url);
             } catch (e) { console.warn('Open fallback failed', e); }
 
-            // Method 5: legacy Microsoft Blob saver (older Edge/IE-like environments).
+            // Method 5: legacy Microsoft Blob saver.
             try {
-                if (navigator.msSaveOrOpenBlob) { navigator.msSaveOrOpenBlob(blob, safeName); return 'msSaveOrOpenBlob'; }
+                if (navigator.msSaveOrOpenBlob) {
+                    navigator.msSaveOrOpenBlob(blob, safeName);
+                    return 'msSaveOrOpenBlob';
+                }
             } catch (e) { console.warn('Legacy blob saver failed', e); }
 
             // Method 6: data URL anchor for smaller files.
             if (blob.size < 12 * 1024 * 1024) {
                 try {
                     const dataUrl = await new Promise((resolve, reject) => {
-                        const r = new FileReader(); r.onload = () => resolve(r.result); r.onerror = reject; r.readAsDataURL(blob);
+                        const r = new FileReader();
+                        r.onload = () => resolve(r.result);
+                        r.onerror = reject;
+                        r.readAsDataURL(blob);
                     });
-                    const a = document.createElement('a'); a.href = dataUrl; a.download = safeName; a.style.display='none';
-                    document.body.appendChild(a); a.click(); a.remove(); return 'data';
+                    const a = document.createElement('a');
+                    a.href = dataUrl; a.download = safeName; a.style.display='none';
+                    document.body.appendChild(a); a.click(); a.remove();
+                    return 'data';
                 } catch (e) { console.warn('Data URL fallback failed', e); }
             }
 
-            // Method 7: last-resort — copy plain-text content to the clipboard so
-            // text exports are never fully lost even if every download method above
-            // is blocked by the browser/OS.
+            // Method 7: text clipboard fallback.
             try {
-                if (navigator.clipboard?.writeText && /^text\//.test(mime || blob.type || '')) {
+                if (navigator.clipboard?.writeText && /^text\//.test(fileMime)) {
                     const text = await blob.text();
                     await navigator.clipboard.writeText(text);
                     return 'clipboard';
@@ -5129,16 +5154,8 @@ window.mu_syncHtmlBg = function(){
                 fullHtml = fullHtml.replace('</body>', dataScript + '</body>');
 
                 const blob = new Blob([fullHtml], { type: 'text/html;charset=utf-8' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `${chosenName}.html`;
-                document.body.appendChild(a);
-                a.click();
-                setTimeout(() => {
-                    if (a.parentNode) a.parentNode.removeChild(a);
-                    URL.revokeObjectURL(url);
-                }, 1500);
+                const method = await robustDownload(blob, `${chosenName}.html`, 'text/html;charset=utf-8');
+                console.log('HTML download method:', method);
 
                 showToast(fa ? '✅ خروجی HTML با موفقیت ذخیره شد.' : '✅ HTML export saved successfully.');
             } catch (err) {
