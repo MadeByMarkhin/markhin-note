@@ -1327,6 +1327,10 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js"></script>
+    <!-- Telegram Mini App SDK — required to detect that we're inside Telegram's in-app
+         browser and to force links open in the user's real system browser (openLink()).
+         Harmless outside Telegram: window.Telegram just stays undefined there. -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
 
 <style id="markhinCleanTopControls">
 /* Clean top-right controls: theme label on top, icon row (language + dashboard) centered below.
@@ -1432,7 +1436,6 @@ html, body, button, input, textarea, select, [contenteditable="true"] {
   }
 }
 </style>
-    <script src="https://telegram.org/js/telegram-web-app.js?63"></script>
 </head>
 <body class="theme-oceanic">
 <script>
@@ -1597,6 +1600,102 @@ window.mu_syncHtmlBg = function(){
     <script>
         // ... (بقیه کد جاوااسکریپت بدون تغییر باقی می‌ماند)
         // تمام فانکشن‌ها و منطق برنامه کاملاً حفظ شده‌اند
+
+        /* =====================================================================
+           TELEGRAM MINI APP — DOWNLOAD FIX
+           ---------------------------------------------------------------------
+           Telegram's in-app browser (the WebView Telegram itself renders Mini
+           Apps in — on Android/iOS, not Telegram Desktop) silently swallows most
+           normal download methods: clicking an <a download> on a blob:/data: URL
+           fires no error at all, it just doesn't save anything. window.open() and
+           Telegram.WebApp.openLink() are also restricted to real http(s) URLs —
+           Telegram blocks blob:/data: there too, by design (see Telegram's own
+           bug tracker: non-http(s) schemes don't work in anchor href, window.open,
+           or openLink inside Mini Apps).
+           Since this app has no backend to host generated files at a real URL,
+           the two things that DO reliably work here are:
+             1) navigator.share() — the native OS share sheet. This is a real
+                browser API (not a Telegram link handler), so it works fine on
+                native Telegram for iOS/Android.
+             2) Reopening THIS SAME PAGE in the user's system browser (Chrome/
+                Safari) via Telegram.WebApp.openLink(), with the file's data
+                packed into the URL's hash fragment. Because it's a genuine
+                https:// URL (just with extra data after the #), Telegram allows
+                it — and once that page loads in a *real* browser tab, a normal
+                download works exactly the way it always has, because the tab is
+                no longer restricted by Telegram's WebView.
+           robustDownload() below tries these first whenever we detect we're
+           inside Telegram, before falling back to the older methods (which are
+           kept as a last resort for Telegram Desktop, where the WebView is more
+           capable and this often isn't even necessary).
+           ===================================================================== */
+        const TG = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
+        const IS_TELEGRAM = !!TG || /Telegram/i.test(navigator.userAgent || '');
+        try { TG && TG.ready && TG.ready(); TG && TG.expand && TG.expand(); } catch (_) {}
+
+        // Cap on how much file data we'll try to hand off through the URL hash.
+        // There's no hard spec limit, but very long URLs risk being truncated or
+        // rejected by the OS-level "open externally" call, so we stay well under
+        // where that starts becoming a real risk.
+        const TG_BRIDGE_MAX_BLOB_BYTES = 3 * 1024 * 1024;
+
+        // Reopens this page in the user's real browser with `blob` waiting to be
+        // downloaded there. Returns true if the handoff was launched (not a
+        // guarantee the user completed it), false if it couldn't be attempted.
+        async function tgOpenInSystemBrowser(blob, filename, mime) {
+            if (!IS_TELEGRAM || !blob) return false;
+            if (blob.size > TG_BRIDGE_MAX_BLOB_BYTES) return false;
+            try {
+                const dataUrl = await new Promise((resolve, reject) => {
+                    const r = new FileReader();
+                    r.onload = () => resolve(r.result);
+                    r.onerror = reject;
+                    r.readAsDataURL(blob);
+                });
+                const base = location.href.split('#')[0];
+                const bridgeUrl = base + '#tgdl=' + encodeURIComponent(dataUrl) + '&tgname=' + encodeURIComponent(filename || 'download');
+                if (TG && TG.openLink) {
+                    TG.openLink(bridgeUrl, { try_instant_view: false });
+                } else {
+                    window.open(bridgeUrl, '_blank');
+                }
+                return true;
+            } catch (e) {
+                console.warn('Telegram system-browser bridge failed', e);
+                return false;
+            }
+        }
+
+        // If this page was just reopened by the bridge above — i.e. it's now
+        // running in a normal browser tab outside Telegram — immediately deliver
+        // the waiting file for real and show a small confirmation screen.
+        (function tgHandleIncomingDownload() {
+            const hash = location.hash || '';
+            const m = /[#&]tgdl=([^&]+)/.exec(hash);
+            if (!m) return;
+            try {
+                const dataUrl = decodeURIComponent(m[1]);
+                const nameMatch = /[#&]tgname=([^&]+)/.exec(hash);
+                const name = nameMatch ? decodeURIComponent(nameMatch[1]) : 'download';
+                const a = document.createElement('a');
+                a.href = dataUrl;
+                a.download = name;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                try { history.replaceState(null, '', location.pathname + location.search); } catch (_) {}
+                const fa = !/^en/i.test(navigator.language || '');
+                const box = document.createElement('div');
+                box.style.cssText = 'position:fixed;inset:0;z-index:2147483647;display:flex;align-items:center;justify-content:center;background:#03192c;color:#90e0ef;font-family:Tahoma,sans-serif;text-align:center;padding:24px;direction:' + (fa ? 'rtl' : 'ltr') + ';';
+                const safeName = String(name).replace(/[<>&]/g, '');
+                box.innerHTML = '<div><div style="font-size:40px;margin-bottom:12px">✅</div><div style="font-size:16px;line-height:1.9">' +
+                    (fa ? ('دانلود فایل «' + safeName + '» شروع شد.<br>حالا می‌توانید این تب را ببندید و به تلگرام برگردید.')
+                         : ('The download for “' + safeName + '” has started.<br>You can close this tab and go back to Telegram now.')) +
+                    '</div></div>';
+                document.body.appendChild(box);
+            } catch (e) { console.warn('Incoming Telegram download bridge failed', e); }
+        })();
+
         const i18n = {
             fa: {
                 title: "مدیریت اطلاعات و حساب‌ها",
@@ -3185,13 +3284,27 @@ window.mu_syncHtmlBg = function(){
             });
             if (chosenName === null) return;
             const fileName = `${chosenName}.png`;
+            // Fast path: plain anchor click on the data URL (works almost everywhere
+            // EXCEPT inside Telegram's in-app browser, where this click fires with no
+            // error yet saves nothing — so it must never be trusted as "done" there).
+            if (!IS_TELEGRAM) {
+                try {
+                    const a = document.createElement('a');
+                    a.href = imgSrc;
+                    a.download = fileName;
+                    document.body.appendChild(a);
+                    a.click();
+                    setTimeout(() => { a.remove(); }, 100);
+                    return;
+                } catch (e) { console.warn('Direct image download failed, trying alternatives…', e); }
+            }
+            // Fallback / Telegram path: convert to a real Blob and run the full download
+            // chain (Telegram share/browser bridge, File System Access / Share / new tab /
+            // legacy saver / data URL).
             try {
-                // Use the common download engine so drawings behave exactly like
-                // PNG/JPG/PDF/DOCX/ZIP and other exports inside Telegram.
                 const res = await fetch(imgSrc);
                 const blob = await res.blob();
-                const method = await robustDownload(blob, fileName, blob.type || 'image/png');
-                console.log('drawing download method:', method);
+                await robustDownload(blob, fileName, blob.type || 'image/png');
             } catch (e) {
                 console.error(e);
                 alert(currentLang === 'fa' ? 'دانلود تصویر انجام نشد. دوباره امتحان کن.' : 'The image download failed. Please try again.');
@@ -4467,28 +4580,41 @@ window.mu_syncHtmlBg = function(){
         let __downloadLock = false;
         async function robustDownload(blob, filename, mime) {
             const safeName = sanitizeFilename(filename || 'download') || 'download';
-            const fileMime = mime || blob.type || 'application/octet-stream';
-            const isTelegram = !!(window.Telegram && window.Telegram.WebApp);
 
-            // Telegram Mini Apps use a WebView. Prefer the native OS share/save
-            // sheet when available. Telegram's downloadFile() requires a public
-            // HTTPS URL, so a locally-created Blob cannot be passed to it directly.
-            if (isTelegram) {
+            // Method 0 (Telegram only): a plain blob-anchor click (Method 1 below) is
+            // exactly the thing that silently fails inside Telegram's in-app browser —
+            // it fires with no error, but nothing gets saved. So when we detect Telegram,
+            // try the two methods that actually work there FIRST: the native share sheet,
+            // then reopening this page in the user's real browser (see the block above).
+            if (IS_TELEGRAM) {
                 try {
                     if (navigator.share && typeof File !== 'undefined') {
-                        const file = new File([blob], safeName, {type: fileMime});
+                        const file = new File([blob], safeName, {type: mime || blob.type || 'application/octet-stream'});
                         if (!navigator.canShare || navigator.canShare({files:[file]})) {
-                            await navigator.share({title: safeName, files: [file]});
-                            return 'telegram-share';
+                            await navigator.share({title:safeName, files:[file]});
+                            return 'share';
                         }
                     }
                 } catch (e) {
                     if (e?.name === 'AbortError') return 'cancelled';
-                    console.warn('Telegram share failed, trying browser fallbacks…', e);
+                    console.warn('Telegram share attempt failed, trying browser bridge…', e);
                 }
+                try {
+                    if (await tgOpenInSystemBrowser(blob, safeName, mime || blob.type)) {
+                        showToast(currentLang === 'fa'
+                            ? '📥 دانلود در مرورگر گوشی باز شد؛ اگر باز نشد، دوباره امتحان کن.'
+                            : '📥 Download opened in your phone\u2019s browser.', 3200);
+                        return 'telegram-bridge';
+                    }
+                } catch (e) { console.warn('Telegram browser-bridge attempt failed', e); }
+                // Both Telegram-specific methods were unavailable/too large — fall
+                // through to the generic chain below as a last resort.
             }
 
-            // Method 1: normal Blob-anchor download.
+            // Method 1: normal Blob-anchor download. Fast, silent, and works on
+            // the vast majority of desktop/mobile browsers — tried first so the
+            // common case stays a simple, unobtrusive download to the user's
+            // Downloads folder.
             let url = null;
             try {
                 url = URL.createObjectURL(blob);
@@ -4498,78 +4624,62 @@ window.mu_syncHtmlBg = function(){
                 document.body.appendChild(a); a.click(); a.remove();
                 setTimeout(() => { try { URL.revokeObjectURL(url); } catch (_) {} }, 30000);
                 return 'blob';
-            } catch (e) {
-                if (url) try { URL.revokeObjectURL(url); } catch (_) {}
-                console.warn('Anchor download failed, trying alternatives…', e);
-            }
+            } catch (e) { if (url) try { URL.revokeObjectURL(url); } catch (_) {} console.warn('Anchor download failed, trying alternatives…', e); }
 
-            // Method 2: File System Access API where supported.
+            // Method 2: File System Access API where supported — lets the user
+            // pick exactly where to save.
             try {
-                if (window.showSaveFilePicker && !/Android|Telegram/i.test(navigator.userAgent)) {
+                if (window.showSaveFilePicker && !/Android/i.test(navigator.userAgent)) {
                     const ext = String(safeName).split('.').pop().toLowerCase();
-                    const types = [{description: fileMime || 'File', accept: {[fileMime]: [`.${ext}`]}}];
-                    const handle = await window.showSaveFilePicker({suggestedName: safeName, types});
+                    const types = [{ description: mime || 'File', accept: {[mime || 'application/octet-stream']:[`.${ext}`]} }];
+                    const handle = await window.showSaveFilePicker({ suggestedName: safeName, types });
                     const writable = await handle.createWritable();
                     await writable.write(blob); await writable.close();
                     return 'filesystem';
                 }
-            } catch (e) {
-                if (e?.name === 'AbortError') return 'cancelled';
-                console.warn('File picker fallback failed', e);
-            }
+            } catch (e) { if (e?.name === 'AbortError') return 'cancelled'; console.warn('File picker fallback failed', e); }
 
-            // Method 3: Web Share fallback.
+            // Method 3: native OS share/save sheet. Especially useful on Android when
+            // the browser blocks automatic downloads from local HTML files.
             try {
                 if (navigator.share && typeof File !== 'undefined') {
-                    const file = new File([blob], safeName, {type: fileMime});
+                    const file = new File([blob], safeName, {type: mime || blob.type || 'application/octet-stream'});
                     if (!navigator.canShare || navigator.canShare({files:[file]})) {
                         await navigator.share({title:safeName, files:[file]});
                         return 'share';
                     }
                 }
-            } catch (e) {
-                if (e?.name === 'AbortError') return 'cancelled';
-                console.warn('Share fallback failed', e);
-            }
+            } catch (e) { if (e?.name === 'AbortError') return 'cancelled'; console.warn('Share fallback failed', e); }
 
             // Method 4: open the file in a new tab for manual Save/Download.
             try {
                 url = URL.createObjectURL(blob);
                 const w = window.open(url, '_blank', 'noopener');
-                if (w) {
-                    setTimeout(() => { try { URL.revokeObjectURL(url); } catch (_) {} }, 60000);
-                    return 'open';
-                }
+                if (w) { setTimeout(() => { try { URL.revokeObjectURL(url); } catch (_) {} }, 60000); return 'open'; }
                 URL.revokeObjectURL(url);
             } catch (e) { console.warn('Open fallback failed', e); }
 
-            // Method 5: legacy Microsoft Blob saver.
+            // Method 5: legacy Microsoft Blob saver (older Edge/IE-like environments).
             try {
-                if (navigator.msSaveOrOpenBlob) {
-                    navigator.msSaveOrOpenBlob(blob, safeName);
-                    return 'msSaveOrOpenBlob';
-                }
+                if (navigator.msSaveOrOpenBlob) { navigator.msSaveOrOpenBlob(blob, safeName); return 'msSaveOrOpenBlob'; }
             } catch (e) { console.warn('Legacy blob saver failed', e); }
 
             // Method 6: data URL anchor for smaller files.
             if (blob.size < 12 * 1024 * 1024) {
                 try {
                     const dataUrl = await new Promise((resolve, reject) => {
-                        const r = new FileReader();
-                        r.onload = () => resolve(r.result);
-                        r.onerror = reject;
-                        r.readAsDataURL(blob);
+                        const r = new FileReader(); r.onload = () => resolve(r.result); r.onerror = reject; r.readAsDataURL(blob);
                     });
-                    const a = document.createElement('a');
-                    a.href = dataUrl; a.download = safeName; a.style.display='none';
-                    document.body.appendChild(a); a.click(); a.remove();
-                    return 'data';
+                    const a = document.createElement('a'); a.href = dataUrl; a.download = safeName; a.style.display='none';
+                    document.body.appendChild(a); a.click(); a.remove(); return 'data';
                 } catch (e) { console.warn('Data URL fallback failed', e); }
             }
 
-            // Method 7: text clipboard fallback.
+            // Method 7: last-resort — copy plain-text content to the clipboard so
+            // text exports are never fully lost even if every download method above
+            // is blocked by the browser/OS.
             try {
-                if (navigator.clipboard?.writeText && /^text\//.test(fileMime)) {
+                if (navigator.clipboard?.writeText && /^text\//.test(mime || blob.type || '')) {
                     const text = await blob.text();
                     await navigator.clipboard.writeText(text);
                     return 'clipboard';
@@ -5154,8 +5264,12 @@ window.mu_syncHtmlBg = function(){
                 fullHtml = fullHtml.replace('</body>', dataScript + '</body>');
 
                 const blob = new Blob([fullHtml], { type: 'text/html;charset=utf-8' });
-                const method = await robustDownload(blob, `${chosenName}.html`, 'text/html;charset=utf-8');
-                console.log('HTML download method:', method);
+                // Was a raw anchor+blob click with no fallback — inside Telegram's in-app
+                // browser that click fires without error yet saves nothing, so it looked
+                // "successful" while the file never reached the device. Routed through
+                // robustDownload() so it gets the same Telegram share/browser-bridge and
+                // fallback chain as every other export.
+                await robustDownload(blob, `${chosenName}.html`, 'text/html;charset=utf-8');
 
                 showToast(fa ? '✅ خروجی HTML با موفقیت ذخیره شد.' : '✅ HTML export saved successfully.');
             } catch (err) {
