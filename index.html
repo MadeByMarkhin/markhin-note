@@ -2,7 +2,7 @@
 <html lang="fa" dir="rtl" id="htmlTag">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>مدیریت اطلاعات و حساب‌ها</title>
     <style>
         @import url('https://fonts.cdnfonts.com/css/cyberpunk');
@@ -211,10 +211,22 @@
 
         body {
             font-family: 'Share Tech Mono', sans-serif;
-            padding: var(--spacing-sm);
+            /* Base spacing plus the device's safe-area insets (notch, Dynamic Island,
+               home-indicator, and — inside Telegram — its own edge chrome), so fixed/near-edge
+               UI (corner controls, toast, modals) never sits under them. viewport-fit=cover
+               above is what makes env(safe-area-inset-*) resolve to a real value instead of 0. */
+            padding: calc(var(--spacing-sm) + env(safe-area-inset-top))
+                     calc(var(--spacing-sm) + env(safe-area-inset-right))
+                     calc(var(--spacing-sm) + env(safe-area-inset-bottom))
+                     calc(var(--spacing-sm) + env(safe-area-inset-left));
             background: var(--bg-gradient);
             color: var(--text-color);
+            /* 100vh is unreliable inside Telegram's in-app WebView (it changes as Telegram's
+               own header/keyboard show or hide, leaving dead space or clipped content).
+               --app-1vh is kept in sync with Telegram's real usable height by mu_setAppVh()
+               below; plain 100vh is just the pre-JS/non-Telegram fallback. */
             min-height: 100vh;
+            min-height: calc(var(--app-1vh, 1vh) * 100);
             text-align: center;
             box-sizing: border-box;
             margin: 0;
@@ -1146,6 +1158,7 @@
             position: fixed;
             top: 0; left: 0;
             width: 100vw; height: 100vh;
+            height: calc(var(--app-1vh, 1vh) * 100);
             background: rgba(0,0,0,0.82);
             z-index: 9999;
             flex-direction: column;
@@ -1290,7 +1303,7 @@
         .text-box { overflow-wrap: anywhere; }
         .drawing-box { overflow: hidden; transition: opacity .25s ease, transform .25s ease; }
         #toast {
-            position: fixed; left: 50%; bottom: 22px; transform: translate(-50%, 18px);
+            position: fixed; left: 50%; bottom: calc(22px + env(safe-area-inset-bottom)); transform: translate(-50%, 18px);
             z-index: 10001; opacity: 0; pointer-events: none;
             padding: 10px 16px; border-radius: 999px;
             background: rgba(8,8,8,.9); border: 1px solid var(--panel-border);
@@ -1632,6 +1645,38 @@ window.mu_syncHtmlBg = function(){
         const TG = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
         const IS_TELEGRAM = !!TG || /Telegram/i.test(navigator.userAgent || '');
         try { TG && TG.ready && TG.ready(); TG && TG.expand && TG.expand(); } catch (_) {}
+
+        /* ---- real usable viewport height (fixes wasted/clipped space in Telegram) ----
+           Plain 100vh inside Telegram's in-app WebView is unreliable: it doesn't track
+           Telegram's own collapsing header, safe areas, or the keyboard, so the page can
+           either leave blank space at the bottom or get cut off. TG.viewportStableHeight
+           (when available) is Telegram's own answer to "how tall is my usable area right
+           now" — we mirror it into a CSS var every time it changes, and body/#gameModal
+           above consume that var instead of vh. Outside Telegram this just tracks
+           window.innerHeight, which also happens to fix the classic mobile-browser
+           address-bar 100vh jump for free. */
+        function mu_setAppVh(){
+            try{
+                const h = (TG && TG.viewportStableHeight) ? TG.viewportStableHeight : window.innerHeight;
+                document.documentElement.style.setProperty('--app-1vh', (h * 0.01) + 'px');
+            }catch(_){}
+        }
+        mu_setAppVh();
+        window.addEventListener('resize', mu_setAppVh);
+        try { TG && TG.onEvent && TG.onEvent('viewportChanged', mu_setAppVh); } catch (_) {}
+
+        /* ---- blend Telegram's native header/background with the app instead of leaving
+           it on Telegram's default (often light) color, which otherwise shows as a
+           mismatched bar above the app on first load. Every theme in this app is a dark
+           navy/black gradient, so one dark approximation is enough to blend all of them —
+           this isn't meant to track theme switches pixel-for-pixel. */
+        try {
+            if (TG) {
+                const bg = '#03101c';
+                TG.setHeaderColor && TG.setHeaderColor(bg);
+                TG.setBackgroundColor && TG.setBackgroundColor(bg);
+            }
+        } catch (_) {}
 
         // Cap on how much file data we'll try to hand off through the URL hash.
         // There's no hard spec limit, but very long URLs risk being truncated or
@@ -6674,6 +6719,7 @@ function mu_queryTerms(raw){
 }
 
 /* ---------- force-open a note (respects password, never toggles closed) ---------- */
+window.mu_forceOpenNote = mu_forceOpenNote;
 function mu_forceOpenNote(id){
     const item = categories.find(c=>c.id===id);
     if(!item) return false;
@@ -6896,6 +6942,7 @@ function mu_snippet(item, terms){
     if(start+140<plain.length) snippet += '…';
     return snippet;
 }
+window.mu_snippet = mu_snippet;
 
 function mu_renderSmartResults(query){
     const box = document.getElementById('muSmartResults'); if(!box) return;
