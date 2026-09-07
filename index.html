@@ -3,12 +3,23 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#03101c" id="mAiThemeColorMeta">
+    <meta name="color-scheme" content="dark">
     <title>مدیریت اطلاعات و حساب‌ها</title>
     <style>
         @import url('https://fonts.cdnfonts.com/css/cyberpunk');
         @import url('https://fonts.googleapis.com/css2?family=VT323&family=Orbitron:wght@700&family=Cinzel:wght@700&family=Share+Tech+Mono&family=Creepster&family=Poller+One&family=Dancing+Script:wght@700&family=Quicksand:wght@500;700&family=Pacifico&display=swap');
 
         :root {
+            /* Every theme in this app is a dark background, so we force the
+               browser's native UI (and — most importantly — the on-screen
+               keyboard) into its dark variant everywhere. Browsers give web
+               pages no way to recolor the system keyboard to an arbitrary
+               theme color (no such API exists); the closest real control is
+               choosing between its built-in light/dark skins via
+               color-scheme, so it never flashes a mismatched white keyboard
+               over any of the dark themes below. */
+            color-scheme: dark;
             --bg-gradient: radial-gradient(circle at top, #002b49 0%, #000814 100%);
             --panel-bg: rgba(0, 180, 216, 0.03);
             --panel-border: rgba(72, 202, 228, 0.12);
@@ -1405,6 +1416,7 @@
    between the container and its children), so nothing overlaps or clips at any screen size. */
 html, body, button, input, textarea, select, [contenteditable="true"] {
   font-family: Arial, Helvetica, sans-serif !important;
+  color-scheme: dark;
 }
 .header-nav {
   position: relative !important;
@@ -8253,14 +8265,45 @@ window.attachWrapperEvents = function(categoryId){
         document.body.style.overflow = 'hidden';
         mAiUpdateSub();
         mAiRender();
+        mAiSyncViewport();
         // Deliberately NOT auto-focusing the input here: focusing it would pop
         // the mobile keyboard open the instant the chat page opens. The keyboard
         // should only appear once the person actually taps the input themselves.
     };
 
+    /* ---------------------------------------------------------------
+       Keep the chat page glued to the real visible area, not the
+       device's full height. Mobile keyboards don't resize the page —
+       they just cover the bottom of it — so without this, a fixed
+       "100vh" chat page ends up with its input bar (and the tail of
+       the messages) hidden behind the keyboard, or the keyboard
+       visibly overlapping the last message. window.visualViewport
+       reports the space actually left after the keyboard opens, so we
+       resize/reposition the overlay to match it live.
+       --------------------------------------------------------------- */
+    function mAiSyncViewport(){
+        const ov = document.getElementById('markhinAiChatOverlay');
+        if(!ov || ov.style.display === 'none' || !window.visualViewport) return;
+        const vv = window.visualViewport;
+        ov.style.height = vv.height + 'px';
+        ov.style.top = vv.offsetTop + 'px';
+        const box = document.getElementById('markhinAiChatMessages');
+        if(box) box.scrollTop = box.scrollHeight;
+    }
+    if(window.visualViewport){
+        window.visualViewport.addEventListener('resize', mAiSyncViewport);
+        window.visualViewport.addEventListener('scroll', mAiSyncViewport);
+    }
+
     window.closeMarkhinAIChat = function(){
         const ov = document.getElementById('markhinAiChatOverlay');
-        if(ov) ov.style.display = 'none';
+        if(ov){
+            ov.style.display = 'none';
+            // Clear the inline height/top set by mAiSyncViewport so the overlay
+            // goes back to filling the full screen next time it's opened.
+            ov.style.height = '';
+            ov.style.top = '';
+        }
         document.body.style.overflow = '';
     };
 
@@ -8307,6 +8350,9 @@ window.attachWrapperEvents = function(categoryId){
         mAiRender();
         input.value = '';
         markhinAiChat_autosize(input);
+        // Drop the keyboard right after sending. It must not reopen on its own —
+        // only an explicit tap on the input should bring it back.
+        input.blur();
 
         if(btn) btn.disabled = true;
         const typingEl = document.createElement('div');
@@ -8335,7 +8381,8 @@ window.attachWrapperEvents = function(categoryId){
             mAiRender();
         } finally {
             if(btn) btn.disabled = false;
-            input && input.focus();
+            // No re-focus here on purpose — see the blur() above; the keyboard
+            // should stay down until the person taps the input themselves.
         }
     };
 
