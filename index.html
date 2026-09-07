@@ -288,7 +288,17 @@
             user-select: none;
             unicode-bidi: bidi-override;
             direction: ltr;
-            transition: var(--transition-smooth);
+            /* Was `transition: var(--transition-smooth)` (all 0.35s), which meant the
+               logo's *color* animated in over 350ms on every theme change while the
+               rest of the page (body's color has no transition) switched instantly —
+               making the logo visibly lag behind. Scope the transition to just the
+               properties the hover/typing effects use, so color changes instantly
+               with everything else. */
+            transition: transform 0.35s cubic-bezier(0.25, 0.8, 0.25, 1),
+                        text-shadow 0.35s cubic-bezier(0.25, 0.8, 0.25, 1),
+                        font-size 0.35s cubic-bezier(0.25, 0.8, 0.25, 1),
+                        letter-spacing 0.35s cubic-bezier(0.25, 0.8, 0.25, 1),
+                        padding 0.35s cubic-bezier(0.25, 0.8, 0.25, 1);
             cursor: pointer;
             white-space: nowrap;
             width: 160px;
