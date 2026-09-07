@@ -6946,30 +6946,170 @@ window.mu_jumpToTopMatch = mu_jumpToTopMatch;
 })();
 
 /* ================= AI LAYER ================= */
+/* Multi-provider AI layer.
+   - Built-in presets: OpenAI, Anthropic, OpenRouter (OpenRouter ships with a
+     default Base URL so it works with just an API key + model — no more
+     forced "Base URL is required" for it).
+   - Plus an open-ended list of user-added custom providers: any name, any
+     Base URL, any API key, any model, in either "OpenAI-compatible" or
+     "Anthropic-style" request format. Add as many as you want; each is
+     saved and stays selectable from the Provider dropdown.
+*/
+const MU_AI_BUILTINS = {
+    openai:     { label:'OpenAI',     format:'openai',    defaultBaseUrl:'https://api.openai.com/v1',    defaultModel:'gpt-5-mini' },
+    anthropic:  { label:'Anthropic',  format:'anthropic', defaultBaseUrl:'https://api.anthropic.com',    defaultModel:'claude-haiku-4-5-20251001' },
+    openrouter: { label:'OpenRouter', format:'openai',    defaultBaseUrl:'https://openrouter.ai/api/v1', defaultModel:'openai/gpt-4o-mini' }
+};
+
 const MarkhinAI = window.MarkhinAI = {
-    KEY:'markhin_ai_settings_v1',
-    getSettings(){ return safeParseJSON(localStorage.getItem(this.KEY)||'{}', {}); },
+    KEY:'markhin_ai_settings_v2',
+    OLD_KEY:'markhin_ai_settings_v1',
+
+    _migrateOld(){
+        // Bring forward anyone's existing single-provider setup from the old
+        // flat format so nobody's saved key silently disappears.
+        try{
+            const old = safeParseJSON(localStorage.getItem(this.OLD_KEY)||'null', null);
+            if(!old || !old.apiKey) return null;
+            const s = { activeId:'openai', builtins:{}, customProviders:[] };
+            if(old.provider === 'anthropic'){
+                s.activeId = 'anthropic';
+                s.builtins.anthropic = { apiKey:old.apiKey, model:old.model||'', baseUrl:old.baseUrl||'' };
+            } else if(old.provider === 'custom'){
+                const id = 'm'+Date.now();
+                s.customProviders.push({ id, name:'Custom', format:'openai', apiKey:old.apiKey, model:old.model||'', baseUrl:old.baseUrl||'' });
+                s.activeId = 'custom:'+id;
+            } else {
+                s.activeId = 'openai';
+                s.builtins.openai = { apiKey:old.apiKey, model:old.model||'', baseUrl:old.baseUrl||'' };
+            }
+            this.saveSettings(s);
+            return s;
+        }catch(e){ return null; }
+    },
+
+    getSettings(){
+        let s = safeParseJSON(localStorage.getItem(this.KEY)||'null', null);
+        if(!s) s = this._migrateOld() || { activeId:'openai', builtins:{}, customProviders:[] };
+        if(!s.builtins) s.builtins = {};
+        if(!Array.isArray(s.customProviders)) s.customProviders = [];
+        if(!s.activeId) s.activeId = 'openai';
+        return s;
+    },
     saveSettings(s){ try{ localStorage.setItem(this.KEY, JSON.stringify(s)); }catch(e){} },
-    clear(){ try{ localStorage.removeItem(this.KEY); }catch(e){} },
-    isConfigured(){ const s=this.getSettings(); return !!(s && s.apiKey && s.provider); },
+    clear(){ try{ localStorage.removeItem(this.KEY); localStorage.removeItem(this.OLD_KEY); }catch(e){} },
+
+    listProviders(){
+        const s = this.getSettings();
+        const list = Object.keys(MU_AI_BUILTINS).map(id=>({ id, name:MU_AI_BUILTINS[id].label, builtin:true }));
+        s.customProviders.forEach(p=> list.push({ id:'custom:'+p.id, name:p.name||'Custom', builtin:false }));
+        return list;
+    },
+
+    // Resolves the currently-active provider into one flat, ready-to-use config.
+    getActiveProvider(s){
+        s = s || this.getSettings();
+        const id = s.activeId || 'openai';
+        if(id.indexOf('custom:') === 0){
+            const cp = s.customProviders.find(p => 'custom:'+p.id === id);
+            if(!cp) return null;
+            return { id, name:cp.name, format:cp.format||'openai', baseUrl:(cp.baseUrl||'').trim(), apiKey:cp.apiKey||'', model:cp.model||'' };
+        }
+        const preset = MU_AI_BUILTINS[id] || MU_AI_BUILTINS.openai;
+        const stored = s.builtins[id] || {};
+        return {
+            id,
+            name: preset.label,
+            format: preset.format,
+            baseUrl: (stored.baseUrl||'').trim() || preset.defaultBaseUrl,
+            apiKey: stored.apiKey || '',
+            model: stored.model || preset.defaultModel || ''
+        };
+    },
+
+    getProviderFields(id){
+        // Used by the settings UI to populate the form for whichever
+        // provider the person picks from the dropdown.
+        const s = this.getSettings();
+        if(id.indexOf('custom:') === 0){
+            const cp = s.customProviders.find(p => 'custom:'+p.id === id);
+            return cp ? { name:cp.name||'', format:cp.format||'openai', apiKey:cp.apiKey||'', model:cp.model||'', baseUrl:cp.baseUrl||'' } : null;
+        }
+        const preset = MU_AI_BUILTINS[id] || MU_AI_BUILTINS.openai;
+        const stored = s.builtins[id] || {};
+        return { name:preset.label, format:preset.format, apiKey:stored.apiKey||'', model:stored.model||'', baseUrl:stored.baseUrl||'' };
+    },
+
+    // Saves the settings-form fields back for whichever provider is
+    // currently selected (a builtin preset or one specific custom entry).
+    saveProviderFields(id, fields){
+        const s = this.getSettings();
+        if(id.indexOf('custom:') === 0){
+            const cid = id.slice(7);
+            const cp = s.customProviders.find(p => p.id === cid);
+            if(cp){
+                cp.name = fields.name || cp.name;
+                cp.format = fields.format || cp.format || 'openai';
+                cp.apiKey = fields.apiKey || '';
+                cp.model = fields.model || '';
+                cp.baseUrl = fields.baseUrl || '';
+            }
+        } else {
+            s.builtins[id] = { apiKey:fields.apiKey||'', model:fields.model||'', baseUrl:fields.baseUrl||'' };
+        }
+        s.activeId = id;
+        this.saveSettings(s);
+    },
+
+    // Adds a brand-new custom provider (any name / any Base URL / any key)
+    // and makes it the active one. This is the "add whatever I want" path.
+    addCustomProvider(fields){
+        const s = this.getSettings();
+        const id = 'p'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+        s.customProviders.push({
+            id,
+            name: (fields.name||'').trim() || ('Custom '+(s.customProviders.length+1)),
+            format: fields.format === 'anthropic' ? 'anthropic' : 'openai',
+            apiKey: fields.apiKey||'',
+            model: fields.model||'',
+            baseUrl: (fields.baseUrl||'').trim()
+        });
+        s.activeId = 'custom:'+id;
+        this.saveSettings(s);
+        return 'custom:'+id;
+    },
+
+    removeCustomProvider(id){
+        const s = this.getSettings();
+        const cid = id.slice(7);
+        s.customProviders = s.customProviders.filter(p => p.id !== cid);
+        if(s.activeId === id) s.activeId = 'openai';
+        this.saveSettings(s);
+    },
+
+    isConfigured(){ const p=this.getActiveProvider(); return !!(p && p.apiKey); },
+
     async chat(messages, opts){
         opts = opts||{};
-        const s = this.getSettings();
-        if(!s.apiKey) throw new Error(currentLang==='fa' ? 'کلید API تنظیم نشده است.' : 'API key is not set.');
+        const p = this.getActiveProvider();
+        const fa = currentLang==='fa';
+        if(!p) throw new Error(fa ? 'ارائه‌دهنده انتخاب‌شده پیدا نشد.' : 'Selected provider was not found.');
+        if(!p.apiKey) throw new Error(fa ? 'کلید API تنظیم نشده است.' : 'API key is not set.');
         const maxTokens = opts.maxTokens || 500;
-        if(s.provider==='anthropic'){
+
+        if(p.format === 'anthropic'){
             const sysMsg = messages.find(m=>m.role==='system');
             const rest = messages.filter(m=>m.role!=='system');
-            const res = await fetch((s.baseUrl||'https://api.anthropic.com').replace(/\/+$/,'')+'/v1/messages', {
+            const res = await fetch((p.baseUrl||'https://api.anthropic.com').replace(/\/+$/,'')+'/v1/messages', {
                 method:'POST',
                 headers:{
                     'Content-Type':'application/json',
-                    'x-api-key': s.apiKey,
+                    'x-api-key': p.apiKey,
                     'anthropic-version':'2023-06-01',
                     'anthropic-dangerous-direct-browser-access':'true'
                 },
                 body: JSON.stringify({
-                    model: s.model || 'claude-haiku-4-5-20251001',
+                    model: p.model || 'claude-haiku-4-5-20251001',
                     max_tokens: maxTokens,
                     system: sysMsg ? sysMsg.content : undefined,
                     messages: rest.map(m=>({role: m.role==='assistant'?'assistant':'user', content:m.content}))
@@ -6979,18 +7119,23 @@ const MarkhinAI = window.MarkhinAI = {
             const data = await res.json();
             return (data.content||[]).map(bk=>bk.text||'').join('\n').trim();
         }
-        // "custom" (OpenAI-compatible) providers used to silently fall back to
-        // api.openai.com when Base URL was left blank, quietly sending the
-        // person's key to a service they never chose. Only OpenAI itself gets
-        // that default now; "custom" requires an explicit Base URL.
-        if(s.provider==='custom' && !s.baseUrl){
-            throw new Error(currentLang==='fa' ? 'برای ارائه‌دهنده سفارشی، Base URL الزامی است.' : 'Base URL is required for the custom provider.');
+
+        // OpenAI-compatible format — covers OpenAI, OpenRouter, and any
+        // custom provider the person added (Groq, Together, DeepSeek,
+        // local Ollama servers, etc. all speak this same /chat/completions shape).
+        if(!p.baseUrl){
+            throw new Error(fa ? 'Base URL برای این ارائه‌دهنده الزامی است.' : 'Base URL is required for this provider.');
         }
-        const base = s.baseUrl || 'https://api.openai.com/v1';
-        const res = await fetch(base.replace(/\/+$/,'')+'/chat/completions', {
+        const headers = { 'Content-Type':'application/json', 'Authorization':'Bearer '+p.apiKey };
+        if(p.id === 'openrouter'){
+            // Recommended (not required) by OpenRouter for attribution — harmless to send.
+            headers['HTTP-Referer'] = (typeof location!=='undefined' && location.origin) || 'https://localhost';
+            headers['X-Title'] = 'Markhin';
+        }
+        const res = await fetch(p.baseUrl.replace(/\/+$/,'')+'/chat/completions', {
             method:'POST',
-            headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer '+s.apiKey },
-            body: JSON.stringify({ model: s.model || 'gpt-5-mini', max_tokens:maxTokens, messages })
+            headers,
+            body: JSON.stringify({ model: p.model || 'gpt-5-mini', max_tokens:maxTokens, messages })
         });
         if(!res.ok){ const tx=await res.text().catch(()=> ''); throw new Error('API: '+res.status+' '+tx.slice(0,220)); }
         const data = await res.json();
@@ -7108,28 +7253,52 @@ window.mu_runSemanticSearch = mu_runSemanticSearch;
 function mu_openAiSettingsModal(){
     const fa = currentLang==='fa';
     const s = MarkhinAI.getSettings();
+    const activeId = s.activeId || 'openai';
+    const providers = MarkhinAI.listProviders();
+    const fields = MarkhinAI.getProviderFields(activeId) || { name:'', format:'openai', apiKey:'', model:'', baseUrl:'' };
+    const isCustom = activeId.indexOf('custom:') === 0;
+    const builtinGroup = providers.filter(p=>p.builtin).map(p=>
+        `<option value="${p.id}" ${p.id===activeId?'selected':''}>${p.name}</option>`
+    ).join('');
+    const customGroup = providers.filter(p=>!p.builtin).map(p=>
+        `<option value="${p.id}" ${p.id===activeId?'selected':''}>${escapeHtml(p.name)}</option>`
+    ).join('');
     showAdvanced(`
         <div class="advanced-head"><h3>⚙️ ${fa?'تنظیمات هوش مصنوعی':'AI Settings'}</h3><button class="btn-main" onclick="closeAdvancedModal()">✕</button></div>
         <p style="opacity:.65;font-size:11px;line-height:1.9">${fa
-            ? 'کلید API فقط در localStorage همین مرورگر ذخیره می‌شود و فقط به آدرس همان سرویس ارسال می‌شود؛ به هیچ سرور دیگری فرستاده نمی‌شود. یادداشت‌های رمزدار هرگز به AI فرستاده نمی‌شوند مگر این‌که از بخش «پرسش» باز/آنلاک شده باشند.'
-            : 'Your API key is stored only in this browser\'s localStorage and is sent only to the provider you pick — never anywhere else. Locked notes are never sent to AI unless unlocked from the Ask section.'}</p>
+            ? 'کلید API فقط در localStorage همین مرورگر ذخیره می‌شود و فقط به آدرس همان سرویس ارسال می‌شود؛ به هیچ سرور دیگری فرستاده نمی‌شود. یادداشت‌های رمزدار هرگز به AI فرستاده نمی‌شوند مگر این‌که از بخش «پرسش» باز/آنلاک شده باشند. می‌تونی هر تعداد ارائه‌دهنده دلخواه (هر API سازگاری) اضافه کنی.'
+            : 'Your API key is stored only in this browser\'s localStorage and is sent only to the provider you pick — never anywhere else. Locked notes are never sent to AI unless unlocked from the Ask section. Add as many providers as you like, any compatible API.'}</p>
         <div class="markhin-ai-settings-row">
             <label>${fa?'ارائه‌دهنده':'Provider'}</label>
-            <select id="muAiProvider">
-                <option value="openai" ${s.provider==='openai'?'selected':''}>OpenAI</option>
-                <option value="anthropic" ${s.provider==='anthropic'?'selected':''}>Anthropic</option>
-                <option value="custom" ${s.provider==='custom'?'selected':''}>${fa?'سازگار با OpenAI (سفارشی)':'OpenAI-compatible (custom)'}</option>
+            <select id="muAiProvider" onchange="mu_onProviderPick(this.value)">
+                <optgroup label="${fa?'پیش‌فرض':'Built-in'}">${builtinGroup}</optgroup>
+                ${customGroup ? `<optgroup label="${fa?'ارائه‌دهنده‌های من':'My providers'}">${customGroup}</optgroup>` : ''}
+                <option value="__add_new__">➕ ${fa?'افزودن ارائه‌دهنده جدید...':'Add new provider...'}</option>
             </select>
+
+            <div id="muAiNewProviderBox" style="display:none;flex-direction:column;gap:9px;padding:10px;border:1px dashed var(--panel-border);border-radius:8px;">
+                <label>${fa?'نام ارائه‌دهنده':'Provider name'}</label>
+                <input type="text" id="muAiNewName" placeholder="${fa?'مثلاً Groq یا سرور من':'e.g. Groq, Together, my own server'}">
+                <label>${fa?'قالب API':'API format'}</label>
+                <select id="muAiNewFormat">
+                    <option value="openai">${fa?'سازگار با OpenAI (اکثر سرویس‌ها، از جمله OpenRouter)':'OpenAI-compatible (most services, incl. OpenRouter)'}</option>
+                    <option value="anthropic">${fa?'به سبک Anthropic (x-api-key)':'Anthropic-style (x-api-key)'}</option>
+                </select>
+                <label>Base URL</label>
+                <input type="text" id="muAiNewBase" placeholder="https://openrouter.ai/api/v1">
+                <button type="button" class="btn-main" onclick="mu_confirmNewProvider()">✅ ${fa?'ایجاد و انتخاب':'Create & select'}</button>
+            </div>
+
             <label>${fa?'کلید API':'API Key'}</label>
-            <input type="password" id="muAiKey" value="${escapeHtml(s.apiKey||'')}" placeholder="sk-...">
+            <input type="password" id="muAiKey" value="${escapeHtml(fields.apiKey||'')}" placeholder="sk-...">
             <label>${fa?'مدل (اختیاری)':'Model (optional)'}</label>
-            <input type="text" id="muAiModel" value="${escapeHtml(s.model||'')}" placeholder="${fa?'مثلاً gpt-5-mini یا claude-haiku-4-5-20251001':'e.g. gpt-5-mini or claude-haiku-4-5-20251001'}">
-            <label>${fa?'Base URL (فقط سفارشی/اختیاری)':'Base URL (custom/optional)'}</label>
-            <input type="text" id="muAiBase" value="${escapeHtml(s.baseUrl||'')}" placeholder="https://api.openai.com/v1">
+            <input type="text" id="muAiModel" value="${escapeHtml(fields.model||'')}" placeholder="${fa?'مثلاً gpt-5-mini یا openai/gpt-4o-mini':'e.g. gpt-5-mini or openai/gpt-4o-mini'}">
+            <label>${fa?'Base URL (اختیاری برای OpenAI/OpenRouter)':'Base URL (optional for OpenAI/OpenRouter)'}</label>
+            <input type="text" id="muAiBase" value="${escapeHtml(fields.baseUrl||'')}" placeholder="https://api.openai.com/v1">
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
             <button class="btn-main" onclick="mu_saveAiSettings()">💾 ${fa?'ذخیره':'Save'}</button>
-            <button class="btn-main" onclick="mu_clearAiSettings()">🗑️ ${fa?'حذف کلید':'Clear key'}</button>
+            ${isCustom ? `<button class="btn-main" onclick="mu_removeAiProvider()">🗑️ ${fa?'حذف این ارائه‌دهنده':'Remove this provider'}</button>` : `<button class="btn-main" onclick="mu_clearAiSettings()">🗑️ ${fa?'حذف کلید':'Clear key'}</button>`}
             <button class="btn-main" onclick="mu_testAiSettings()">🔎 ${fa?'تست اتصال':'Test connection'}</button>
         </div>
         <div id="muAiTestResult" style="margin-top:8px;font-size:11px;opacity:.85"></div>
@@ -7137,28 +7306,83 @@ function mu_openAiSettingsModal(){
 }
 window.mu_openAiSettingsModal = mu_openAiSettingsModal;
 
+window.mu_onProviderPick = function(value){
+    const box = document.getElementById('muAiNewProviderBox');
+    if(value === '__add_new__'){
+        if(box) box.style.display = 'flex';
+        return;
+    }
+    if(box) box.style.display = 'none';
+    const fields = MarkhinAI.getProviderFields(value);
+    if(!fields) return;
+    const keyEl = document.getElementById('muAiKey');
+    const modelEl = document.getElementById('muAiModel');
+    const baseEl = document.getElementById('muAiBase');
+    if(keyEl) keyEl.value = fields.apiKey||'';
+    if(modelEl) modelEl.value = fields.model||'';
+    if(baseEl) baseEl.value = fields.baseUrl||'';
+};
+
+window.mu_confirmNewProvider = function(){
+    const fa = currentLang==='fa';
+    const name = ((document.getElementById('muAiNewName')||{}).value||'').trim();
+    const format = (document.getElementById('muAiNewFormat')||{}).value || 'openai';
+    const baseUrl = ((document.getElementById('muAiNewBase')||{}).value||'').trim();
+    const apiKey = ((document.getElementById('muAiKey')||{}).value||'').trim();
+    const model = ((document.getElementById('muAiModel')||{}).value||'').trim();
+    if(!name){ showToast(fa?'یک نام برای ارائه‌دهنده وارد کن.':'Give the provider a name.'); return; }
+    if(!baseUrl){ showToast(fa?'برای ارائه‌دهنده سفارشی، Base URL لازم است.':'A custom provider needs a Base URL.'); return; }
+    MarkhinAI.addCustomProvider({ name, format, baseUrl, apiKey, model });
+    showToast(fa?'ارائه‌دهنده اضافه شد.':'Provider added.');
+    mu_openAiSettingsModal();
+};
+
+window.mu_removeAiProvider = function(){
+    const sel = document.getElementById('muAiProvider');
+    const id = sel ? sel.value : null;
+    if(!id || id.indexOf('custom:')!==0) return;
+    MarkhinAI.removeCustomProvider(id);
+    showToast(currentLang==='fa'?'ارائه‌دهنده حذف شد.':'Provider removed.');
+    mu_openAiSettingsModal();
+};
+
 function mu_readAiForm(){
+    const sel = document.getElementById('muAiProvider');
     return {
-        provider: (document.getElementById('muAiProvider')||{}).value || 'openai',
+        id: sel ? sel.value : 'openai',
         apiKey: ((document.getElementById('muAiKey')||{}).value || '').trim(),
         model: ((document.getElementById('muAiModel')||{}).value || '').trim(),
         baseUrl: ((document.getElementById('muAiBase')||{}).value || '').trim()
     };
 }
 window.mu_saveAiSettings = function(){
-    MarkhinAI.saveSettings(mu_readAiForm());
+    const f = mu_readAiForm();
+    if(f.id === '__add_new__'){ mu_confirmNewProvider(); return; }
+    MarkhinAI.saveProviderFields(f.id, f);
     showToast(currentLang==='fa' ? 'تنظیمات AI ذخیره شد.' : 'AI settings saved.');
     closeAdvancedModal();
 };
 window.mu_clearAiSettings = function(){
-    MarkhinAI.clear();
+    const sel = document.getElementById('muAiProvider');
+    const id = sel ? sel.value : 'openai';
+    if(id.indexOf('custom:')===0){ MarkhinAI.removeCustomProvider(id); }
+    else { MarkhinAI.saveProviderFields(id, { apiKey:'', model:'', baseUrl:'' }); }
     showToast(currentLang==='fa' ? 'کلید حذف شد.' : 'Key cleared.');
     closeAdvancedModal();
 };
 window.mu_testAiSettings = async function(){
     const el = document.getElementById('muAiTestResult');
+    const f = mu_readAiForm();
+    if(f.id === '__add_new__'){
+        const name = ((document.getElementById('muAiNewName')||{}).value||'').trim();
+        const format = (document.getElementById('muAiNewFormat')||{}).value || 'openai';
+        const baseUrl = ((document.getElementById('muAiNewBase')||{}).value||'').trim();
+        if(!name || !baseUrl){ if(el) el.textContent = currentLang==='fa' ? '⚠️ ابتدا نام و Base URL را وارد کن.' : '⚠️ Fill in a name and Base URL first.'; return; }
+        MarkhinAI.addCustomProvider({ name, format, baseUrl, apiKey:f.apiKey, model:f.model });
+    } else {
+        MarkhinAI.saveProviderFields(f.id, f);
+    }
     if(el) el.textContent = currentLang==='fa' ? '⏳ در حال تست...' : '⏳ Testing...';
-    MarkhinAI.saveSettings(mu_readAiForm());
     try{
         const reply = await MarkhinAI.chat([{role:'user', content:'Reply with only the word OK.'}], {maxTokens:10});
         if(el) el.textContent = '✅ ' + (reply||'OK').slice(0,90);
@@ -7180,7 +7404,7 @@ async function mu_askAI(){
     const resBox = document.getElementById('qaResponse');
     if(!resBox) return;
     let aiBox = document.getElementById('muAiAnswerBox');
-    if(!aiBox){ aiBox = document.createElement('div'); aiBox.id='muAiAnswerBox'; aiBox.style.marginTop='10px'; resBox.parentNode.insertBefore(aiBox, resBox.nextSibling); }
+    if(!aiBox){ aiBox = document.createElement('div'); aiBox.id='muAiAnswerBox'; aiBox.style.marginBottom='10px'; resBox.parentNode.insertBefore(aiBox, resBox); }
     aiBox.style.display='block';
     const fa = currentLang==='fa';
     aiBox.innerHTML = `<div class="markhin-ai-loading">🤖 ${fa?'در حال پرسیدن از AI...':'Asking AI...'}</div>`;
