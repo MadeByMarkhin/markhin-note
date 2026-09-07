@@ -1892,7 +1892,7 @@ window.mu_syncHtmlBg = function(){
             <div class="toolbar-group">
                 <button class="btn-main" id="btnExportJson" onclick="openStructuredExportPicker('json')">خروجی JSON</button>
                 <button class="btn-main" id="btnExportCsv" onclick="openStructuredExportPicker('csv')">خروجی CSV</button>
-                <button class="btn-main" id="btnExportHtml" onclick="exportFullHTML()">خروجی HTML</button>
+                <button class="btn-main" id="btnExportHtml" onclick="openHtmlExportPicker()">خروجی HTML</button>
                 <button class="btn-main" id="btnExportTxt" onclick="openStructuredExportPicker('txt')">خروجی TXT</button>
                 <button class="btn-main" id="btnExportPdf" onclick="openPDFExportPicker()">خروجی PDF</button>
                 <button class="btn-main" id="btnExportDocx" onclick="openDOCXExportPicker()">خروجی DOCX</button>
@@ -5702,16 +5702,49 @@ window.mu_syncHtmlBg = function(){
             return text.replace(/\n/g,'<br>');
         }
 
-        async function exportFullHTML() {
+        function openHtmlExportPicker() {
+            const fa = currentLang === 'fa';
+            showAdvanced(`
+                <div class="advanced-head image-export-picker-head">
+                    <div><h3 style="margin:0">${fa ? '💾 خروجی HTML' : '💾 HTML Export'}</h3><p style="margin:5px 0 0;opacity:.65;font-size:11px">${fa ? 'یکی از سه نوع بکاپ کامل HTML رو انتخاب کن.' : 'Pick which kind of full HTML backup you want.'}</p></div>
+                    <button class="btn-main" onclick="closeAdvancedModal()">✕</button>
+                </div>
+                <div class="image-export-choice-grid" style="grid-template-columns:1fr">
+                    <button type="button" class="image-export-choice" onclick="exportFullHTML('clean')">
+                        <span class="image-export-choice-icon">🧼</span>
+                        <span class="image-export-choice-name">${fa ? 'فقط برنامه، بدون یادداشت' : 'App only, no notes'}</span>
+                        <span class="image-export-choice-action">${fa ? 'یک نسخه‌ی خالی از برنامه؛ هیچ یادداشت یا کلید API‌ای همراهش نیست — مناسب اشتراک‌گذاری کد یا شروع از صفر.' : 'A blank copy of the app; no notes or API key included — good for sharing the code or starting fresh.'}</span>
+                    </button>
+                    <button type="button" class="image-export-choice" onclick="exportFullHTML('data')">
+                        <span class="image-export-choice-icon">📦</span>
+                        <span class="image-export-choice-name">${fa ? 'کامل با یادداشت‌ها، بدون کلید API' : 'Full with notes, no API key'}</span>
+                        <span class="image-export-choice-action">${fa ? 'همه‌ی یادداشت‌ها و پوشه‌ها همراهش هست، ولی کلید API تنظیمات هوش مصنوعی داخلش نمی‌ره — بهترین گزینه برای بکاپ یا اشتراک‌گذاری معمولی.' : 'All your notes and folders are included, but your AI provider’s API key is left out — the best choice for a normal backup or sharing.'}</span>
+                    </button>
+                    <button type="button" class="image-export-choice" onclick="exportFullHTML('everything')">
+                        <span class="image-export-choice-icon">🔐</span>
+                        <span class="image-export-choice-name">${fa ? 'کامل، حتی کلید API' : 'Full, including API key'}</span>
+                        <span class="image-export-choice-action">${fa ? 'یادداشت‌ها به‌همراه تنظیمات و کلید API همراهش می‌ره تا با باز کردن فایل، MARKHIN AI هم بدون تنظیم دوباره کار کنه. این فایل رو با کسی به اشتراک نذار.' : 'Notes plus your AI settings and API key, so MARKHIN AI works right away when the file is reopened. Never share this file with anyone.'}</span>
+                    </button>
+                </div>
+            `);
+        }
+        window.openHtmlExportPicker = openHtmlExportPicker;
+
+        async function exportFullHTML(mode) {
+            mode = mode || 'data';
             const fa = currentLang === 'fa';
             const exportBtn = document.getElementById('btnExportHtml');
             const now0 = new Date();
             const pad0 = n => String(n).padStart(2, '0');
             const defaultStamp = `${now0.getFullYear()}-${pad0(now0.getMonth() + 1)}-${pad0(now0.getDate())}_${pad0(now0.getHours())}-${pad0(now0.getMinutes())}`;
-            const chosenName = await promptFilename(`Markhin-Snapshot-${defaultStamp}`, 'html', {
-                desc: fa ? 'نام فایل بکاپ کامل HTML (شامل همه یادداشت‌ها).' : 'Name for the full HTML snapshot backup file.'
-            });
-            if (chosenName === null) return;
+            const nameHint = mode === 'clean'
+                ? (fa ? 'نام فایل نسخه‌ی خالی برنامه (بدون یادداشت).' : 'Name for the blank app copy (no notes).')
+                : mode === 'everything'
+                    ? (fa ? 'نام فایل بکاپ کامل HTML، شامل یادداشت‌ها و کلید API. این فایل را با کسی به اشتراک نگذار.' : 'Name for the full HTML backup, including your API key. Do not share this file.')
+                    : (fa ? 'نام فایل بکاپ کامل HTML (شامل همه یادداشت‌ها، بدون کلید API).' : 'Name for the full HTML snapshot backup (includes all notes, no API key).');
+            const chosenName = await promptFilename(`Markhin-Snapshot-${defaultStamp}`, 'html', { desc: nameHint });
+            if (chosenName === null) { closeAdvancedModal(); return; }
+            closeAdvancedModal();
             if (exportBtn) exportBtn.disabled = true;
             try {
                 // Work on a detached clone of the page so the live app/session on screen is
@@ -5729,6 +5762,20 @@ window.mu_syncHtmlBg = function(){
                 // a leftover AI answer, etc).
                 const advModal = docClone.querySelector('#advancedModal');
                 if (advModal) advModal.style.display = 'none';
+                // Just hiding the modal isn't enough: if the AI settings screen happened to
+                // be open when Export was clicked, its API-key input carries the typed key as
+                // a literal HTML "value" attribute — hiding the overlay leaves that attribute
+                // sitting in the exported file's raw source (readable via view-source, even
+                // though nothing is visible on screen). Wipe the modal's contents outright so
+                // no such value can ever ride along in a snapshot; the "everything" mode below
+                // still carries the key, but only through the deliberate localStorage seed,
+                // never through leftover form markup.
+                const advCard = docClone.querySelector('#advancedCard');
+                if (advCard) advCard.innerHTML = '';
+                // Belt-and-braces: strip any password-type input's value, and the AI key
+                // field specifically by id, in case some other flow ever renders one outside
+                // the advanced modal.
+                docClone.querySelectorAll('input[type="password"], #muAiKey').forEach(el => el.removeAttribute('value'));
                 const gameModal = docClone.querySelector('#gameModal');
                 if (gameModal) gameModal.style.display = 'none';
                 const btnContainer = docClone.querySelector('#buttonsContainer');
@@ -5751,19 +5798,32 @@ window.mu_syncHtmlBg = function(){
                 // a reopened snapshot render in quirks mode; add it back explicitly.
                 let fullHtml = '<!DOCTYPE html>\n' + docClone.outerHTML;
 
-                const categoriesJson = JSON.stringify(categories).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026');
-                const foldersJson = JSON.stringify(folders.filter(f => f !== DEFAULT_FOLDER)).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026');
-                // Time Capsule / Ghost Note / Decay now live directly on each note object
-                // (see categoriesJson above), so there's no separate metadata blob left
-                // to seed here — the snapshot carries everything in one key.
-                let dataScript = `
+                const jsEscape = s => s.replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026').replace(/'/g, "\\u0027");
+                let seedLines = '';
+                if (mode !== 'clean') {
+                    // Time Capsule / Ghost Note / Decay now live directly on each note object
+                    // (see categoriesJson above), so there's no separate metadata blob left
+                    // to seed here — the snapshot carries everything in one key.
+                    const categoriesJson = jsEscape(JSON.stringify(categories));
+                    const foldersJson = jsEscape(JSON.stringify(folders.filter(f => f !== DEFAULT_FOLDER)));
+                    seedLines += `
+                            localStorage.setItem('app_categories_v13', '${categoriesJson}');
+                            localStorage.setItem('app_folders_v13', '${foldersJson}');`;
+                }
+                if (mode === 'everything') {
+                    // Only this mode carries the AI provider settings (including the API key)
+                    // into the exported file, and only via this explicit, deliberate seed —
+                    // never as a byproduct of cloning whatever happened to be on screen.
+                    const aiSettingsJson = jsEscape(JSON.stringify(MarkhinAI.getSettings()));
+                    seedLines += `
+                            localStorage.setItem('${MarkhinAI.KEY}', '${aiSettingsJson}');`;
+                }
+                let dataScript = seedLines ? `
                     <script data-markhin-seed="1">
-                        window.addEventListener('DOMContentLoaded', () => {
-                            localStorage.setItem('app_categories_v13', '${categoriesJson.replace(/'/g, "\\u0027")}');
-                            localStorage.setItem('app_folders_v13', '${foldersJson.replace(/'/g, "\\u0027")}');
+                        window.addEventListener('DOMContentLoaded', () => {${seedLines}
                         });
                     <\/script>
-                `;
+                ` : '';
                 fullHtml = fullHtml.replace('</body>', dataScript + '</body>');
 
                 const blob = new Blob([fullHtml], { type: 'text/html;charset=utf-8' });
