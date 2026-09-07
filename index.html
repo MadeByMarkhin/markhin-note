@@ -1696,6 +1696,137 @@ window.mu_syncHtmlBg = function(){
             } catch (e) { console.warn('Incoming Telegram download bridge failed', e); }
         })();
 
+        /* =====================================================================
+           TELEGRAM CLOUD STORAGE — cross-device text backup
+           ---------------------------------------------------------------------
+           Right now every note lives only in this browser's localStorage — tied
+           to one device, and gone if Telegram ever clears WebView storage.
+           Telegram.WebApp.CloudStorage keeps small pieces of data attached to
+           the user's account and synced across every device they open this
+           Mini App from. Its hard limits: at most 1024 keys, each value up to
+           4096 characters — nowhere near enough for embedded base64 images (a
+           single photo can be hundreds of KB), so this backs up note TEXT and
+           metadata only; images always stay local-only on the device that has
+           them. The JSON payload is split across as many small `mk_c{n}` keys
+           as needed, with an `mk_meta` key describing how many chunks exist.
+           This is a manual backup/restore via Dashboard → ☁️ Cloud Backup, not
+           silent auto-merging — so it can never quietly overwrite a newer local
+           edit with a stale cloud copy. Auto-backup (scheduleCloudBackup) only
+           ever *pushes* the latest data up; pulling back down always requires
+           the person to tap Restore and confirm.
+           ===================================================================== */
+        const hasCloudStorage = !!(TG && TG.CloudStorage);
+        const CLOUD_CHUNK_SIZE = 3500; // safely under Telegram's 4096-char/value limit
+        const CLOUD_META_KEY = 'mk_meta';
+        const CLOUD_CHUNK_PREFIX = 'mk_c';
+
+        function cloudGetItem(key) {
+            return new Promise((resolve) => {
+                try { TG.CloudStorage.getItem(key, (err, val) => resolve(err ? null : val)); }
+                catch (e) { resolve(null); }
+            });
+        }
+        function cloudGetItems(keys) {
+            return new Promise((resolve) => {
+                if (!keys.length) { resolve({}); return; }
+                try { TG.CloudStorage.getItems(keys, (err, vals) => resolve(err ? {} : (vals || {}))); }
+                catch (e) { resolve({}); }
+            });
+        }
+        function cloudSetItem(key, value) {
+            return new Promise((resolve) => {
+                try { TG.CloudStorage.setItem(key, value, (err, ok) => resolve(!err && ok !== false)); }
+                catch (e) { resolve(false); }
+            });
+        }
+        function cloudRemoveItems(keys) {
+            return new Promise((resolve) => {
+                if (!keys.length) { resolve(true); return; }
+                try { TG.CloudStorage.removeItems(keys, (err, ok) => resolve(!err)); }
+                catch (e) { resolve(false); }
+            });
+        }
+
+        // Strips embedded <img> markup (the one thing that can make a note huge)
+        // so the rest of its text/metadata has a real shot at fitting the cloud
+        // budget. Images are never part of the cloud backup — only a placeholder
+        // note that one lived in this spot, so restoring text elsewhere doesn't
+        // silently lose the fact that an image used to be there.
+        function cloudStripImages(html) {
+            const placeholder = currentLang === 'fa' ? '[تصویر — فقط روی همین دستگاه]' : '[image — this device only]';
+            return String(html || '')
+                .replace(/<div class="img-drag-wrapper"[\s\S]*?<\/div>\s*(<\/div>)?/g, placeholder)
+                .replace(/<img[^>]*>/g, placeholder);
+        }
+
+        async function cloudBuildPayload() {
+            // Most-recently-edited notes first, so if we run out of budget it's
+            // the oldest/least-touched notes left out, not the one being worked on.
+            const sorted = categories.slice().sort((a, b) => (Date.parse(b.lastEdited) || 0) - (Date.parse(a.lastEdited) || 0));
+            let included = sorted.map(item => ({
+                id: item.id, name: item.name, folder: item.folder,
+                text: item.text, html: cloudStripImages(item.html),
+                tags: item.tags, pinned: item.pinned, favorite: item.favorite,
+                lastEdited: item.lastEdited
+            }));
+            const totalNotes = included.length;
+            const customFolders = folders.filter(f => f !== DEFAULT_FOLDER);
+            let skipped = 0;
+            let json = JSON.stringify({ v: 1, ts: Date.now(), folders: customFolders, notes: included });
+            const budget = CLOUD_CHUNK_SIZE * 900; // stay well under Telegram's 1024-key ceiling
+            while (json.length > budget && included.length > 1) {
+                included = included.slice(0, -1);
+                skipped++;
+                json = JSON.stringify({ v: 1, ts: Date.now(), folders: customFolders, notes: included });
+            }
+            return { json, skipped, totalNotes };
+        }
+
+        let __cloudBackupTimer = null;
+        function scheduleCloudBackup() {
+            if (!IS_TELEGRAM || !hasCloudStorage) return;
+            clearTimeout(__cloudBackupTimer);
+            __cloudBackupTimer = setTimeout(() => { cloudBackupNow().catch(e => console.warn('Cloud backup failed', e)); }, 3000);
+        }
+
+        async function cloudBackupNow() {
+            if (!hasCloudStorage) return { ok: false, reason: 'unavailable' };
+            const { json, skipped, totalNotes } = await cloudBuildPayload();
+            const chunks = [];
+            for (let i = 0; i < json.length; i += CLOUD_CHUNK_SIZE) chunks.push(json.slice(i, i + CLOUD_CHUNK_SIZE));
+
+            const prevMetaRaw = await cloudGetItem(CLOUD_META_KEY);
+            const prevMeta = prevMetaRaw ? safeParseJSON(prevMetaRaw, null) : null;
+            const prevCount = (prevMeta && prevMeta.n) || 0;
+
+            for (let i = 0; i < chunks.length; i++) {
+                const ok = await cloudSetItem(CLOUD_CHUNK_PREFIX + i, chunks[i]);
+                if (!ok) return { ok: false, reason: 'write-failed' };
+            }
+            // Clean up leftover chunk keys from a previous, larger backup.
+            if (prevCount > chunks.length) {
+                const stale = [];
+                for (let i = chunks.length; i < prevCount; i++) stale.push(CLOUD_CHUNK_PREFIX + i);
+                await cloudRemoveItems(stale);
+            }
+            const meta = { n: chunks.length, ts: Date.now(), notes: totalNotes - skipped, skipped };
+            await cloudSetItem(CLOUD_META_KEY, JSON.stringify(meta));
+            return { ok: true, meta };
+        }
+
+        async function cloudRestore() {
+            if (!hasCloudStorage) return null;
+            const metaRaw = await cloudGetItem(CLOUD_META_KEY);
+            const meta = metaRaw ? safeParseJSON(metaRaw, null) : null;
+            if (!meta || !meta.n) return null;
+            const keys = []; for (let i = 0; i < meta.n; i++) keys.push(CLOUD_CHUNK_PREFIX + i);
+            const parts = await cloudGetItems(keys);
+            const json = keys.map(k => parts[k] || '').join('');
+            const data = safeParseJSON(json, null);
+            if (!data || !Array.isArray(data.notes)) return null;
+            return { meta, data };
+        }
+
         const i18n = {
             fa: {
                 title: "مدیریت اطلاعات و حساب‌ها",
@@ -2268,6 +2399,7 @@ window.mu_syncHtmlBg = function(){
                 const payload = JSON.stringify(categories);
                 localStorage.setItem('app_categories_v13', payload);
                 lastGoodStorageSnapshot = payload;
+                scheduleCloudBackup();
                 return true;
             } catch (error) {
                 if (lastGoodStorageSnapshot) {
@@ -2282,6 +2414,7 @@ window.mu_syncHtmlBg = function(){
             const customF = folders.filter(f => f !== DEFAULT_FOLDER);
             try {
                 localStorage.setItem('app_folders_v13', JSON.stringify(customF));
+                scheduleCloudBackup();
                 return true;
             } catch (error) {
                 showToast('ذخیره پوشه‌ها انجام نشد.');
@@ -6266,6 +6399,7 @@ function markhinDashboardMain(){
         `<div class="markhin-dashboard-grid">${heroGrid}</div>`+
         `<p class="dna-section-title" style="margin-top:16px">${fa?'میانبرها':'Quick filters'}</p>`+
         `<div class="markhin-dashboard-grid">${actionGrid}</div>`+
+        (IS_TELEGRAM && hasCloudStorage ? `<div style="margin-top:16px"><button class="btn-main" style="width:100%" onclick="markhinDash_showCloudPanel()">☁️ ${fa?'بکاپ Cloud تلگرام':'Telegram Cloud Backup'}</button></div>` : '')+
         `<p class="dna-section-title" style="margin-top:16px">${fa?'ابر تگ‌ها — روی هرکدام بزن':'Tag cloud — tap to filter'}</p>`+
         `<div class="markhin-tag-cloud">${tagCloudHtml}</div>`+
         (recent.length?`<p class="dna-section-title" style="margin-top:16px">${fa?'اخیراً ویرایش‌شده':'Recently edited'}</p><div class="markhin-smart-results">${recentHtml}</div>`:'')+
@@ -6276,6 +6410,79 @@ function markhinDashboardMain(){
 }
 window.markhinDashboardMain=markhinDashboardMain;
 window.openMarkhinDashboard=function(){ markhinDashboardMain(); };
+
+/* ============== Telegram Cloud Backup panel ============== */
+async function markhinDash_showCloudPanel(){
+    const fa=currentLang==='fa';
+    showAdvanced(markhinDash_headHtml(`☁️ ${fa?'بکاپ Cloud تلگرام':'Telegram Cloud Backup'}`,true)+
+        `<div id="cloudPanelBody" style="font-size:12.5px;line-height:1.9">${fa?'در حال بررسی...':'Checking...'}</div>`);
+    const metaRaw = await cloudGetItem(CLOUD_META_KEY);
+    const meta = metaRaw ? safeParseJSON(metaRaw, null) : null;
+    const body = document.getElementById('cloudPanelBody');
+    if (!body) return;
+    const info = meta
+        ? (fa ? `آخرین بکاپ: ${new Date(meta.ts).toLocaleString('fa-IR')}<br>یادداشت‌های پشتیبان‌گیری‌شده: ${meta.notes}${meta.skipped?` (⚠️ ${meta.skipped} یادداشت به‌دلیل محدودیت فضا رد شد)`:''}`
+             : `Last backup: ${new Date(meta.ts).toLocaleString()}<br>Notes backed up: ${meta.notes}${meta.skipped?` (⚠️ ${meta.skipped} skipped — over the size limit)`:''}`)
+        : (fa ? 'هنوز هیچ بکاپی در Cloud تلگرام ثبت نشده.' : 'No cloud backup yet.');
+    body.innerHTML = `<p>${info}</p>` +
+        `<p style="opacity:.7">${fa?'⚠️ فقط متن و اطلاعات یادداشت‌ها بکاپ می‌شود؛ تصاویر فقط روی همین دستگاه می‌مانند و در بکاپ نیستند. این بکاپ بین همه‌ی دستگاه‌هایی که همین ربات را در تلگرام باز کنی مشترک است.':'⚠️ Only note text/metadata is backed up here — images stay on this device and are not included. This backup is shared across every device where you open this bot in Telegram.'}</p>` +
+        `<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">` +
+        `<button class="btn-main btn-save-prominent" onclick="markhinDash_cloudBackupClick()">📤 ${fa?'بکاپ الان':'Backup now'}</button>` +
+        `<button class="btn-main" onclick="markhinDash_cloudRestoreClick()" ${meta?'':'disabled'}>📥 ${fa?'بازیابی از Cloud':'Restore from cloud'}</button>` +
+        `</div>`;
+}
+window.markhinDash_showCloudPanel = markhinDash_showCloudPanel;
+
+async function markhinDash_cloudBackupClick(){
+    const fa=currentLang==='fa';
+    showToast(fa?'در حال بکاپ‌گیری...':'Backing up...', 1500);
+    const res = await cloudBackupNow();
+    if (res.ok) {
+        showToast(fa
+            ? `✅ بکاپ ${res.meta.notes} یادداشت در Cloud تلگرام ذخیره شد.${res.meta.skipped?` (${res.meta.skipped} مورد رد شد)`:''}`
+            : `✅ Backed up ${res.meta.notes} notes to Telegram Cloud.${res.meta.skipped?` (${res.meta.skipped} skipped)`:''}`, 3200);
+        markhinDash_showCloudPanel();
+    } else {
+        showToast(fa?'⚠️ بکاپ‌گیری انجام نشد. دوباره امتحان کن.':'⚠️ Backup failed. Please try again.', 3200);
+    }
+}
+window.markhinDash_cloudBackupClick = markhinDash_cloudBackupClick;
+
+async function markhinDash_cloudRestoreClick(){
+    const fa=currentLang==='fa';
+    const result = await cloudRestore();
+    if (!result) { showToast(fa?'بکاپی برای بازیابی پیدا نشد.':'No backup found to restore.', 2600); return; }
+    const ok = confirm(fa
+        ? `${result.data.notes.length} یادداشت متنی از Cloud تلگرام بازیابی می‌شود.\nیادداشت‌هایی که همین‌جا هم وجود دارند (با شناسه یکسان) فقط در صورتی به‌روزرسانی می‌شوند که نسخه‌ی Cloud جدیدتر باشد؛ تصاویرشان دست‌نخورده می‌ماند. یادداشت‌های جدید اضافه می‌شوند. ادامه می‌دهی؟`
+        : `${result.data.notes.length} text notes will be restored from Telegram Cloud.\nNotes that already exist here (same id) are only updated if the cloud copy is newer — their images are left untouched. New notes are added. Continue?`);
+    if (!ok) return;
+
+    let updated = 0, added = 0;
+    result.data.notes.forEach(cloudItem => {
+        const local = categories.find(c => c.id === cloudItem.id);
+        if (local) {
+            if ((Date.parse(cloudItem.lastEdited) || 0) > (Date.parse(local.lastEdited) || 0)) {
+                local.name = cloudItem.name; local.folder = cloudItem.folder;
+                local.text = cloudItem.text; local.tags = cloudItem.tags;
+                local.pinned = cloudItem.pinned; local.favorite = cloudItem.favorite;
+                local.lastEdited = cloudItem.lastEdited;
+                // Only take the cloud HTML if the local note has no images of its
+                // own to lose — otherwise keep the local copy (with its images).
+                if (!/<img|img-drag-wrapper/.test(local.html || '')) local.html = cloudItem.html;
+                updated++;
+            }
+        } else {
+            categories.push(normalizeCategory(Object.assign({}, cloudItem, { history: [] }), categories.length));
+            added++;
+        }
+    });
+    (result.data.folders || []).forEach(f => { if (f && !folders.includes(f)) folders.push(f); });
+    saveToLocalStorage(); saveFoldersToLocalStorage();
+    showToast(fa ? `✅ بازیابی انجام شد — ${added} یادداشت جدید، ${updated} یادداشت به‌روزرسانی شد.` : `✅ Restored — ${added} new, ${updated} updated.`, 3600);
+    closeAdvancedModal();
+    renderApp();
+}
+window.markhinDash_cloudRestoreClick = markhinDash_cloudRestoreClick;
 
 /* favorites virtual folder: handled by the app's native getVisibleCategories above. */
 // Keep the native getVisibleCategories implementation; do not wrap it recursively.
