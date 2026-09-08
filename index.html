@@ -87,6 +87,50 @@
             will-change: transform;
         }
 
+        /* Scroll black-flash fix. Every theme's ::before/::after is a full-viewport
+           position:fixed layer with a heavy filter:blur() AND a continuously running
+           CSS animation (oceanCaustics/auroraDrift/phantomDrift/twinkle/bubbles etc).
+           Re-blurring a full-screen layer on every animation tick is already expensive;
+           doing it *while the page is also scrolling* is what was showing up as a
+           flash of solid black — the WebView (this is worst inside Telegram's in-app
+           browser) drops frames under that combined GPU load and briefly presents an
+           unpainted compositor layer instead of the real pixels. A small scroll
+           listener (further down, next to the drag-reorder code) toggles this class
+           on <body> for the duration of any scroll (including
+           the manual auto-scroll used while drag-reordering notes/folders) and removes
+           it ~150ms after the last scroll event. Freezing the animation and dropping
+           the blur for that short window costs nothing visually — the drift is slow
+           and nobody is looking at it while actively scrolling — but it removes the
+           exact GPU spike that was causing the flash. */
+        body.mu-scrolling[class*="theme-"]::before,
+        body.mu-scrolling[class*="theme-"]::after {
+            animation-play-state: paused !important;
+            filter: none !important;
+            /* Keep the fixed layer painted; removing/recompositing it while a
+               fast fling is in progress can expose a black compositor frame. */
+        }
+        /* backdrop-filter is at least as expensive as the theme blur above, and
+           .content-container.show is on-screen for most of the time someone is
+           actually using the app (any time a note is open), not just briefly like
+           a modal — so it was a second, independent source of the same scroll
+           repaint spike. Dropping it for the same short scrolling window removes
+           that cost too, with no visible difference since it's imperceptible
+           mid-scroll. */
+        body.mu-scrolling .content-container.show,
+        body.mu-scrolling .qa-response-box {
+            backdrop-filter: none !important;
+            -webkit-backdrop-filter: none !important;
+        }
+        /* Respect the OS-level "reduce motion" setting some people turn on
+           specifically because animated UI causes them discomfort or performance
+           trouble on their device — honor it by turning the same decorative
+           layers fully static instead of just pausing them during scroll. */
+        @media (prefers-reduced-motion: reduce) {
+            body[class*="theme-"]::before, body[class*="theme-"]::after {
+                animation: none !important;
+            }
+        }
+
         /* Themes with Enhanced Aesthetics & Animations */
         /* Oceanic — deep-sea gradient with drifting sunlit caustics and a
            slow stream of rising bubbles, for a more immersive underwater vibe. */
@@ -109,7 +153,11 @@
                 radial-gradient(ellipse 45% 30% at 78% 18%, rgba(0, 180, 216, 0.14) 0%, transparent 60%),
                 radial-gradient(ellipse 60% 38% at 55% 55%, rgba(2, 62, 138, 0.22) 0%, transparent 65%),
                 radial-gradient(ellipse 50% 30% at 30% 95%, rgba(0, 119, 182, 0.16) 0%, transparent 60%);
-            filter: blur(9px);
+            /* Blur radius trimmed from 9px: repaint cost of a full-viewport blur
+               scales with the square of the radius, so this is a meaningful GPU
+               saving for a layer that's redrawn every animation frame, with a
+               difference that's basically invisible at this softness level. */
+            filter: blur(6px);
             pointer-events: none;
             z-index: -1;
             animation: oceanCaustics 20s ease-in-out infinite alternate;
@@ -180,7 +228,7 @@
                 radial-gradient(ellipse 38% 16% at 65% 12%, rgba(203, 213, 225, 0.13) 0%, transparent 70%),
                 radial-gradient(ellipse 50% 20% at 85% 35%, rgba(226, 232, 240, 0.1) 0%, transparent 70%),
                 radial-gradient(ellipse 45% 18% at 30% 62%, rgba(148, 163, 184, 0.1) 0%, transparent 70%);
-            filter: blur(10px);
+            filter: blur(7px);
             pointer-events: none;
             z-index: -1;
             animation: cloudDrift 42s linear infinite alternate;
@@ -308,7 +356,7 @@
                 radial-gradient(ellipse 55% 18% at 55% 22%, rgba(140, 120, 255, 0.18) 0%, transparent 62%),
                 radial-gradient(ellipse 60% 20% at 85% 12%, rgba(80, 200, 255, 0.16) 0%, transparent 62%),
                 radial-gradient(ellipse 70% 26% at 40% 88%, rgba(94, 255, 200, 0.1) 0%, transparent 65%);
-            filter: blur(14px);
+            filter: blur(9px);
             pointer-events: none;
             z-index: -1;
             animation: auroraDrift 18s ease-in-out infinite alternate;
@@ -359,7 +407,7 @@
                 radial-gradient(ellipse 50% 30% at 20% 25%, rgba(168, 85, 247, .16) 0%, transparent 62%),
                 radial-gradient(ellipse 45% 28% at 80% 65%, rgba(59, 130, 246, .12) 0%, transparent 62%),
                 radial-gradient(ellipse 55% 32% at 55% 90%, rgba(139, 92, 246, .1) 0%, transparent 65%);
-            filter: blur(16px);
+            filter: blur(10px);
             pointer-events: none;
             z-index: -1;
             animation: phantomDrift 22s ease-in-out infinite alternate;
@@ -400,9 +448,11 @@
                jump" bug: disabling the bounce removes the visible gap
                entirely instead of just trying to color-match it. */
             overscroll-behavior-y: none;
+            overscroll-behavior-x: none;
         }
 
         body {
+            isolation: isolate;
             font-family: 'Share Tech Mono', sans-serif;
             /* Base spacing plus the device's safe-area insets (notch, Dynamic Island,
                home-indicator, and — inside Telegram — its own edge chrome), so fixed/near-edge
@@ -1061,6 +1111,7 @@
             position: relative;
             display: inline-flex;
             align-items: center;
+            touch-action: pan-y;
         }
 
         .folder-tab {
@@ -1127,7 +1178,12 @@
             padding: var(--spacing-md);
             border-radius: var(--border-radius-main);
             box-shadow: 0 12px 35px rgba(0,0,0,0.25);
-            backdrop-filter: blur(18px);
+            /* Trimmed from 18px — backdrop-filter is one of the most expensive CSS
+               effects a mobile GPU can be asked to do, and this panel is visible
+               for most of the time someone actually has a note open (not just a
+               brief modal), so its cost was a constant, not occasional, drag on
+               scroll smoothness. 10px keeps the same frosted-glass look. */
+            backdrop-filter: blur(10px);
             position: relative;
             z-index: 1;
             box-sizing: border-box;
@@ -1672,7 +1728,17 @@
 
 /* Smoothness pass: reduce layout thrashing while keeping the existing visual design. */
 .note-card,.category-card,.btn-main,.custom-btn,.image-export-choice,.advanced-modal,.modal-content{transform:translateZ(0);backface-visibility:hidden;}
-.note-card,.category-card,.custom-btn,.image-export-choice{contain:layout paint;will-change:transform,opacity;}
+/* contain:layout paint is cheap (no extra GPU layer) and stays on always — it
+   stops each card's internal layout/paint from spilling into its neighbors.
+   will-change:transform,opacity used to sit here permanently too, but that
+   promotes EVERY note/category button into its own composited GPU layer for
+   as long as it exists — with dozens of notes that's dozens of always-on
+   layers, which is exactly the kind of GPU memory pressure that makes mobile
+   WebViews (Telegram's in-app browser especially) drop a frame and show a
+   flash of unpainted black during a scroll. The hover/press transitions on
+   these are short (0.15–0.35s) and don't need a pre-promoted layer, so
+   will-change is dropped entirely rather than left on permanently. */
+.note-card,.category-card,.custom-btn,.image-export-choice{contain:layout paint;}
 .note-card:active,.category-card:active,.image-export-choice:active{transform:translate3d(0,1px,0) scale(.992);}
 @media (prefers-reduced-motion:no-preference){
   .note-card,.category-card,.image-export-choice,.btn-main{transition:transform .18s cubic-bezier(.2,.8,.2,1),opacity .18s ease,box-shadow .18s ease,background-color .18s ease,border-color .18s ease,color .18s ease;}
@@ -2086,7 +2152,24 @@ window.mu_syncHtmlBg = function(){
         requestAnimationFrame(function(){
             var cs = getComputedStyle(document.body);
             document.documentElement.style.backgroundImage = cs.backgroundImage;
-            document.documentElement.style.backgroundColor = cs.backgroundColor;
+            // body's --bg-gradient is applied through the `background` shorthand
+            // with only a gradient value, so its resolved backgroundColor is
+            // always transparent — copying that onto <html> wipes out the
+            // opaque #000814 fallback the CSS above sets, leaving <html> with
+            // NO solid color under its gradient image. Under the heavy GPU
+            // load of a fast fling (the themed blur/animation layers this file
+            // already pauses via .mu-scrolling), the compositor can skip
+            // repainting that gradient image for a frame during a rubber-band
+            // bounce; with backgroundColor transparent there was nothing left
+            // to show but the WebView's native black canvas underneath — that
+            // was the black flash on a fast scroll/fling, worst scrolling up
+            // fast enough to bounce past the top. Only ever overwrite html's
+            // background-color with a real, non-transparent value so there's
+            // always an opaque color to fall back to.
+            var bg = cs.backgroundColor;
+            if (bg && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent') {
+                document.documentElement.style.backgroundColor = bg;
+            }
         });
     }catch(e){}
 };
@@ -2270,16 +2353,20 @@ window.mu_syncHtmlBg = function(){
            or openLink inside Mini Apps).
            Since this app has no backend to host generated files at a real URL,
            the two things that DO reliably work here are:
-             1) navigator.share() — the native OS share sheet. This is a real
-                browser API (not a Telegram link handler), so it works fine on
-                native Telegram for iOS/Android.
-             2) Reopening THIS SAME PAGE in the user's system browser (Chrome/
+             1) Reopening THIS SAME PAGE in the user's system browser (Chrome/
                 Safari) via Telegram.WebApp.openLink(), with the file's data
                 packed into the URL's hash fragment. Because it's a genuine
                 https:// URL (just with extra data after the #), Telegram allows
                 it — and once that page loads in a *real* browser tab, a normal
                 download works exactly the way it always has, because the tab is
-                no longer restricted by Telegram's WebView.
+                no longer restricted by Telegram's WebView. This is a real save
+                to the device, so robustDownload() tries it FIRST.
+             2) navigator.share() — the native OS share sheet. This is a real
+                browser API (not a Telegram link handler) and works fine on
+                native Telegram for iOS/Android, but it hands the file to
+                another app rather than downloading it — so it's only used as
+                a fallback when (1) can't be attempted (e.g. the file is over
+                TG_BRIDGE_MAX_BLOB_BYTES) or throws.
            robustDownload() below tries these first whenever we detect we're
            inside Telegram, before falling back to the older methods (which are
            kept as a last resort for Telegram Desktop, where the WebView is more
@@ -2575,6 +2662,7 @@ window.mu_syncHtmlBg = function(){
                 addImage: "افزودن تصویر",
                 translateToEn: "ترجمه به انگلیسی",
                 translateToFa: "ترجمه به فارسی",
+                revertToOriginal: "↩️ بازگشت به اصلی",
                 save: "ذخیره",
                 copy: "کپی",
                 downloadTxt: "دانلود TXT",
@@ -2669,6 +2757,7 @@ window.mu_syncHtmlBg = function(){
                 addImage: "Add Image",
                 translateToEn: "Translate to EN",
                 translateToFa: "Translate to FA",
+                revertToOriginal: "↩️ Revert to Original",
                 save: "Save",
                 copy: "Copy",
                 downloadTxt: "Download TXT",
@@ -3020,6 +3109,24 @@ window.mu_syncHtmlBg = function(){
                 currentThemeIndex = parseInt(savedThemeIdx, 10) || 0;
             }
 
+            /* A stale currentFolder (e.g. "Favorites" left over from a
+               previous session, or a folder that no longer exists) used to
+               only get corrected by a SECOND, separate DOMContentLoaded
+               listener further down — and because this handler is async and
+               yields at the "await migrateLegacyPasswordNotes()" above, that
+               second listener could actually run BEFORE this one reached
+               this point, rendering once with incomplete data (folders
+               still just the default, custom folders not loaded yet) and
+               then again a moment later once this handler finished — the
+               exact "options arrive late / folders don't show up" jank this
+               app was reported to have. Doing the correction here, in the
+               same handler, right before the one-and-only renderApp() call
+               below, means there is only ever one render at startup and it
+               already has the final, correct data. */
+            if (!Array.isArray(folders)) folders = [];
+            if (!folders.includes(DEFAULT_FOLDER)) folders.unshift(DEFAULT_FOLDER);
+            if (currentFolder === '__FAVORITES__' || !folders.includes(currentFolder)) currentFolder = DEFAULT_FOLDER;
+
             applyLanguageUI();
             applyTheme(currentThemeIndex);
             renderApp();
@@ -3353,12 +3460,32 @@ window.mu_syncHtmlBg = function(){
         }
 
         function renderApp(openId = activeOpenId) {
+            /* The list/content render intentionally rebuilds DOM nodes. On mobile
+               WebViews that can make the browser pick a new scroll anchor, so a
+               tap/cancel can look like the whole page jumped. Preserve only the
+               viewport position here; application data and feature state stay
+               untouched. */
+            const scrollY = window.scrollY || window.pageYOffset || 0;
+            const activeEl = document.activeElement;
+            const activeId = activeEl && activeEl.id ? activeEl.id : '';
             const visible = getVisibleCategories();
             activeOpenId = openId && visible.some(item => item.id === openId) ? openId : null;
             renderFolders();
             renderButtons(visible);
             renderContents(visible);
             updateLockBtnState();
+
+            const restore = () => {
+                window.scrollTo(0, scrollY);
+                if (activeId) {
+                    const next = document.getElementById(activeId);
+                    if (next && next !== document.activeElement) {
+                        try { next.focus({preventScroll:true}); } catch (_) {}
+                    }
+                }
+            };
+            restore();
+            requestAnimationFrame(restore);
         }
 
         function onSearchChange() {
@@ -3466,7 +3593,7 @@ window.mu_syncHtmlBg = function(){
             renderFolders();
             if (isDeleteFolderMode) {
                 const fc = document.getElementById('foldersContainer');
-                if (fc) setTimeout(() => fc.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60);
+                if (fc) setTimeout(() => fc.scrollIntoView({ behavior: 'smooth', block: 'center' }), 0);
                 showToast(currentLang === 'fa' ? 'روی ✖ کنار هر پوشه بزن تا حذف شود.' : 'Tap the ✖ next to a folder to delete it.');
             }
         }
@@ -3993,6 +4120,28 @@ window.mu_syncHtmlBg = function(){
             const startY = Math.floor(rows / 2) * gridSize;
             let snake = [{x: startX, y: startY}, {x: startX - gridSize, y: startY}, {x: startX - gridSize * 2, y: startY}];
             let dx = gridSize, dy = 0;
+
+            // The grid lines are completely static for the lifetime of this board
+            // (nothing about them ever changes frame to frame), so re-stroking every
+            // single line 60 times a second was pure wasted canvas work — it's now
+            // rendered once to an off-screen canvas and just blitted with a single
+            // drawImage() per frame instead, which is dramatically cheaper. Rendered
+            // at the same device-pixel resolution as the main canvas so it stays
+            // just as crisp on high-DPI screens.
+            const gridDpr = Math.min(window.devicePixelRatio || 1, 2.5);
+            const gridCanvas = document.createElement('canvas');
+            // Math.max(1, ...) guards against the wrapper briefly reporting a
+            // 0×0 rect (e.g. right as the game view is still being laid out) —
+            // a 0-sized canvas throws InvalidStateError the moment drawImage()
+            // tries to blit it later, which is what was crashing the game.
+            gridCanvas.width = Math.max(1, Math.round(boardW * gridDpr));
+            gridCanvas.height = Math.max(1, Math.round(boardH * gridDpr));
+            const gctx = gridCanvas.getContext('2d');
+            gctx.setTransform(gridDpr, 0, 0, gridDpr, 0, 0);
+            gctx.strokeStyle = 'rgba(255,255,255,0.05)';
+            gctx.lineWidth = 1;
+            for (let x = 0; x <= boardW; x += gridSize) { gctx.beginPath(); gctx.moveTo(x, 0); gctx.lineTo(x, boardH); gctx.stroke(); }
+            for (let y = 0; y <= boardH; y += gridSize) { gctx.beginPath(); gctx.moveTo(0, y); gctx.lineTo(boardW, y); gctx.stroke(); }
             // A short input queue (instead of a single "next direction") makes
             // fast swipes/keys register correctly instead of being silently
             // dropped or occasionally allowing a same-tick reversal into the
@@ -4060,8 +4209,15 @@ window.mu_syncHtmlBg = function(){
                     } else {
                         queueDir(0, diffY > 0 ? gridSize : -gridSize);
                     }
-                    touchStartX = null;
-                    touchStartY = null;
+                    // Re-baseline from the current finger position instead of
+                    // clearing it: clearing meant every turn after the first
+                    // required lifting the finger and touching down again, so a
+                    // single continuous drag could only ever steer once. Now the
+                    // same unbroken swipe can curve through several turns in a
+                    // row, which is what makes touch steering actually feel like
+                    // dragging the snake instead of tapping out directions.
+                    touchStartX = e.touches[0].clientX;
+                    touchStartY = e.touches[0].clientY;
                 }
                 e.preventDefault();
             }, { passive: false, signal: gameAborter.signal });
@@ -4128,10 +4284,7 @@ window.mu_syncHtmlBg = function(){
                 ctx.save();
                 ctx.translate(offsetX, offsetY);
 
-                ctx.strokeStyle = 'rgba(255,255,255,0.05)';
-                ctx.lineWidth = 1;
-                for (let x = 0; x <= boardW; x += gridSize) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, boardH); ctx.stroke(); }
-                for (let y = 0; y <= boardH; y += gridSize) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(boardW, y); ctx.stroke(); }
+                if (boardW > 0 && boardH > 0) ctx.drawImage(gridCanvas, 0, 0, boardW, boardH);
 
                 const pulse = 1 + Math.sin(ts / 180) * 0.12;
                 const fs = (gridSize - 2) * pulse;
@@ -4143,11 +4296,19 @@ window.mu_syncHtmlBg = function(){
                 ctx.roundRect(food.x + 1 + fOff, food.y + 1 + fOff, fs, fs, 5);
                 ctx.fill();
 
+                // Glow (shadowBlur) is one of the most expensive things a canvas can
+                // do per shape, and it used to be applied to every single body
+                // segment — fine for a short snake, but the cost multiplies with
+                // length and was the main reason the game visibly slowed down the
+                // longer a run went on. Keeping the glow on just the head (the part
+                // that actually needs to draw the eye) while the body fills flat
+                // keeps the neon look with a small, constant per-frame cost
+                // regardless of how long the snake gets.
+                ctx.shadowColor = '#00f0ff';
                 snake.forEach((part, index) => {
                     const t = index / Math.max(1, snake.length - 1);
                     ctx.fillStyle = index === 0 ? '#c4fbff' : `hsl(${188 + t * 20}, 100%, ${62 - t * 22}%)`;
-                    ctx.shadowColor = '#00f0ff';
-                    ctx.shadowBlur = index === 0 ? 14 : 6;
+                    ctx.shadowBlur = index === 0 ? 14 : 0;
                     ctx.beginPath();
                     ctx.roundRect(part.x + 1, part.y + 1, gridSize - 2, gridSize - 2, 5);
                     ctx.fill();
@@ -4611,6 +4772,11 @@ window.mu_syncHtmlBg = function(){
             }
 
             const originalContent = textEl.innerHTML;
+            // Snapshot the pre-translation state as its own undo checkpoint —
+            // this is what lets Undo step back to exactly "before translation"
+            // even if the debounced autosave hadn't captured it yet.
+            mu_historyInit(id, originalContent);
+            mu_historyPush(id, originalContent);
             textEl.innerText = t.translating;
 
             try {
@@ -4634,6 +4800,9 @@ window.mu_syncHtmlBg = function(){
 
                         saveToLocalStorage();
                     }
+                    // Second checkpoint: the translated result. Undo now goes
+                    // translated -> original in one click; Redo goes back forward.
+                    mu_historyPush(id, textEl.innerHTML);
                 } else {
                     alert(t.translationError);
                     textEl.innerHTML = originalContent;
@@ -4805,6 +4974,7 @@ window.mu_syncHtmlBg = function(){
                 const fa = currentLang === 'fa';
                 const uid = 'npp' + Date.now() + Math.random().toString(36).slice(2, 7);
                 const modalEl = document.getElementById('advancedModal');
+                const openerScrollY = window.scrollY || window.pageYOffset || 0;
                 let settled = false;
                 const hintText = String(item?.hint || '').trim();
                 const placeholder = hintText
@@ -4815,6 +4985,8 @@ window.mu_syncHtmlBg = function(){
                     settled = true;
                     if (modalEl) modalEl.removeEventListener('click', outsideClick, true);
                     closeAdvancedModal();
+                    window.scrollTo(0, openerScrollY);
+                    requestAnimationFrame(() => window.scrollTo(0, openerScrollY));
                     resolve(value);
                 };
                 const outsideClick = e => { if (e.target === modalEl) finish(null); };
@@ -4863,6 +5035,7 @@ window.mu_syncHtmlBg = function(){
                 const fa = currentLang === 'fa';
                 const uid = 'sft' + Date.now() + Math.random().toString(36).slice(2, 7);
                 const modalEl = document.getElementById('advancedModal');
+                const openerScrollY = window.scrollY || window.pageYOffset || 0;
                 let settled = false;
                 const multiline = !!opts.multiline;
                 const finish = value => {
@@ -4870,6 +5043,8 @@ window.mu_syncHtmlBg = function(){
                     settled = true;
                     if (modalEl) modalEl.removeEventListener('click', outsideClick, true);
                     closeAdvancedModal();
+                    window.scrollTo(0, openerScrollY);
+                    requestAnimationFrame(() => window.scrollTo(0, openerScrollY));
                     resolve(value);
                 };
                 const outsideClick = e => { if (e.target === modalEl) finish(null); };
@@ -5008,6 +5183,82 @@ window.mu_syncHtmlBg = function(){
             }
         }
 
+        /* ---------------------------------------------------------------
+           Robust per-note text Undo/Redo history.
+           Replaces the old browser document.execCommand('undo'/'redo'),
+           which only tracks the browser's own native contenteditable
+           input events — it has no idea about *programmatic* content
+           changes like Google/AI translation, AI-summary insertion,
+           image/table/drawing insertion, etc. Those changes would either
+           not be undoable at all, or would silently corrupt the native
+           undo stack. This keeps one small linear history per note
+           (a plain array of full innerHTML snapshots + a position
+           pointer), fed from every place that actually changes a note's
+           content, so Undo/Redo works reliably no matter *how* the
+           change happened.
+           --------------------------------------------------------------- */
+        window.__muHistory = window.__muHistory || {};
+        const MU_HISTORY_LIMIT = 60;
+
+        function mu_historyInit(id, html) {
+            if (!window.__muHistory[id]) {
+                window.__muHistory[id] = { stack: [html], index: 0 };
+                mu_updateUndoRedoButtons(id);
+            }
+        }
+
+        function mu_historyPush(id, html) {
+            let h = window.__muHistory[id];
+            if (!h) { window.__muHistory[id] = { stack: [html], index: 0 }; mu_updateUndoRedoButtons(id); return; }
+            if (h.stack[h.index] === html) return; // no real change, skip
+            // A new change after some Undo(s) discards the old redo branch —
+            // standard undo/redo behavior.
+            h.stack = h.stack.slice(0, h.index + 1);
+            h.stack.push(html);
+            if (h.stack.length > MU_HISTORY_LIMIT) h.stack.shift();
+            h.index = h.stack.length - 1;
+            mu_updateUndoRedoButtons(id);
+        }
+
+        function mu_updateUndoRedoButtons(id) {
+            const h = window.__muHistory[id];
+            const undoBtn = document.getElementById('mu-undo-' + id);
+            const redoBtn = document.getElementById('mu-redo-' + id);
+            if (undoBtn) undoBtn.disabled = !h || h.index <= 0;
+            if (redoBtn) redoBtn.disabled = !h || h.index >= h.stack.length - 1;
+        }
+
+        function mu_applyHistoryState(id) {
+            const h = window.__muHistory[id];
+            const textEl = document.getElementById('text-' + id);
+            const item = categories.find(c => c.id === id);
+            if (!h || !textEl || !item) return;
+            textEl.innerHTML = h.stack[h.index];
+            item.html = textEl.innerHTML;
+            item.text = textWithVisualSpacing(textEl).replace(/\u00a0/g, ' ');
+            item.lastEdited = new Date().toUTCString();
+            saveToLocalStorage();
+            mu_updateUndoRedoButtons(id);
+        }
+
+        window.mu_undoText = function (id) {
+            const h = window.__muHistory[id];
+            const fa = currentLang === 'fa';
+            if (!h || h.index <= 0) { showToast(fa ? 'چیزی برای بازگشت نیست.' : 'Nothing to undo.'); return; }
+            h.index--;
+            mu_applyHistoryState(id);
+            showToast(fa ? '↶ یک مرحله بازگشت.' : '↶ Stepped back.');
+        };
+
+        window.mu_redoText = function (id) {
+            const h = window.__muHistory[id];
+            const fa = currentLang === 'fa';
+            if (!h || h.index >= h.stack.length - 1) { showToast(fa ? 'چیزی برای جلو رفتن نیست.' : 'Nothing to redo.'); return; }
+            h.index++;
+            mu_applyHistoryState(id);
+            showToast(fa ? '↷ یک مرحله جلو رفت.' : '↷ Stepped forward.');
+        };
+
         async function saveCategory(id) {
             const item = categories.find(c => c.id === id);
             if (!item || item.isDecoy || hiddenState[id]) return;
@@ -5040,6 +5291,7 @@ window.mu_syncHtmlBg = function(){
 
             if (changed) {
                 item.lastEdited = new Date().toUTCString();
+                mu_historyPush(id, cleanHtml);
             }
 
             saveToLocalStorage();
@@ -5053,6 +5305,7 @@ window.mu_syncHtmlBg = function(){
             const cleanHtml = sanitizeHtml(textEl.innerHTML);
             if (cleanHtml === String(item.html || '')) return;
             item.html = cleanHtml;
+            mu_historyPush(id, cleanHtml);
             // This fires on every pause while typing (every 700ms), so unlike
             // saveCategory() it deliberately skips textWithVisualSpacing()'s
             // clone/off-screen-mount/letter-spacing pass — that work is only
@@ -6172,6 +6425,20 @@ window.mu_syncHtmlBg = function(){
             // try the two methods that actually work there FIRST: the native share sheet,
             // then reopening this page in the user's real browser (see the block above).
             if (IS_TELEGRAM) {
+                // Try the real download first: reopening this page in the user's system
+                // browser (Chrome/Safari) and delivering the file there via a genuine
+                // <a download> click — that's an actual save to the device, not a share
+                // sheet. Only if this is unavailable (blob over TG_BRIDGE_MAX_BLOB_BYTES,
+                // or the handoff itself throws) do we fall back to navigator.share(),
+                // which hands the file to another app instead of downloading it.
+                try {
+                    if (await tgOpenInSystemBrowser(blob, safeName, mime || blob.type)) {
+                        showToast(currentLang === 'fa'
+                            ? '📥 دانلود در مرورگر گوشی باز شد؛ اگر باز نشد، دوباره امتحان کن.'
+                            : '📥 Download opened in your phone\u2019s browser.', 3200);
+                        return 'telegram-bridge';
+                    }
+                } catch (e) { console.warn('Telegram browser-bridge attempt failed, trying share…', e); }
                 try {
                     if (navigator.share && typeof File !== 'undefined') {
                         const file = new File([blob], safeName, {type: mime || blob.type || 'application/octet-stream'});
@@ -6182,16 +6449,8 @@ window.mu_syncHtmlBg = function(){
                     }
                 } catch (e) {
                     if (e?.name === 'AbortError') return 'cancelled';
-                    console.warn('Telegram share attempt failed, trying browser bridge…', e);
+                    console.warn('Telegram share attempt failed', e);
                 }
-                try {
-                    if (await tgOpenInSystemBrowser(blob, safeName, mime || blob.type)) {
-                        showToast(currentLang === 'fa'
-                            ? '📥 دانلود در مرورگر گوشی باز شد؛ اگر باز نشد، دوباره امتحان کن.'
-                            : '📥 Download opened in your phone\u2019s browser.', 3200);
-                        return 'telegram-bridge';
-                    }
-                } catch (e) { console.warn('Telegram browser-bridge attempt failed', e); }
                 // Both Telegram-specific methods were unavailable/too large — fall
                 // through to the generic chain below as a last resort.
             }
@@ -6357,6 +6616,16 @@ window.mu_syncHtmlBg = function(){
                 categories.push(newCategory);
                 saveToLocalStorage();
                 renderApp(newCategory.id);
+                // Scroll the freshly-added note into view — it's appended at the end
+                // of the list, so without this the person has to manually scroll down
+                // to even see what they just created. setTimeout(60ms) mirrors the
+                // other scrollIntoView calls in this file: it waits one tick past the
+                // render so the new DOM node (and its "show" class/layout) already
+                // exist before we measure its position.
+                setTimeout(() => {
+                    const target = document.getElementById('container-' + newCategory.id);
+                    if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }, 60);
             }
         }
 
@@ -7510,8 +7779,23 @@ window.mu_syncHtmlBg = function(){
                 `<div class="kg-info-list">${rows}</div>`;
         }
         async function graphOpenNote(id){closeAdvancedModal();await handleCategoryClick(id);}
-        function showAdvanced(html){const m=document.getElementById('advancedModal');document.getElementById('advancedCard').innerHTML=html;m.style.display='flex';}
-        function closeAdvancedModal(){document.getElementById('advancedModal').style.display='none';const c=document.getElementById('advancedCard');if(c)c.classList.remove('kg-wide');}
+        function showAdvanced(html){
+            const m=document.getElementById('advancedModal');
+            if (m) m.dataset.openerScrollY = String(window.scrollY || window.pageYOffset || 0);
+            document.getElementById('advancedCard').innerHTML=html;
+            m.style.display='flex';
+        }
+        function closeAdvancedModal(){
+            const m=document.getElementById('advancedModal');
+            const savedY = m ? Number(m.dataset.openerScrollY) : NaN;
+            if (m) m.style.display='none';
+            const c=document.getElementById('advancedCard');
+            if(c)c.classList.remove('kg-wide');
+            if(Number.isFinite(savedY)){
+                window.scrollTo(0, savedY);
+                requestAnimationFrame(()=>window.scrollTo(0, savedY));
+            }
+        }
         document.addEventListener('keydown',e=>{if(e.key==='Escape')closeAdvancedModal();if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='shift'){/* reserved */}if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='g'){e.preventDefault();openKnowledgeGraph();}if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='m'){e.preventDefault();runSmartSearch();}});
         function glitchTransition(){document.body.classList.remove('glitching');void document.body.offsetWidth;document.body.classList.add('glitching');setTimeout(()=>document.body.classList.remove('glitching'),420);}
         const _handleCategoryClickOriginal=handleCategoryClick;
@@ -7526,7 +7810,7 @@ window.mu_syncHtmlBg = function(){
             // while the app is left open — not just once at page load.
             setInterval(advancedSystemsTick, 30000);
         }
-        window.addEventListener('load',()=>{initAdvancedSystems();});
+        document.addEventListener('DOMContentLoaded',()=>{initAdvancedSystems();});
     </script>
     <div id="advancedModal" class="advanced-modal" onclick="if(event.target===this)closeAdvancedModal()">
         <div class="advanced-card" id="advancedCard"></div>
@@ -7555,6 +7839,12 @@ window.mu_syncHtmlBg = function(){
 .markhin-editor-tools{display:flex;flex-wrap:wrap;gap:5px;align-items:center;margin-bottom:7px}
 .markhin-editor-tools select,.markhin-editor-tools button{padding:6px 8px;border-radius:7px;border:1px solid var(--panel-border);background:rgba(0,0,0,.28);color:var(--text-color);font-family:inherit;font-size:10px;transition:background .18s ease,border-color .18s ease,transform .12s ease}.markhin-editor-tools button:hover{background:rgba(255,255,255,.14);border-color:var(--text-color)}.markhin-editor-tools button:active{background:rgba(255,255,255,.24);transform:scale(.92)}.markhin-editor-tools select:hover{border-color:var(--text-color)}.markhin-special-controls{display:grid;grid-template-columns:minmax(0,1fr);gap:10px;align-items:stretch;margin:10px 0 0}.markhin-special-box{display:flex;align-items:center;justify-content:center;gap:8px;min-height:52px;padding:8px 10px;border:1px solid var(--panel-border);border-radius:var(--border-radius-main);background:rgba(0,0,0,.12);box-sizing:border-box}.markhin-special-box .btn-main{flex:1;min-width:0}.markhin-tools-box{gap:8px}.markhin-tools-box .btn-main{max-width:50%}
 .markhin-editor-tools button{cursor:pointer}
+.markhin-undo-redo-row{display:flex;gap:8px;margin:2px 0 10px}
+.markhin-undo-redo-row .mu-undo-redo-btn{flex:1;padding:10px 8px;border-radius:10px;border:1px solid var(--panel-border);background:rgba(255,255,255,.07);color:var(--text-color);font-weight:800;font-size:12px;cursor:pointer;transition:background .15s ease,transform .12s ease}
+.markhin-undo-redo-row .mu-undo-redo-btn:hover{background:rgba(255,255,255,.16)}
+.markhin-undo-redo-row .mu-undo-redo-btn:active{transform:scale(.95)}
+.mu-undo-redo-btn{font-weight:700}
+.mu-undo-redo-btn:disabled{opacity:.35;cursor:not-allowed;transform:none!important;background:rgba(0,0,0,.28)!important}
 .markhin-md-source{width:100%;min-height:260px;box-sizing:border-box;resize:vertical;padding:14px;border-radius:9px;border:1px solid var(--panel-border);background:rgba(0,0,0,.3);color:var(--text-color);font-family:'Share Tech Mono',monospace;line-height:1.8;direction:auto;outline:none}
 .markhin-drop-zone{position:fixed;inset:12px;z-index:10050;display:none;place-items:center;border:2px dashed var(--text-color);border-radius:18px;background:rgba(0,0,0,.72);backdrop-filter:blur(10px);font-size:18px;font-weight:800;pointer-events:none}
 .markhin-drop-zone.show{display:grid}
@@ -7621,9 +7911,13 @@ window.renderFolders=function(){
  else folders=[DEFAULT_FOLDER,...folders.filter(f=>f!==DEFAULT_FOLDER)];
  if(currentFolder==='__FAVORITES__'||!folders.includes(currentFolder)) currentFolder=DEFAULT_FOLDER;
  c.innerHTML='';
- const tree=[DEFAULT_FOLDER,...folders.filter(f=>f!==DEFAULT_FOLDER).sort((a,b)=>String(a).localeCompare(String(b),'fa'))];
- tree.forEach(f=>{
-   const w=document.createElement('div'); w.className='folder-wrapper';
+ /* Manual order (persisted in `folders` itself) now drives the display
+    order instead of an alphabetical sort, so a folder someone just
+    moved to a new spot doesn't snap back on the next render. Reordering
+    is done with the tap left/right buttons below, not by dragging. */
+ const tree=folders;
+ tree.forEach((f, idx)=>{
+   const w=document.createElement('div'); w.className='folder-wrapper'; w.dataset.folder=f;
    const b=document.createElement('button');
    b.type='button';
    b.className='folder-tab '+(currentFolder===f?'active ':'')+(String(f).includes('/')?'markhin-folder-child ':'');
@@ -7646,19 +7940,36 @@ window.addNewFolder=async function(){
  const name=await promptStyledText({title:fa?'📁 پوشه جدید':'📁 New folder', placeholder:t.promptNewFolder, okText:fa?'➕ افزودن':'➕ Add'});
  if(!name||!name.trim())return; const clean=(parent&&parent.trim()?parent.trim().replace(/^\/+|\/+$/g,'')+'/':'')+name.trim().replace(/^\/+|\/+$/g,'');
  if(folders.some(f=>normalizeText(f)===normalizeText(clean))){showToast(currentLang==='fa'?'این پوشه از قبل وجود دارد.':'That folder already exists.');return} folders.push(clean);saveFoldersToLocalStorage();renderFolders();
+ // Same idea as new-note creation: scroll the just-added folder tab into view
+ // instead of leaving the person to hunt for it in the folder row.
+ setTimeout(()=>{ const target=document.querySelector('.folder-wrapper[data-folder="'+CSS.escape(clean)+'"]'); if(target) target.scrollIntoView({behavior:'smooth', block:'nearest', inline:'nearest'}); }, 60);
 };
 function mdToHtml(md){let x=escapeHtml(String(md||''));x=x.replace(/```([\s\S]*?)```/g,'<pre><code>$1</code></pre>');x=x.replace(/^>\s?(.*)$/gm,'<blockquote>$1</blockquote>');x=x.replace(/^###\s+(.*)$/gm,'<h3>$1</h3>').replace(/^##\s+(.*)$/gm,'<h2>$1</h2>').replace(/^#\s+(.*)$/gm,'<h1>$1</h1>');x=x.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,'<a href="$2">$1</a>');x=x.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/__(.+?)__/g,'<strong>$1</strong>').replace(/\*(.+?)\*/g,'<em>$1</em>').replace(/_(.+?)_/g,'<em>$1</em>');x=x.replace(/^[-*]\s+(.*)$/gm,'<li>$1</li>').replace(/(<li>.*<\/li>\n?)+/g,m=>'<ul>'+m+'</ul>');return x.split(/\n\n+/).map(p=>/^<(h\d|ul|pre|blockquote)/.test(p)?p:'<p>'+p.replace(/\n/g,'<br>')+'</p>').join('');}
 function htmlToMd(html){const d=document.createElement('div');d.innerHTML=sanitizeHtml(html||'');d.querySelectorAll('br').forEach(x=>x.replaceWith('\n'));d.querySelectorAll('strong,b').forEach(x=>x.replaceWith('**'+x.textContent+'**'));d.querySelectorAll('em,i').forEach(x=>x.replaceWith('*'+x.textContent+'*'));d.querySelectorAll('u').forEach(x=>x.replaceWith('__'+x.textContent+'__'));d.querySelectorAll('blockquote').forEach(x=>x.replaceWith('\n> '+x.textContent+'\n'));d.querySelectorAll('li').forEach(x=>x.replaceWith('- '+x.textContent+'\n'));d.querySelectorAll('a').forEach(x=>x.replaceWith('['+x.textContent+']('+x.getAttribute('href')+')'));return (d.innerText||d.textContent||'').replace(/\n{3,}/g,'\n\n').trim();}
 function addFeatureTools(item,box){
  const text=document.getElementById('text-'+item.id); if(!text)return; ensureItem(item);
  const tools=box.querySelector('.note-tools'); if(!tools||tools.dataset.features==='1')return;tools.dataset.features='1';
- const row=document.createElement('div');row.className='markhin-editor-tools';row.innerHTML=`<button type="button" title="Bold"><b>B</b></button><button type="button" title="Italic"><i>I</i></button><button type="button" title="Underline"><u>U</u></button><button type="button" title="Quote">❝</button><button type="button" title="List">☷</button><button type="button" title="Table">▦</button><button type="button" title="Link">🔗</button><button type="button" title="Undo">↶</button><button type="button" title="Redo">↷</button><select title="Font"><option value="">فارسی — پیش‌فرض</option><option value="Arial">English — Arial</option><option value="Share Tech Mono">English — Share Tech Mono</option><option value="Orbitron">English — Orbitron</option><option value="Quicksand">Mixed — Quicksand</option></select><select title="Size"><option value="12">12</option><option value="13">13</option><option value="15">15</option><option value="18">18</option><option value="22">22</option><option value="28">28</option></select>`;
+ // Baseline checkpoint for the robust undo/redo history (see mu_historyInit),
+ // captured once per note-open before any edits happen this session.
+ mu_historyInit(item.id, text.innerHTML);
+ const fa=currentLang==='fa';
+ const row=document.createElement('div');row.className='markhin-editor-tools';row.innerHTML=`<button type="button" title="Bold"><b>B</b></button><button type="button" title="Italic"><i>I</i></button><button type="button" title="Underline"><u>U</u></button><button type="button" title="Quote">❝</button><button type="button" title="List">☷</button><button type="button" title="Table">▦</button><button type="button" title="Link">🔗</button><select title="Font"><option value="">فارسی — پیش‌فرض</option><option value="Arial">English — Arial</option><option value="Share Tech Mono">English — Share Tech Mono</option><option value="Orbitron">English — Orbitron</option><option value="Quicksand">Mixed — Quicksand</option></select><select title="Size"><option value="12">12</option><option value="13">13</option><option value="15">15</option><option value="18">18</option><option value="22">22</option><option value="28">28</option></select>`;
  const btns=row.querySelectorAll('button'); const cmd=(c,v=null)=>{text.focus();document.execCommand(c,false,v);autosaveCategory(item.id)};
- btns[0].onclick=()=>cmd('bold');btns[1].onclick=()=>cmd('italic');btns[2].onclick=()=>cmd('underline');btns[3].onclick=()=>cmd('formatBlock','blockquote');btns[4].onclick=()=>cmd('insertUnorderedList');btns[5].onclick=()=>{const table='<table><tbody><tr><td>سلول ۱</td><td>سلول ۲</td></tr><tr><td>سلول ۳</td><td>سلول ۴</td></tr></tbody></table>';text.focus();document.execCommand('insertHTML',false,table);autosaveCategory(item.id)};btns[6].onclick=async()=>{const u=await promptStyledText({title:currentLang==='fa'?'🔗 افزودن لینک':'🔗 Add link',placeholder:currentLang==='fa'?'آدرس لینک:':'Link URL:',defaultValue:'https://',type:'url',okText:currentLang==='fa'?'✔️ افزودن':'✔️ Add'});if(u)cmd('createLink',u)};btns[7].onclick=()=>cmd('undo');btns[8].onclick=()=>cmd('redo');
+ btns[0].onclick=()=>cmd('bold');btns[1].onclick=()=>cmd('italic');btns[2].onclick=()=>cmd('underline');btns[3].onclick=()=>cmd('formatBlock','blockquote');btns[4].onclick=()=>cmd('insertUnorderedList');btns[5].onclick=()=>{const table='<table><tbody><tr><td>سلول ۱</td><td>سلول ۲</td></tr><tr><td>سلول ۳</td><td>سلول ۴</td></tr></tbody></table>';text.focus();document.execCommand('insertHTML',false,table);autosaveCategory(item.id)};btns[6].onclick=async()=>{const u=await promptStyledText({title:currentLang==='fa'?'🔗 افزودن لینک':'🔗 Add link',placeholder:currentLang==='fa'?'آدرس لینک:':'Link URL:',defaultValue:'https://',type:'url',okText:currentLang==='fa'?'✔️ افزودن':'✔️ Add'});if(u)cmd('createLink',u)};
  const selects=row.querySelectorAll('select');selects[0].value=item.fontFamily||'';selects[1].value=String(item.fontSize||13);selects[0].onchange=()=>{item.fontFamily=selects[0].value;text.style.fontFamily=selects[0].value;saveToLocalStorage()};selects[1].onchange=()=>{item.fontSize=Number(selects[1].value)||13;text.style.fontSize=item.fontSize+'px';saveToLocalStorage()};
  tools.parentNode.insertBefore(row,tools.nextSibling); text.style.fontFamily=item.fontFamily||'';text.style.fontSize=(item.fontSize||13)+'px';
  const meta=document.createElement('div');meta.className='markhin-feature-row';meta.innerHTML=`<button type="button" class="img-btn note-pin-action" title="${item.pinned?(currentLang==='fa'?'برداشتن پین':'Unpin'):(currentLang==='fa'?'پین کردن یادداشت':'Pin note')}">📌 ${item.pinned?'لغو پین':'پین کردن'}</button><button type="button" class="img-btn note-fav-action" title="${item.favorite?(currentLang==='fa'?'حذف از فیوریت':'Remove from Favorites'):(currentLang==='fa'?'افزودن به فیوریت':'Add to Favorites')}">⭐ ${item.favorite?'حذف از فیوریت':'افزودن به فیوریت'}</button><button type="button" class="img-btn note-archive-action" title="${currentLang==='fa'?'انتقال به بایگانی':'Move to archive'}">📦 ${currentLang==='fa'?'بایگانی':'Archive'}</button><button type="button" class="img-btn">⧉ Duplicate</button><button type="button" class="img-btn">🎭 ${item.fakeContent?'ویرایش Fake':'Fake Note'}</button><button type="button" class="img-btn">📄 PDF</button><button type="button" class="img-btn">📝 DOCX</button><button type="button" class="img-btn">🌐 HTML</button><button type="button" class="img-btn">TXT</button><button type="button" class="img-btn">M↓ MD</button><button type="button" class="img-btn">🖼️ PNG</button><button type="button" class="img-btn">📤 Share</button>`;
  const ms=meta.querySelectorAll('button');ms[0].onclick=()=>toggleFlag(item,'pinned');ms[1].onclick=()=>toggleFlag(item,'favorite');ms[2].onclick=()=>toggleArchiveNote(item.id);ms[3].onclick=()=>duplicateNote(item.id);ms[4].onclick=()=>editFake(item.id);ms[5].onclick=()=>downloadSelectedPDF(item.id);ms[6].onclick=()=>downloadSelectedDOCX(item.id);ms[7].onclick=()=>exportSingleHTML(item.id);ms[8].onclick=()=>downloadAsTxt(item.id);ms[9].onclick=()=>downloadStructuredSingle(item.id,'md');ms[10].onclick=()=>downloadSelectedImage(item.id,'png');ms[11].onclick=()=>shareNote(item.id);text.parentNode.insertBefore(meta,text);
+ // Undo/Redo — its own clearly-visible row, placed directly above the text
+ // box (closer to the text than anything else) instead of buried among the
+ // small formatting icons, so it's easy to spot.
+ const undoRedoRow=document.createElement('div');undoRedoRow.className='markhin-undo-redo-row';
+ undoRedoRow.innerHTML=`<button type="button" id="mu-undo-${item.id}" class="mu-undo-redo-btn" title="${fa?'واگرد (بازگشت به مرحله قبل)':'Undo (step back)'}">↩️ ${fa?'واگرد':'Undo'}</button><button type="button" id="mu-redo-${item.id}" class="mu-undo-redo-btn" title="${fa?'ازنو (رفتن به مرحله بعد)':'Redo (step forward)'}">↪️ ${fa?'ازنو':'Redo'}</button>`;
+ const urBtns=undoRedoRow.querySelectorAll('button');
+ urBtns[0].onclick=()=>mu_undoText(item.id);
+ urBtns[1].onclick=()=>mu_redoText(item.id);
+ text.parentNode.insertBefore(undoRedoRow,text);
+ mu_updateUndoRedoButtons(item.id);
  const tags=document.createElement('div');tags.className='markhin-tag-field';
  const tagHelpFa='با کاما (,) بین تگ‌ها فاصله بذار. مثال: کار, مهم, پروژه X ← این‌جوری ۳ تگ جدا ساخته می‌شه: «کار»، «مهم» و «پروژه X».';
  const tagHelpEn='Separate tags with a comma (,). Example: work, important, project X → this makes 3 separate tags: "work", "important" and "project X".';
@@ -7666,8 +7977,9 @@ function addFeatureTools(item,box){
  const inp=tags.firstElementChild;inp.value=item.tags.join(', ');inp.onchange=()=>{item.tags=inp.value.split(',').map(x=>x.trim()).filter(Boolean).slice(0,30);saveToLocalStorage();renderApp(item.id)};
  const tagHelpBtn=tags.querySelector('.markhin-tag-help');
  tagHelpBtn.onclick=(e)=>{e.stopPropagation();e.preventDefault();document.querySelectorAll('.markhin-tag-help.show').forEach(b=>{if(b!==tagHelpBtn)b.classList.remove('show')});tagHelpBtn.classList.toggle('show')};
- text.parentNode.insertBefore(tags,text);
  const count=document.createElement('div');count.className='markhin-stats-bar';count.dataset.wordcount='1';text.parentNode.insertBefore(count,text.nextSibling);
+ // Tag box now sits below the text (and below the word-count bar), not above it.
+ text.parentNode.insertBefore(tags,count.nextSibling);
  const chip=(label,value,extra)=>`<span class="markhin-stat-chip">${label}: <b>${value}</b>${extra?` <small>${extra}</small>`:''}</span>`;
  const updateCount=()=>{
   const raw=(text.innerText||'').trim();const s=computeTextStats(raw);const fa=currentLang==='fa';
@@ -7943,15 +8255,21 @@ function addTopControls(){
  }
  
 }
-const oldOnload=window.onload;window.addEventListener('load',()=>{
-  allItems();
-  /* Always come up with the "All" folder active, never a stale Favorites view. */
-  if(!Array.isArray(folders))folders=[];
-  if(!folders.includes(DEFAULT_FOLDER))folders.unshift(DEFAULT_FOLDER);
-  if(currentFolder==='__FAVORITES__'||!folders.includes(currentFolder))currentFolder=DEFAULT_FOLDER;
-  addTopControls();
-  renderApp();
-});
+// Exposed on window: this function lives inside this file's later
+// IIFE-scoped script block, but the main startup handler (earlier in the
+// file, in an separate <script> block) also needs to call it once at
+// launch to add the dashboard button at the same time as everything else.
+// A plain top-level function declaration here would NOT be visible from
+// that other script block's closure, so it has to be attached to window
+// explicitly to be reachable from there.
+window.addTopControls = addTopControls;
+/* This used to be a second DOMContentLoaded listener that repeated the same
+   folder-normalization + addTopControls() + renderApp() sequence the main
+   startup handler above already runs — i.e. every app launch paid for a
+   full duplicate render pass, and briefly showed the pre-normalization
+   state before the "real" one popped in a moment later. That logic now
+   lives in the single startup handler earlier in this file, so nothing
+   needs to happen here at DOMContentLoaded time anymore.*/
 /* ================= DASHBOARD 2.0 ================= */
 function markhinDash_wordCount(item){const t=String(item.text||(item.html?item.html.replace(/<[^>]+>/g,' '):'')||'').trim();return t?t.split(/\s+/).length:0;}
 function markhinDash_isGhostActive(item){return !!item.ghostUntil && Date.now()<Number(item.ghostUntil);}
@@ -8231,11 +8549,24 @@ const oldToggle=window.toggleCategory;window.toggleCategory=function(id){const i
 <style id="markhinUltraStyles">
 /* ===== MARKHIN NOTE — ULTRA SEARCH + AI + DELETE MODE ===== */
 .note-btn-wrap{display:inline-flex;align-items:center;gap:4px;touch-action:pan-y}
-.note-btn-wrap.note-dragging{opacity:.65;transform:scale(1.03);box-shadow:0 10px 24px rgba(0,0,0,.4);z-index:5;position:relative}
+/* Dragging item: left behind in the flow as a dimmed "hole" placeholder —
+   the actual floating visual is the .markhin-float-ghost clone below,
+   which is what makes the item feel picked-up and carried, not just
+   silently reordered underneath the finger. */
+.note-btn-wrap.note-dragging{opacity:.32;transform:scale(.94);transition:opacity .15s ease,transform .15s ease}
+.folder-wrapper.folder-dragging{opacity:.32;transform:scale(.94);transition:opacity .15s ease,transform .15s ease}
+.markhin-float-ghost{opacity:.98;pointer-events:none;box-shadow:0 16px 34px rgba(0,0,0,.5),0 2px 8px rgba(0,0,0,.35);border-radius:14px;will-change:transform;transition:box-shadow .15s ease}
+body.markhin-dragging-active{-webkit-user-select:none;user-select:none}
 #buttonsContainer.note-delete-mode .custom-btn{animation:markhinJiggle .22s infinite alternate;transform-origin:center;border-color:rgba(239,68,68,.55)}
 @keyframes markhinJiggle{from{transform:rotate(-1.1deg)}to{transform:rotate(1.1deg)}}
 .note-del-x{background:rgba(239,68,68,.88)!important;color:#fff!important;border-color:rgba(239,68,68,.95)!important;border-radius:50%!important;width:25px;height:25px;min-width:25px;min-height:25px;padding:0!important;font-size:12px;display:flex;align-items:center;justify-content:center;flex:none;line-height:1;box-shadow:0 0 10px rgba(239,68,68,.45)}
 .note-del-x:hover{transform:scale(1.18)}
+/* Long-press move menu: the small floating popup with the ◀ ▶ buttons that
+   appears next to a note or folder after holding a finger on it. */
+.markhin-move-menu{position:fixed;z-index:10060;display:flex;gap:6px;padding:6px;border-radius:14px;background:var(--card-bg);border:1px solid var(--panel-border);box-shadow:0 10px 26px rgba(0,0,0,.5);backdrop-filter:blur(8px);animation:markhinMoveMenuIn .12s ease}
+@keyframes markhinMoveMenuIn{from{opacity:0;transform:translateY(4px) scale(.92)}to{opacity:1;transform:translateY(0) scale(1)}}
+.markhin-move-menu-btn{background:rgba(255,255,255,.08);color:var(--text-color)!important;border:1px solid var(--panel-border);border-radius:50%;width:38px;height:38px;min-width:38px;min-height:38px;padding:0!important;font-size:15px;display:flex;align-items:center;justify-content:center;flex:none;line-height:1;cursor:pointer;transition:var(--transition-smooth)}
+.markhin-move-menu-btn:hover{background:rgba(255,255,255,.18);transform:scale(1.08)}
 mark.markhin-hit{background:rgba(255,209,102,.6);color:#111;padding:0 2px;border-radius:3px;font-weight:800;box-shadow:0 0 0 1px rgba(255,209,102,.5)}
 .markhin-smart-input{width:100%;box-sizing:border-box;padding:12px 14px;border-radius:10px;border:1px solid var(--panel-border);background:rgba(0,0,0,.28);color:var(--text-color);font-family:inherit;font-size:14px;outline:none;margin-bottom:10px}
 .ai-tools-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
@@ -8478,13 +8809,13 @@ window.renderButtons = function(filtered){
     const searching = !!rawQuery.trim();
     const ordered = searching ? list.slice() : [...list].sort((a,b)=>(Number(b.pinned)-Number(a.pinned))||(Number(b.favorite)-Number(a.favorite))||((Number(a.order)||0)-(Number(b.order)||0)));
 
-    ordered.forEach(item=>{
+    ordered.forEach((item, idx)=>{
         if(!Array.isArray(item.tags)) item.tags=[];
         const wrap = document.createElement('div'); wrap.className='note-btn-wrap'; wrap.dataset.id=item.id;
         const b = document.createElement('button');
         b.className = 'custom-btn '+(activeOpenId===item.id?'active-btn ':'')+(item.pinned?'note-pinned ':'')+(item.favorite?'note-favorite ':'');
         b.setAttribute('aria-expanded', activeOpenId===item.id ? 'true':'false');
-        if(window.MarkhinNoteDeleteMode) b.style.animationDelay = (Math.random()*0.3).toFixed(2)+'s';
+        if(window.MarkhinNoteDeleteMode) b.style.animationDelay = '0s';
         b.innerHTML = escapeHtml((isNoteLocked(item)?'🔒 ':'')+(item.pinned?'📌 ':'')+(item.favorite?'⭐ ':'')+(item.fakeContent?'🎭 ':'')+String(item.name||''));
         b.onclick = ()=>{
             if(searching){ mu_openAndHighlight(item.id, mu_queryTerms(rawQuery)); }
@@ -8503,94 +8834,240 @@ window.renderButtons = function(filtered){
 };
 
 /* ---------------------------------------------------------------
-   Press-and-hold drag-to-reorder for the main note list. Pointer
-   Events cover touch, mouse and pen in one code path (unlike native
-   HTML5 drag-and-drop, which most mobile/Telegram WebViews don't
-   fire for touch at all). A short hold is required before a drag
-   starts, so an ordinary tap-to-open or a finger-scroll is never
-   mistaken for a reorder.
+   Scroll black-flash fix — companion to the body.mu-scrolling CSS
+   rule near the top of the stylesheet. Toggles that class on <body>
+   for the duration of any scroll and clears it ~150ms after
+   scrolling actually stops, which pauses/un-blurs the heavy themed
+   background layers for that window instead of repainting them on
+   every scroll frame. A native 'scroll' event fires the same way
+   whether the page moved because the person swiped OR because the
+   drag-reorder code below called window.scrollBy() during auto-
+   scroll, so this one listener covers both cases with no extra
+   wiring needed on the drag code's side. rAF-throttled so it's at
+   most one class toggle per frame, never per raw scroll event
+   (which can fire many times per frame on some devices/browsers).
    --------------------------------------------------------------- */
 (function(){
-    const HOLD_MS = 380;
-    const MOVE_CANCEL_PX = 8;
-    let holdTimer = null;
-    let dragWrap = null;
-    let dragging = false;
-    let startX = 0, startY = 0;
+    let scrollEndTimer = null;
+    let ticking = false;
+    function onScrollFrame(){
+        ticking = false;
+        document.body.classList.add('mu-scrolling');
+        clearTimeout(scrollEndTimer);
+        scrollEndTimer = setTimeout(() => { document.body.classList.remove('mu-scrolling'); }, 150);
+    }
+    window.addEventListener('scroll', function(){
+        if(ticking) return;
+        ticking = true;
+        requestAnimationFrame(onScrollFrame);
+    }, {passive:true});
+})();
+
+/* ---------------------------------------------------------------
+   Rubber-band bounce fix. The overscroll-behavior-y/-x:none rules near the
+   top of the stylesheet stops the bounce-and-reveal-html's-background
+   flash on browsers that honor overscroll-behavior for the document's
+   own root scroller — but Telegram's iOS in-app browser is a WKWebView
+   that, on a lot of iOS versions, simply doesn't apply it there (it
+   still works fine for scrollable divs, just not the page itself).
+   Without that, flinging the page hard enough to hit the top or
+   bottom edge still bounces past it for an instant, during which
+   what's actually on screen is <html>'s own background (near-black)
+   peeking out from behind the page — which reads exactly as "a black
+   flash that shows up and cuts off", especially on a fast top-of-page
+   fling. This only ever intervenes for a single-finger drag that
+   would push scroll position past 0 or past the document's max, and
+   it explicitly steps aside for anything with its own genuine inner
+   scroll area (modals, the horizontal toolbar rows, etc.) plus the
+   note drag-reorder flow (which already drives scrolling deliberately
+   via window.scrollBy) — every ordinary scroll, including inside
+   those areas, is completely unaffected.
+   --------------------------------------------------------------- */
+(function(){
+    let startY = 0;
+    document.addEventListener('touchstart', function(e){
+        if(e.touches.length !== 1) return;
+        startY = e.touches[0].clientY;
+    }, {passive:true});
+    document.addEventListener('touchmove', function(e){
+        if(e.touches.length !== 1) return;
+        if(document.body.classList.contains('markhin-dragging-active')) return;
+        let node = e.target;
+        while(node && node !== document.body){
+            if(node.nodeType === 1){
+                const cs = getComputedStyle(node);
+                const canScrollY = (cs.overflowY === 'auto' || cs.overflowY === 'scroll') && node.scrollHeight > node.clientHeight;
+                const canScrollX = (cs.overflowX === 'auto' || cs.overflowX === 'scroll') && node.scrollWidth > node.clientWidth;
+                if(canScrollY || canScrollX) return;
+            }
+            node = node.parentNode;
+        }
+        const dy = e.touches[0].clientY - startY;
+        const doc = document.documentElement;
+        const atTop = window.scrollY <= 0;
+        const atBottom = Math.ceil(window.scrollY + window.innerHeight) >= doc.scrollHeight;
+        if((atTop && dy > 0) || (atBottom && dy < 0)) e.preventDefault();
+    }, {passive:false});
+})();
+
+/* ---------------------------------------------------------------
+   Reordering notes/folders: holding a finger down on a note or folder
+   (instead of the old press-and-hold drag) pops up a small floating
+   menu with ◀ ▶ buttons next to it — tap one to move that item one
+   spot over. Nothing can be moved by an accidental drag anymore.
+   moveNoteOrder() and moveFolderOrder() below do the actual reordering
+   and persistence; the long-press-to-open-menu behavior is wired up
+   further down, right after these two.
+   --------------------------------------------------------------- */
+window.moveNoteOrder = function(id, dir){
+    const rawQuery = (document.getElementById('searchInput')||{}).value || '';
+    if(rawQuery.trim()) return; // ordering only applies to the plain, unfiltered list
+    const ordered = [...getVisibleCategories()].sort((a,b)=>(Number(b.pinned)-Number(a.pinned))||(Number(b.favorite)-Number(a.favorite))||((Number(a.order)||0)-(Number(b.order)||0)));
+    const idx = ordered.findIndex(x=>x.id===id);
+    const swapIdx = idx + dir;
+    if(idx===-1 || swapIdx<0 || swapIdx>=ordered.length) return;
+    const tmp = ordered[idx];
+    ordered[idx] = ordered[swapIdx];
+    ordered[swapIdx] = tmp;
+    ordered.forEach((it,i)=>{ it.order = i; }); // ensureItem() isn't reachable from here (it's scoped to a different IIFE) — order is the only field this needs to touch anyway
+    saveToLocalStorage();
+    renderButtons();
+};
+
+window.moveFolderOrder = function(name, dir){
+    const idx = folders.indexOf(name);
+    const swapIdx = idx + dir;
+    if(idx<=0 || swapIdx<=0 || swapIdx>=folders.length) return; // root folder (index 0) stays pinned first
+    const tmp = folders[idx];
+    folders[idx] = folders[swapIdx];
+    folders[swapIdx] = tmp;
+    saveFoldersToLocalStorage();
+    renderFolders();
+};
+
+/* Press-and-hold -> floating move menu. Pointer Events cover touch, mouse
+   and pen in one code path. A short hold is required before the menu opens,
+   so an ordinary tap-to-open or a finger-scroll is never mistaken for it. */
+(function(){
+    const HOLD_MS = 350;
+    const MOVE_CANCEL_PX = 10;
+    let menuEl = null;
     let suppressClickUntil = 0;
 
-    function container(){ return document.getElementById('buttonsContainer'); }
-    function clearHold(){ if(holdTimer){ clearTimeout(holdTimer); holdTimer=null; } }
-
-    function endDrag(commit){
-        if(dragWrap){
-            dragWrap.classList.remove('note-dragging');
-            dragWrap.style.touchAction = '';
-        }
-        if(dragging && commit){
-            const c = container();
-            if(c){
-                const ids = [...c.querySelectorAll('.note-btn-wrap')].map(w=>w.dataset.id);
-                ids.forEach((id,idx)=>{ const it=categories.find(x=>x.id===id); if(it){ ensureItem(it); it.order = idx; } });
-                saveToLocalStorage();
-            }
-            suppressClickUntil = Date.now()+300;
-        }
-        dragging = false;
-        dragWrap = null;
-        clearHold();
+    function closeMenu(){
+        if(menuEl){ menuEl.remove(); menuEl = null; }
+        document.removeEventListener('pointerdown', onOutsidePointerDown, true);
+        window.removeEventListener('scroll', closeMenu, true);
+    }
+    function onOutsidePointerDown(e){
+        if(menuEl && !menuEl.contains(e.target)) closeMenu();
     }
 
-    document.addEventListener('pointerdown', function(e){
-        const wrap = e.target.closest('#buttonsContainer .note-btn-wrap');
+    function openMenu(wrap, onMoveRight, onMoveLeft){
         if(!wrap) return;
-        if(window.MarkhinNoteDeleteMode) return; // delete mode already has its own tap target
-        if(e.target.closest('.note-del-x')) return;
-        const rawQuery = (document.getElementById('searchInput')||{}).value || '';
-        if(rawQuery.trim()) return; // reordering only applies to the plain, unfiltered list
-        startX = e.clientX; startY = e.clientY;
-        dragWrap = wrap;
-        clearHold();
-        holdTimer = setTimeout(()=>{
-            if(!dragWrap) return;
-            dragging = true;
-            dragWrap.classList.add('note-dragging');
-            dragWrap.style.touchAction = 'none';
-            if(navigator.vibrate){ try{ navigator.vibrate(12); }catch(_){} }
-        }, HOLD_MS);
-    }, {passive:true});
+        closeMenu();
+        const r = wrap.getBoundingClientRect();
+        const menu = document.createElement('div');
+        menu.className = 'markhin-move-menu';
+        document.body.appendChild(menu); // measure after mount so offsetWidth is real
+        const above = r.top > 70;
 
-    document.addEventListener('pointermove', function(e){
-        if(!dragWrap) return;
-        if(!dragging){
-            if(Math.abs(e.clientX-startX)>MOVE_CANCEL_PX || Math.abs(e.clientY-startY)>MOVE_CANCEL_PX){
-                clearHold(); dragWrap=null;
+        const bR = document.createElement('button');
+        bR.type='button'; bR.className='markhin-move-menu-btn'; bR.textContent='▶';
+        bR.title = currentLang==='fa' ? 'جابجایی به راست' : 'Move right';
+        bR.onclick = (e)=>{ e.stopPropagation(); onMoveRight(); closeMenu(); };
+
+        const bL = document.createElement('button');
+        bL.type='button'; bL.className='markhin-move-menu-btn'; bL.textContent='◀';
+        bL.title = currentLang==='fa' ? 'جابجایی به چپ' : 'Move left';
+        bL.onclick = (e)=>{ e.stopPropagation(); onMoveLeft(); closeMenu(); };
+
+        menu.appendChild(bR); menu.appendChild(bL);
+        const mw = menu.offsetWidth || 90;
+        menu.style.left = Math.max(8, Math.min(window.innerWidth - mw - 8, r.left + r.width/2 - mw/2)) + 'px';
+        menu.style.top = (above ? (r.top - 54) : (r.bottom + 6)) + 'px';
+        menuEl = menu;
+
+        setTimeout(()=>{ document.addEventListener('pointerdown', onOutsidePointerDown, true); }, 0);
+        window.addEventListener('scroll', closeMenu, true);
+    }
+
+    function makeLongPress(opts){
+        let holdTimer = null;
+        let heldEl = null;   // the pressed element, kept only to position the menu
+        let heldKey = null;  // its stable id/name, captured immediately — never re-read later
+        let startX = 0, startY = 0;
+
+        document.addEventListener('pointerdown', function(e){
+            const w = e.target.closest('#'+opts.containerId+' '+opts.itemSelector);
+            if(!w) return;
+            if(opts.isBlocked && opts.isBlocked()) return;
+            if(opts.isBlockedTarget && e.target.closest(opts.isBlockedTarget)) return;
+            if(opts.isItemBlocked && opts.isItemBlocked(w)) return;
+            if(opts.respectSearch){
+                const rawQuery = (document.getElementById('searchInput')||{}).value || '';
+                if(rawQuery.trim()) return; // reordering only applies to the plain, unfiltered list
             }
-            return;
-        }
-        e.preventDefault();
-        const c = container(); if(!c) return;
-        const siblings = [...c.querySelectorAll('.note-btn-wrap')].filter(w=>w!==dragWrap);
-        const y = e.clientY;
-        let placed = false;
-        for(const sib of siblings){
-            const r = sib.getBoundingClientRect();
-            if(y < r.top + r.height/2){ c.insertBefore(dragWrap, sib); placed=true; break; }
-        }
-        if(!placed) c.appendChild(dragWrap);
-    }, {passive:false});
+            const key = opts.getKey(w);
+            if(!key) return;
+            heldEl = w; heldKey = key;
+            startX = e.clientX; startY = e.clientY;
+            clearTimeout(holdTimer);
+            holdTimer = setTimeout(()=>{
+                if(!heldEl || !heldKey) return;
+                if(!document.body.contains(heldEl)) { heldEl = null; heldKey = null; return; } // list re-rendered mid-hold
+                const el = heldEl, key = heldKey;
+                suppressClickUntil = Date.now() + 400;
+                if(navigator.vibrate){ try{ navigator.vibrate(12); }catch(_){} }
+                openMenu(el, ()=>opts.onMove(key, -1), ()=>opts.onMove(key, 1));
+                heldEl = null; heldKey = null;
+            }, HOLD_MS);
+        }, {passive:true});
 
-    document.addEventListener('pointerup', function(){ endDrag(true); });
-    document.addEventListener('pointercancel', function(){ endDrag(false); });
+        document.addEventListener('pointermove', function(e){
+            if(!heldEl) return;
+            if(Math.abs(e.clientX-startX) > MOVE_CANCEL_PX || Math.abs(e.clientY-startY) > MOVE_CANCEL_PX){
+                clearTimeout(holdTimer); heldEl = null; heldKey = null;
+            }
+        }, {passive:true});
 
-    // Swallow the click that would otherwise follow a drag release, so
-    // dropping a note doesn't also toggle it open.
-    document.addEventListener('click', function(e){
-        if(Date.now() < suppressClickUntil && e.target.closest('#buttonsContainer .note-btn-wrap')){
-            e.stopPropagation();
-            e.preventDefault();
-        }
-    }, true);
+        document.addEventListener('pointerup', function(){ clearTimeout(holdTimer); heldEl = null; heldKey = null; });
+        document.addEventListener('pointercancel', function(){ clearTimeout(holdTimer); heldEl = null; heldKey = null; });
+        window.addEventListener('blur', function(){ clearTimeout(holdTimer); heldEl = null; heldKey = null; });
+
+        // Swallow the click that would otherwise follow opening the menu, so
+        // the long-press doesn't also open/toggle the note or folder.
+        document.addEventListener('click', function(e){
+            if(Date.now() < suppressClickUntil && e.target.closest('#'+opts.containerId+' '+opts.itemSelector)){
+                e.stopPropagation();
+                e.preventDefault();
+            }
+        }, true);
+    }
+
+    // Notes.
+    makeLongPress({
+        containerId: 'buttonsContainer',
+        itemSelector: '.note-btn-wrap',
+        respectSearch: true,
+        isBlocked: ()=> window.MarkhinNoteDeleteMode, // delete mode already has its own tap target
+        isBlockedTarget: '.note-del-x',
+        getKey: (w)=> w.dataset.id,
+        onMove: (id, dir) => moveNoteOrder(id, dir)
+    });
+
+    // Folders. The "All/همه" root folder always stays pinned first and isn't
+    // reorderable, matching the fact that it can't be deleted either.
+    makeLongPress({
+        containerId: 'foldersContainer',
+        itemSelector: '.folder-wrapper',
+        respectSearch: false,
+        isBlocked: ()=> typeof isDeleteFolderMode !== 'undefined' && isDeleteFolderMode,
+        isBlockedTarget: '.close-folder-btn',
+        isItemBlocked: (w)=> w.dataset.folder === DEFAULT_FOLDER,
+        getKey: (w)=> w.dataset.folder,
+        onMove: (name, dir) => moveFolderOrder(name, dir)
+    });
 })();
 
 function mu_toggleNoteDeleteMode(){
@@ -8600,7 +9077,7 @@ function mu_toggleNoteDeleteMode(){
     if(btn) btn.textContent = window.MarkhinNoteDeleteMode ? (currentLang==='fa'?'✅ پایان حذف':'✅ Done') : (currentLang==='fa'?'🗑️ حذف یادداشت':'🗑️ Delete note');
     if(window.MarkhinNoteDeleteMode){
         const bc = document.getElementById('buttonsContainer');
-        if(bc) setTimeout(()=>bc.scrollIntoView({behavior:'smooth', block:'start'}), 60);
+        if(bc) setTimeout(()=>bc.scrollIntoView({ behavior: 'smooth', block: 'center' }), 0);
         showToast(currentLang==='fa' ? 'روی ✖ کنار هر یادداشت بزن تا حذف شود.' : 'Tap the ✖ next to a note to delete it.');
     }
 }
@@ -9139,11 +9616,90 @@ function mu_addAiToolsToNote(item, box){
     const row = document.createElement('div');
     row.className = 'markhin-feature-row markhin-ai-tools-row';
     const fa = currentLang==='fa';
-    row.innerHTML = `<button type="button" class="img-btn">🧠 ${fa?'خلاصه AI':'AI Summary'}</button><button type="button" class="img-btn">🏷️ ${fa?'برچسب AI':'AI Tags'}</button>`;
+    row.innerHTML = `<button type="button" class="img-btn">🧠 ${fa?'خلاصه AI':'AI Summary'}</button><button type="button" class="img-btn">🏷️ ${fa?'برچسب AI':'AI Tags'}</button><button type="button" class="img-btn">🌐 ${fa?'ترجمه AI':'AI Translate'}</button>`;
     const btns = row.querySelectorAll('button');
     btns[0].onclick = ()=>mu_summarizeNote(item.id);
     btns[1].onclick = ()=>mu_suggestTags(item.id);
+    btns[2].onclick = ()=>mu_aiTranslateNote(item.id);
     anchor.parentNode.insertBefore(row, anchor.nextSibling);
+}
+
+/* Small language-picker modal for AI Translate. Resolves with 'en' or 'fa',
+   or null if the user closes it without choosing. Relies on the same
+   showAdvanced/closeAdvancedModal modal used by AI Summary/AI Tags. */
+function mu_pickAiTranslateTarget() {
+    return new Promise((resolve) => {
+        const fa = currentLang === 'fa';
+        window.__muAiTranslateResolve = resolve;
+        showAdvanced(`<div class="advanced-head"><h3>🌐 ${fa?'ترجمه AI':'AI Translate'}</h3><button class="btn-main" onclick="mu_resolveAiTranslateTarget(null)">✕</button></div>
+            <p style="line-height:2">${fa?'متن به کدام زبان ترجمه شود؟':'Which language should the text be translated into?'}</p>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px">
+                <button class="btn-main" onclick="mu_resolveAiTranslateTarget('en')">${fa?'انگلیسی':'English'}</button>
+                <button class="btn-main" onclick="mu_resolveAiTranslateTarget('fa')">${fa?'فارسی':'Persian'}</button>
+            </div>`);
+    });
+}
+window.mu_resolveAiTranslateTarget = function(target) {
+    closeAdvancedModal();
+    if (window.__muAiTranslateResolve) {
+        window.__muAiTranslateResolve(target);
+        window.__muAiTranslateResolve = null;
+    }
+};
+
+/* AI-powered translation of a whole note, using the same configured AI
+   provider/API key as AI Summary and AI Tags. Rewrites the note as plain
+   translated text (same tradeoff as the existing Google-translate buttons)
+   and registers a "Revert to Original" backup the same way they do. */
+async function mu_aiTranslateNote(id) {
+    const item = categories.find(c => c.id === id); if (!item) return;
+    const fa = currentLang === 'fa';
+    if (!MarkhinAI.isConfigured()) { mu_openAiSettingsModal(); return; }
+    if (isNoteLocked(item) && !unlockedQaIds.includes(id)) { showToast(fa?'ابتدا این یادداشت را از بخش پرسش آنلاک کن.':'Unlock this note from the Ask section first.'); return; }
+    const textEl = document.getElementById('text-' + id);
+    if (!textEl) return;
+    const sourceText = mu_notePlainText(item).slice(0, 8000);
+    if (!sourceText) { showToast(fa?'این یادداشت متنی برای ترجمه ندارد.':'This note has no text to translate.'); return; }
+
+    const target = await mu_pickAiTranslateTarget();
+    if (!target) return;
+
+    if (textEl.querySelector('img,audio,canvas,table,a')) {
+        const warnMsg = fa
+            ? 'ترجمه، تصاویر/صدا/جدول/لینک داخل این یادداشت را حذف می‌کند و فقط متن ساده‌ی ترجمه‌شده باقی می‌ماند. ادامه می‌دهید؟'
+            : 'Translating will remove any images, audio, tables, or links in this note, leaving only the translated plain text. Continue?';
+        if (!confirm(warnMsg)) return;
+    }
+
+    const preTranslateHtml = textEl.innerHTML;
+    // Checkpoint the pre-translation state right away, same as regular
+    // translate — so Undo reliably steps back to exactly this.
+    mu_historyInit(id, preTranslateHtml);
+    mu_historyPush(id, preTranslateHtml);
+    textEl.innerText = fa ? 'در حال ترجمه با AI... لطفاً شکیبا باشید.' : 'Translating with AI... please wait.';
+
+    const sys = target === 'fa'
+        ? 'متن زیر را دقیق و روان به فارسی ترجمه کن. فقط متن ترجمه‌شده را برگردان، بدون هیچ توضیح یا مقدمه‌ای.'
+        : 'Translate the following text into fluent, accurate English. Return only the translated text, with no explanation or preamble.';
+    try {
+        const reply = await MarkhinAI.chat([{role:'system',content:sys},{role:'user',content:sourceText}], {maxTokens:1200});
+        if (!reply || !reply.trim()) {
+            textEl.innerHTML = preTranslateHtml;
+            showToast(fa?'ترجمه‌ای دریافت نشد.':'No translation received.');
+            return;
+        }
+        textEl.innerText = reply.trim();
+        item.html = textEl.innerHTML;
+        item.text = textWithVisualSpacing(textEl).replace(/\u00a0/g, ' ');
+        item.lastEdited = new Date().toUTCString();
+        saveToLocalStorage();
+
+        mu_historyPush(id, textEl.innerHTML);
+        showToast(fa?'ترجمه با AI انجام شد.':'AI translation done.');
+    } catch (err) {
+        textEl.innerHTML = preTranslateHtml;
+        showToast('⚠️ ' + (err.message || String(err)), 3200);
+    }
 }
 
 function mu_notePlainText(item){
@@ -9232,7 +9788,7 @@ window.applyLanguageUI = function(){
     if(si) si.placeholder = fa ? 'جستجو... ⁦(tag:کار is:pinned)⁩' : 'Search... (tag:work is:pinned)';
 };
 
-window.addEventListener('load', ()=> setTimeout(mu_injectUiControls, 40));
+document.addEventListener('DOMContentLoaded', mu_injectUiControls);
 document.addEventListener('keydown', e=>{ if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='k'){ e.preventDefault(); mu_openSmartSearchModal(); } });
 
 })();
