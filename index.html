@@ -6,9 +6,43 @@
     <meta name="theme-color" content="#03101c" id="mAiThemeColorMeta">
     <meta name="color-scheme" content="dark">
     <title>مدیریت اطلاعات و حساب‌ها</title>
+    <!-- Telegram Mini App load-speed fix: these two web-font stylesheets used
+         to be @import'd inside the <style> block below, which forces the
+         browser to fetch and parse them before it can finish building the
+         page's CSSOM at all — i.e. first paint waits on two external font
+         hosts. Loading them as <link> tags with the classic
+         media="print" -> onload="this.media='all'" swap keeps them fully
+         non-blocking: the page paints immediately with fallback fonts, then
+         swaps to the real ones the instant they're ready. preconnect opens
+         the connections to both font hosts in parallel while the rest of the
+         head is still being read, shaving off the DNS/TLS handshake time. -->
+    <link rel="preconnect" href="https://fonts.cdnfonts.com">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.cdnfonts.com/css/cyberpunk" media="print" onload="this.media='all'">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=VT323&family=Orbitron:wght@700&family=Cinzel:wght@700&family=Share+Tech+Mono&family=Creepster&family=Poller+One&family=Dancing+Script:wght@700&family=Quicksand:wght@500;700&family=Pacifico&display=swap" media="print" onload="this.media='all'">
+    <noscript>
+        <link rel="stylesheet" href="https://fonts.cdnfonts.com/css/cyberpunk">
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=VT323&family=Orbitron:wght@700&family=Cinzel:wght@700&family=Share+Tech+Mono&family=Creepster&family=Poller+One&family=Dancing+Script:wght@700&family=Quicksand:wght@500;700&family=Pacifico&display=swap">
+    </noscript>
     <style>
-        @import url('https://fonts.cdnfonts.com/css/cyberpunk');
-        @import url('https://fonts.googleapis.com/css2?family=VT323&family=Orbitron:wght@700&family=Cinzel:wght@700&family=Share+Tech+Mono&family=Creepster&family=Poller+One&family=Dancing+Script:wght@700&family=Quicksand:wght@500;700&family=Pacifico&display=swap');
+
+        /* Instant, jank-free theme switching. Dozens of elements across the
+           app (buttons, cards, panels, inputs) use --transition-smooth,
+           which is "all 0.35s" — great for hover/press feedback, but every
+           one of those elements also reads --bg-gradient/--panel-bg/
+           --card-bg/--text-color, which ALL change the moment a theme class
+           swaps on <body>. That means dozens of elements animate every one
+           of their color/border/shadow properties at once, which is exactly
+           the "کندی و اختلال" (lag/jitter) a theme switch used to cause,
+           especially inside Telegram's in-app WebView. applyTheme() below
+           adds this class for one frame around the swap so the new theme
+           applies instantly instead of visibly transitioning in, then
+           removes it so normal hover/press transitions keep working
+           afterwards. */
+        body.theme-switching, body.theme-switching * {
+            transition: none !important;
+        }
 
         :root {
             /* Every theme in this app is a dark background, so we force the
@@ -35,21 +69,80 @@
             --spacing-lg: 20px;
         }
 
+        /* Scroll-jump fix (applies to every theme): any fixed-position element
+           that overlaps scrolling content — the decorative animated layers
+           below, and the always-visible corner controls — has to be promoted
+           to its own GPU compositing layer, or mobile WebViews (this is most
+           visible inside Telegram's in-app browser) can repaint/misplace it
+           for a single frame every time the page scrolls, which reads as the
+           whole page "jumping". transform:translateZ(0) plus will-change is
+           what forces that dedicated layer. */
+        body.theme-oceanic::before, body.theme-oceanic::after,
+        body.theme-cloudy::before,
+        body.theme-aurora::before, body.theme-aurora::after,
+        body.theme-phantom::before, body.theme-phantom::after,
+        .top-right-controls {
+            transform: translateZ(0);
+            backface-visibility: hidden;
+            will-change: transform;
+        }
+
         /* Themes with Enhanced Aesthetics & Animations */
+        /* Oceanic — deep-sea gradient with drifting sunlit caustics and a
+           slow stream of rising bubbles, for a more immersive underwater vibe. */
         body.theme-oceanic {
-            --bg-gradient: radial-gradient(circle at top, #002b49 0%, #000814 100%) !important;
-            --panel-bg: rgba(0, 180, 216, 0.04) !important;
-            --panel-border: rgba(72, 202, 228, 0.18) !important;
-            --card-bg: rgba(3, 25, 44, 0.85) !important;
-            --text-color: #90e0ef !important;
+            --bg-gradient: linear-gradient(165deg, #014f79 0%, #01324f 30%, #012036 60%, #00121f 100%) !important;
+            --panel-bg: rgba(72, 202, 228, 0.05) !important;
+            --panel-border: rgba(144, 224, 239, 0.22) !important;
+            --card-bg: rgba(2, 22, 39, 0.85) !important;
+            --text-color: #ade8f4 !important;
+            text-shadow: 0 1px 3px rgba(0, 10, 22, 0.55) !important;
         }
         body.theme-oceanic::before {
+            /* Sunlight filtering down through water: soft glowing patches that
+               drift and breathe slowly, like caustic light on the seabed. */
             content: "";
             position: fixed;
-            top: 0; left: 0; right: 0; bottom: 0;
-            background-image: repeating-linear-gradient(0deg, rgba(0, 119, 182, 0.02), rgba(0, 119, 182, 0.02) 2px, transparent 2px, transparent 4px);
+            top: -20%; left: -20%; right: -20%; bottom: -20%;
+            background:
+                radial-gradient(ellipse 55% 32% at 22% 8%, rgba(173, 232, 244, 0.16) 0%, transparent 60%),
+                radial-gradient(ellipse 45% 30% at 78% 18%, rgba(0, 180, 216, 0.14) 0%, transparent 60%),
+                radial-gradient(ellipse 60% 38% at 55% 55%, rgba(2, 62, 138, 0.22) 0%, transparent 65%),
+                radial-gradient(ellipse 50% 30% at 30% 95%, rgba(0, 119, 182, 0.16) 0%, transparent 60%);
+            filter: blur(9px);
             pointer-events: none;
             z-index: -1;
+            animation: oceanCaustics 20s ease-in-out infinite alternate;
+        }
+        @keyframes oceanCaustics {
+            0%   { transform: translate3d(0, 0, 0) scale(1) rotate(0deg); opacity: .8; }
+            50%  { transform: translate3d(-2.5%, 3%, 0) scale(1.06) rotate(1deg); opacity: 1; }
+            100% { transform: translate3d(2.5%, -2%, 0) scale(1.03) rotate(-1deg); opacity: .88; }
+        }
+        body.theme-oceanic::after {
+            /* A gentle stream of bubbles rising from the bottom of the screen. */
+            content: "";
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: -1;
+            background-repeat: no-repeat;
+            background-image:
+                radial-gradient(circle 3px at 8% 0%, rgba(202, 240, 248, .55), transparent 65%),
+                radial-gradient(circle 2px at 22% 0%, rgba(202, 240, 248, .4), transparent 65%),
+                radial-gradient(circle 4px at 38% 0%, rgba(202, 240, 248, .35), transparent 65%),
+                radial-gradient(circle 2.5px at 54% 0%, rgba(202, 240, 248, .5), transparent 65%),
+                radial-gradient(circle 3.5px at 68% 0%, rgba(202, 240, 248, .3), transparent 65%),
+                radial-gradient(circle 2px at 82% 0%, rgba(202, 240, 248, .45), transparent 65%),
+                radial-gradient(circle 3px at 94% 0%, rgba(202, 240, 248, .35), transparent 65%);
+            background-position:
+                8% 108%, 22% 118%, 38% 112%, 54% 122%, 68% 108%, 82% 116%, 94% 110%;
+            animation: oceanBubbles 14s linear infinite;
+            opacity: .8;
+        }
+        @keyframes oceanBubbles {
+            0%   { background-position: 8% 108%, 22% 118%, 38% 112%, 54% 122%, 68% 108%, 82% 116%, 94% 110%; }
+            100% { background-position: 6% -15%, 26% -20%, 34% -12%, 60% -18%, 64% -10%, 86% -22%, 90% -14%; }
         }
 
         body.theme-spider {
@@ -57,31 +150,53 @@
             --panel-bg: rgba(186, 85, 211, 0.04) !important;
             --panel-border: rgba(186, 85, 211, 0.22) !important;
             --card-bg: rgba(10, 2, 15, 0.85) !important;
-            --text-color: #e066ff !important;
+            --text-color: #e9a3ff !important;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.65) !important;
         }
 
         body.theme-galaxy {
             --bg-gradient: radial-gradient(ellipse at bottom, #0d1d31 0%, #0c0d13 100%) !important;
-            --panel-bg: rgba(255, 232, 31, 0.025) !important;
-            --panel-border: rgba(255, 232, 31, 0.18) !important;
+            --panel-bg: rgba(255, 217, 102, 0.03) !important;
+            --panel-border: rgba(255, 217, 102, 0.2) !important;
             --card-bg: rgba(5, 10, 20, 0.85) !important;
-            --text-color: #ffe81f !important;
+            --text-color: #ffd966 !important;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6) !important;
         }
 
         body.theme-cloudy {
-            --bg-gradient: linear-gradient(135deg, #1e293b 0%, #0f172a 100%) !important;
-            --panel-bg: rgba(203, 213, 225, 0.04) !important;
-            --panel-border: rgba(148, 163, 184, 0.18) !important;
-            --card-bg: rgba(15, 23, 42, 0.85) !important;
-            --text-color: #cbd5e1 !important;
+            --bg-gradient: linear-gradient(160deg, #3a4557 0%, #202836 45%, #0d1117 100%) !important;
+            --panel-bg: rgba(226, 232, 240, 0.045) !important;
+            --panel-border: rgba(203, 213, 225, 0.22) !important;
+            --card-bg: rgba(20, 26, 36, 0.85) !important;
+            --text-color: #eef2f7 !important;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5) !important;
+        }
+        body.theme-cloudy::before {
+            content: "";
+            position: fixed;
+            top: -15%; left: -25%; right: -25%; bottom: -15%;
+            background:
+                radial-gradient(ellipse 42% 18% at 20% 20%, rgba(226, 232, 240, 0.16) 0%, transparent 70%),
+                radial-gradient(ellipse 38% 16% at 65% 12%, rgba(203, 213, 225, 0.13) 0%, transparent 70%),
+                radial-gradient(ellipse 50% 20% at 85% 35%, rgba(226, 232, 240, 0.1) 0%, transparent 70%),
+                radial-gradient(ellipse 45% 18% at 30% 62%, rgba(148, 163, 184, 0.1) 0%, transparent 70%);
+            filter: blur(10px);
+            pointer-events: none;
+            z-index: -1;
+            animation: cloudDrift 42s linear infinite alternate;
+        }
+        @keyframes cloudDrift {
+            0%   { transform: translate3d(0, 0, 0); }
+            100% { transform: translate3d(4%, 1%, 0); }
         }
 
         body.theme-dreamy {
-            --bg-gradient: linear-gradient(135deg, #2b1055 0%, #7597de 100%) !important;
+            --bg-gradient: linear-gradient(135deg, #2b1055 0%, #4c3f91 100%) !important;
             --panel-bg: rgba(255, 255, 255, 0.05) !important;
             --panel-border: rgba(255, 192, 203, 0.25) !important;
             --card-bg: rgba(25, 15, 45, 0.85) !important;
-            --text-color: #ffc0cb !important;
+            --text-color: #ffd6e2 !important;
+            text-shadow: 0 1px 3px rgba(20, 10, 40, 0.7) !important;
         }
 
         body.theme-cyberpunk {
@@ -89,7 +204,8 @@
             --panel-bg: rgba(0, 240, 255, 0.04) !important;
             --panel-border: rgba(0, 240, 255, 0.25) !important;
             --card-bg: rgba(5, 0, 15, 0.85) !important;
-            --text-color: #00f0ff !important;
+            --text-color: #4ff5ff !important;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.65) !important;
         }
 
         body.theme-love {
@@ -97,23 +213,35 @@
             --panel-bg: rgba(255, 77, 109, 0.04) !important;
             --panel-border: rgba(255, 77, 109, 0.22) !important;
             --card-bg: rgba(20, 2, 7, 0.85) !important;
-            --text-color: #ff758f !important;
+            --text-color: #ff92a8 !important;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6) !important;
         }
 
+        /* Snowy — a cold moonlit night palette. The animated drifting-snowflake
+           layers were removed on request (they were also the main source of
+           the fixed-layer scroll-jump bug on this theme): body.theme-snowy is
+           now just a static color palette, same as the other non-animated
+           themes below. */
         body.theme-snowy {
-            --bg-gradient: radial-gradient(circle, #0f172a 0%, #020617 100%) !important;
-            --panel-bg: rgba(224, 242, 254, 0.04) !important;
-            --panel-border: rgba(186, 230, 253, 0.18) !important;
+            --bg-gradient: linear-gradient(180deg, #0a1628 0%, #060d1a 55%, #030712 100%) !important;
+            --panel-bg: rgba(224, 242, 254, 0.045) !important;
+            --panel-border: rgba(186, 230, 253, 0.2) !important;
             --card-bg: rgba(8, 14, 26, 0.85) !important;
-            --text-color: #bae6fd !important;
+            --text-color: #e0f2fe !important;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5) !important;
         }
-
+        /* Rainy — a dark stormy sky palette. The animated falling-rain layers
+           and lightning-flash keyframes were removed on request (they were
+           also the main source of the fixed-layer scroll-jump bug on this
+           theme): body.theme-rainy is now just a static color palette, same
+           as the other non-animated themes below. */
         body.theme-rainy {
-            --bg-gradient: linear-gradient(180deg, #0b1325 0%, #030712 100%) !important;
-            --panel-bg: rgba(148, 163, 184, 0.035) !important;
-            --panel-border: rgba(148, 163, 184, 0.18) !important;
+            --bg-gradient: linear-gradient(180deg, #0d1420 0%, #070c16 55%, #02040a 100%) !important;
+            --panel-bg: rgba(148, 163, 184, 0.04) !important;
+            --panel-border: rgba(148, 163, 184, 0.2) !important;
             --card-bg: rgba(15, 23, 42, 0.85) !important;
-            --text-color: #38bdf8 !important;
+            --text-color: #a8d8ff !important;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.55) !important;
         }
 
         body.theme-autumn {
@@ -121,7 +249,8 @@
             --panel-bg: rgba(234, 88, 12, 0.04) !important;
             --panel-border: rgba(249, 115, 22, 0.18) !important;
             --card-bg: rgba(20, 8, 2, 0.85) !important;
-            --text-color: #f97316 !important;
+            --text-color: #fdba74 !important;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6) !important;
         }
 
         body.theme-anonymous {
@@ -130,6 +259,7 @@
             --panel-border: rgba(255, 255, 255, 0.08) !important;
             --card-bg: rgba(20, 20, 20, 0.85) !important;
             --text-color: #ffffff !important;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5) !important;
         }
 
         body.theme-terminal {
@@ -137,7 +267,8 @@
             --panel-bg: rgba(0, 255, 65, 0.025) !important;
             --panel-border: rgba(0, 255, 65, 0.18) !important;
             --card-bg: rgba(0, 10, 2, 0.85) !important;
-            --text-color: #00ff41 !important;
+            --text-color: #4dff85 !important;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6) !important;
         }
 
         body.theme-darkweb {
@@ -145,7 +276,8 @@
             --panel-bg: rgba(255, 0, 0, 0.025) !important;
             --panel-border: rgba(255, 0, 0, 0.18) !important;
             --card-bg: rgba(10, 0, 0, 0.9) !important;
-            --text-color: #ff3333 !important;
+            --text-color: #ff6b6b !important;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.65) !important;
         }
 
         body.theme-acid {
@@ -153,52 +285,102 @@
             --panel-bg: rgba(204, 255, 0, 0.025) !important;
             --panel-border: rgba(204, 255, 0, 0.18) !important;
             --card-bg: rgba(3, 15, 3, 0.85) !important;
-            --text-color: #ccff00 !important;
+            --text-color: #d9ff5c !important;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6) !important;
         }
 
-        /* New: Aurora — a soft northern-lights palette with a slow-drifting glow. */
+        /* Aurora — layered ribbons of northern-lights color drifting across a
+           starry night sky, with a gentle twinkle for extra depth. */
         body.theme-aurora {
-            --bg-gradient: linear-gradient(160deg, #04121a 0%, #061a2b 45%, #041014 100%) !important;
-            --panel-bg: rgba(94, 255, 200, 0.035) !important;
-            --panel-border: rgba(120, 255, 214, 0.2) !important;
+            --bg-gradient: linear-gradient(160deg, #030d14 0%, #051826 40%, #030d12 75%, #01080d 100%) !important;
+            --panel-bg: rgba(94, 255, 200, 0.04) !important;
+            --panel-border: rgba(120, 255, 214, 0.22) !important;
             --card-bg: rgba(4, 20, 24, 0.85) !important;
-            --text-color: #7dffd0 !important;
+            --text-color: #8dffd8 !important;
+            text-shadow: 0 1px 3px rgba(0, 10, 12, 0.55) !important;
         }
         body.theme-aurora::before {
             content: "";
             position: fixed;
-            top: -20%; left: -20%; right: -20%; bottom: -20%;
+            top: -25%; left: -25%; right: -25%; bottom: -25%;
             background:
-                radial-gradient(ellipse 60% 40% at 20% 15%, rgba(125, 255, 208, 0.16) 0%, transparent 60%),
-                radial-gradient(ellipse 50% 35% at 80% 25%, rgba(140, 120, 255, 0.14) 0%, transparent 60%),
-                radial-gradient(ellipse 55% 30% at 50% 85%, rgba(80, 200, 255, 0.1) 0%, transparent 60%);
-            filter: blur(6px);
+                radial-gradient(ellipse 65% 22% at 15% 10%, rgba(125, 255, 208, 0.22) 0%, transparent 62%),
+                radial-gradient(ellipse 55% 18% at 55% 22%, rgba(140, 120, 255, 0.18) 0%, transparent 62%),
+                radial-gradient(ellipse 60% 20% at 85% 12%, rgba(80, 200, 255, 0.16) 0%, transparent 62%),
+                radial-gradient(ellipse 70% 26% at 40% 88%, rgba(94, 255, 200, 0.1) 0%, transparent 65%);
+            filter: blur(14px);
             pointer-events: none;
             z-index: -1;
-            animation: auroraDrift 16s ease-in-out infinite alternate;
+            animation: auroraDrift 18s ease-in-out infinite alternate;
         }
         @keyframes auroraDrift {
-            0%   { transform: translate3d(0, 0, 0) rotate(0deg) scale(1); opacity: 0.85; }
-            50%  { transform: translate3d(2%, -3%, 0) rotate(2deg) scale(1.06); opacity: 1; }
-            100% { transform: translate3d(-2%, 2%, 0) rotate(-1deg) scale(1.02); opacity: 0.9; }
+            0%   { transform: translate3d(0, 0, 0) rotate(0deg) scaleY(1); opacity: 0.8; }
+            50%  { transform: translate3d(3%, -4%, 0) rotate(2deg) scaleY(1.12); opacity: 1; }
+            100% { transform: translate3d(-3%, 3%, 0) rotate(-2deg) scaleY(1.05); opacity: 0.88; }
         }
-
-        body.theme-phantom {
-            --bg-gradient: radial-gradient(circle at 50% 10%, #21103b 0%, #05020a 55%, #000 100%) !important;
-            --panel-bg: rgba(168, 85, 247, 0.035) !important;
-            --panel-border: rgba(192, 132, 252, 0.22) !important;
-            --card-bg: rgba(12, 5, 22, 0.9) !important;
-            --text-color: #d8b4fe !important;
-        }
-        body.theme-phantom::before {
+        body.theme-aurora::after {
             content: "";
             position: fixed;
             inset: 0;
             pointer-events: none;
-            background:
-                radial-gradient(circle at 20% 30%, rgba(168, 85, 247, 0.08), transparent 28%),
-                radial-gradient(circle at 80% 70%, rgba(59, 130, 246, 0.06), transparent 25%);
             z-index: -1;
+            background-image:
+                radial-gradient(circle 1px at 12% 18%, rgba(255, 255, 255, .8), transparent 100%),
+                radial-gradient(circle 1px at 30% 8%, rgba(255, 255, 255, .6), transparent 100%),
+                radial-gradient(circle 1.5px at 48% 25%, rgba(255, 255, 255, .7), transparent 100%),
+                radial-gradient(circle 1px at 66% 12%, rgba(255, 255, 255, .55), transparent 100%),
+                radial-gradient(circle 1px at 78% 30%, rgba(255, 255, 255, .65), transparent 100%),
+                radial-gradient(circle 1.5px at 90% 15%, rgba(255, 255, 255, .5), transparent 100%),
+                radial-gradient(circle 1px at 20% 45%, rgba(255, 255, 255, .4), transparent 100%),
+                radial-gradient(circle 1px at 58% 50%, rgba(255, 255, 255, .45), transparent 100%);
+            animation: auroraTwinkle 5s ease-in-out infinite alternate;
+        }
+        @keyframes auroraTwinkle {
+            0%   { opacity: .5; }
+            50%  { opacity: 1; }
+            100% { opacity: .6; }
+        }
+
+        /* Phantom — a haunted purple-blue mist that drifts through the dark,
+           with a faint pulsing glow like something watching from the shadows. */
+        body.theme-phantom {
+            --bg-gradient: radial-gradient(circle at 50% 8%, #2b1250 0%, #140a28 40%, #05020a 75%, #000 100%) !important;
+            --panel-bg: rgba(168, 85, 247, 0.04) !important;
+            --panel-border: rgba(192, 132, 252, 0.25) !important;
+            --card-bg: rgba(12, 5, 22, 0.9) !important;
+            --text-color: #d8b4fe !important;
+            text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6) !important;
+        }
+        body.theme-phantom::before {
+            content: "";
+            position: fixed;
+            top: -25%; left: -25%; right: -25%; bottom: -25%;
+            background:
+                radial-gradient(ellipse 50% 30% at 20% 25%, rgba(168, 85, 247, .16) 0%, transparent 62%),
+                radial-gradient(ellipse 45% 28% at 80% 65%, rgba(59, 130, 246, .12) 0%, transparent 62%),
+                radial-gradient(ellipse 55% 32% at 55% 90%, rgba(139, 92, 246, .1) 0%, transparent 65%);
+            filter: blur(16px);
+            pointer-events: none;
+            z-index: -1;
+            animation: phantomDrift 22s ease-in-out infinite alternate;
+        }
+        @keyframes phantomDrift {
+            0%   { transform: translate3d(0, 0, 0) scale(1); opacity: .75; }
+            50%  { transform: translate3d(-3%, -2%, 0) scale(1.08); opacity: 1; }
+            100% { transform: translate3d(3%, 2%, 0) scale(1.03); opacity: .85; }
+        }
+        body.theme-phantom::after {
+            content: "";
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: -1;
+            background: radial-gradient(circle 220px at 50% 35%, rgba(216, 180, 254, .18), transparent 70%);
+            animation: phantomPulse 6s ease-in-out infinite;
+        }
+        @keyframes phantomPulse {
+            0%, 100% { opacity: .35; transform: scale(1); }
+            50%      { opacity: .75; transform: scale(1.15); }
         }
 
         /* Static dark fallback so the very first paint (before any JS runs)
@@ -803,7 +985,13 @@
         .cemetery-entry .cemetery-delete-btn { margin-top:7px; }
 
         .btn-main, .custom-btn {
-            background: rgba(0, 0, 0, 0.32);
+            /* No backdrop-filter here on purpose: this class renders once per
+               note/account in the list (#buttonsContainer), so a per-item blur
+               is the layer every extra item multiplies — with a long list it's
+               the main reason items visibly lag/pop-in behind a fast scroll,
+               especially inside Telegram's in-app WebView. A slightly more
+               opaque flat background keeps the same look without that cost. */
+            background: rgba(0, 0, 0, 0.4);
             padding: 9px 14px;
             font-size: 12px;
             font-family: inherit;
@@ -815,7 +1003,6 @@
             flex: 1;
             min-width: 100px;
             box-sizing: border-box;
-            backdrop-filter: blur(5px);
             display: flex;
             justify-content: center;
             align-items: center;
@@ -1230,6 +1417,15 @@
             align-items: center;
             justify-content: center;
             backdrop-filter: blur(12px);
+            /* Telegram's in-app WebView otherwise shows a text-selection/
+               "save image" callout on long-press over the canvas, and lets a
+               stray drag bleed through as a rubber-band scroll of the page
+               (or, worse, the app's own swipe-to-close gesture) — none of
+               that belongs on top of a game. */
+            overscroll-behavior: contain;
+            -webkit-user-select: none;
+            user-select: none;
+            -webkit-touch-callout: none;
         }
 
         .game-card {
@@ -1244,15 +1440,103 @@
             animation: popIn 0.45s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         }
 
-        #cyberCanvas {
-            background: #000;
+        /* While a game is actually being played, the card takes over the
+           whole screen so the canvas gets maximum room to breathe. */
+        .game-card.gc-playing {
+            width: 100vw;
+            height: 100vh;
+            height: calc(var(--app-1vh, 1vh) * 100);
+            max-width: 100vw;
+            max-height: 100vh;
+            max-height: calc(var(--app-1vh, 1vh) * 100);
+            padding: 0;
             border: none;
-            border-radius: var(--border-radius-sm);
-            margin-top: 12px;
-            max-width: 100%;
-            box-shadow: inset 0 0 18px rgba(255,255,255,0.04);
+            border-radius: 0;
+            box-shadow: none;
+            display: flex;
+            flex-direction: column;
+        }
+
+        #gamePlayArea {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            box-sizing: border-box;
+        }
+
+        .game-topbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            padding: 10px 14px;
+            flex-wrap: wrap;
+            background: rgba(0,0,0,0.35);
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+            flex: 0 0 auto;
+        }
+        .game-topbar-title h3 { margin: 0; font-size: 15px; letter-spacing: 0.6px; }
+        .game-topbar-title p { margin: 2px 0 0; font-size: 10.5px; color: rgba(255,255,255,0.5); }
+        .game-topbar-actions { display: flex; align-items: center; gap: 8px; }
+        .game-topbar-actions #gameScore {
+            font-weight: bold; font-size: 14px; color: var(--text-color);
+            background: rgba(255,255,255,0.06); padding: 5px 12px; border-radius: 999px;
+        }
+
+        .game-canvas-wrap {
+            position: relative;
+            flex: 1 1 auto;
+            min-height: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            /* Touch/mouse input for both games is now bound to this wrapper
+               (not just the canvas) so the whole play area below the top bar
+               responds — touch-action:none here (same as on the canvas)
+               stops the browser's own zoom/scroll/double-tap gestures from
+               competing with taps for control, which is what made touch feel
+               laggy before. */
             touch-action: none;
         }
+
+        #cyberCanvas {
+            background: #050505;
+            border: none;
+            border-radius: 0;
+            width: 100%;
+            height: 100%;
+            display: block;
+            box-shadow: inset 0 0 30px rgba(255,255,255,0.03);
+            touch-action: none;
+        }
+
+        .game-overlay-panel {
+            position: absolute;
+            inset: 0;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0,0,0,0.6);
+            backdrop-filter: blur(4px);
+            z-index: 2;
+        }
+        .game-overlay-panel.show { display: flex; }
+        .go-card {
+            background: rgba(12, 12, 16, 0.92);
+            border: 1px solid rgba(255,255,255,0.12);
+            border-radius: var(--border-radius-main);
+            padding: 26px 30px;
+            text-align: center;
+            box-shadow: 0 18px 50px rgba(0,0,0,0.55);
+            animation: popIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            max-width: 88vw;
+        }
+        .go-card h3 { margin: 0 0 8px; font-size: 19px; letter-spacing: 0.6px; }
+        .go-card p { margin: 0 0 18px; font-size: 13px; color: rgba(255,255,255,0.65); }
+        .go-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+        .go-best { font-size: 11px; opacity: .5; margin-top: -10px; margin-bottom: 16px; }
 
         .audio-wrapper {
             margin: 10px 0;
@@ -1387,8 +1671,8 @@
 #btnSmartSearch{position:relative !important;top:-10px !important;z-index:5 !important;margin-bottom:-10px !important;}
 
 /* Smoothness pass: reduce layout thrashing while keeping the existing visual design. */
-.note-card,.category-card,.btn-main,.image-export-choice,.advanced-modal,.modal-content{transform:translateZ(0);backface-visibility:hidden;}
-.note-card,.category-card,.image-export-choice{contain:layout paint;will-change:transform,opacity;}
+.note-card,.category-card,.btn-main,.custom-btn,.image-export-choice,.advanced-modal,.modal-content{transform:translateZ(0);backface-visibility:hidden;}
+.note-card,.category-card,.custom-btn,.image-export-choice{contain:layout paint;will-change:transform,opacity;}
 .note-card:active,.category-card:active,.image-export-choice:active{transform:translate3d(0,1px,0) scale(.992);}
 @media (prefers-reduced-motion:no-preference){
   .note-card,.category-card,.image-export-choice,.btn-main{transition:transform .18s cubic-bezier(.2,.8,.2,1),opacity .18s ease,box-shadow .18s ease,background-color .18s ease,border-color .18s ease,color .18s ease;}
@@ -1397,17 +1681,29 @@
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.001ms!important;transition-duration:.001ms!important;scroll-behavior:auto!important;}}
 </style>
 
-    <!-- Optional export engines: PDF/DOCX -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <!-- Optional export engines: PDF/DOCX. Deferred (like the web fonts above) since
+         none of them are needed for first paint or basic note-taking — only for the
+         export/crop actions the user triggers later. `defer` lets the browser fetch
+         them in the background without blocking HTML parsing/first paint, while still
+         guaranteeing they finish loading (in this order) before DOMContentLoaded —
+         i.e. well before a user could actually reach the export/crop button. The
+         existing window.html2canvas / window.jspdf / window.docx / window.JSZip
+         presence-checks and fallback loaders elsewhere in this file already handle
+         the (rare, slow-network) case where a script hasn't finished loading yet. -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" defer></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" defer></script>
     <!-- DOCX is loaded with a runtime fallback below so local/offline HTML opens do not get stuck on one CDN. -->
-    <script src="https://cdn.jsdelivr.net/npm/docx@9.5.1/build/index.umd.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/docx@9.5.1/build/index.umd.js" defer></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" defer></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css" media="print" onload="this.media='all'">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js" defer></script>
     <!-- Telegram Mini App SDK — required to detect that we're inside Telegram's in-app
          browser and to force links open in the user's real system browser (openLink()).
-         Harmless outside Telegram: window.Telegram just stays undefined there. -->
+         Harmless outside Telegram: window.Telegram just stays undefined there.
+         Left as a normal blocking script (not deferred): the inline script later in
+         this document reads window.Telegram.WebApp synchronously as soon as the parser
+         reaches it, so this one has to be fully loaded and executed first. It's small,
+         so the blocking cost is minimal. -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
 
 <style id="markhinCleanTopControls">
@@ -1846,6 +2142,7 @@ window.mu_syncHtmlBg = function(){
                 <div class="control-group">
                     <button class="btn-main btn-compact" id="btnNewFolder" onclick="addNewFolder()">📁 افزودن پوشه</button>
                     <button id="btnToggleDeleteFolder" class="btn-main btn-compact btn-folder-del" onclick="toggleFolderDeleteMode()">🗑️ حذف پوشه</button>
+                    <button class="btn-main btn-compact" id="btnArchivedNotes" onclick="markhinDash_showList('archived')">?? یادداشت‌های بایگانی‌شده</button>
                 </div>
             </div>
         </div>
@@ -1909,7 +2206,7 @@ window.mu_syncHtmlBg = function(){
     <div id="contentsContainer"></div>
 
     <div id="gameModal">
-        <div class="game-card">
+        <div class="game-card" id="gameCard">
             <div id="gameSelectMenu">
                 <h3 id="gameMenuHeader" style="margin: 0 0 12px 0; font-size: 18px; font-weight: bold; letter-spacing: 0.8px;">GAME ZONE</h3>
                 <p id="gameMenuDesc" style="font-size: 12px; color: rgba(255,255,255,0.5); margin-bottom: 20px;">یک بازی را انتخاب کنید:</p>
@@ -1921,14 +2218,35 @@ window.mu_syncHtmlBg = function(){
             </div>
 
             <div id="gamePlayArea" style="display: none;">
-                <h3 id="gameTitleActive" style="margin: 0; font-size: 16px; letter-spacing: 0.8px;">NEON GAME</h3>
-                <p id="gameDescActive" style="font-size: 11px; color: rgba(255,255,255,0.5); margin: 6px 0 12px 0;"></p>
-                <canvas id="cyberCanvas" width="300" height="300"></canvas>
-                <div style="margin-top: 16px; display: flex; justify-content: space-between; align-items: center;">
-                    <span id="gameScore" style="font-weight: bold; font-size: 15px; color: var(--text-color);">امتیاز: 0</span>
-                    <div style="display:flex; gap:8px;">
+                <div class="game-topbar">
+                    <div class="game-topbar-title">
+                        <h3 id="gameTitleActive">NEON GAME</h3>
+                        <p id="gameDescActive"></p>
+                    </div>
+                    <div class="game-topbar-actions">
+                        <span id="gameScore">امتیاز: 0</span>
                         <button class="img-btn" id="btnGameMenu" style="padding: 7px 14px; background: rgba(255,255,255,0.13); color: #fff;" onclick="backToGameMenu()">منو</button>
                         <button class="img-btn" id="btnGameExit" style="padding: 7px 14px; background: rgba(239, 68, 68, 0.75); color: #fff;" onclick="closeGame()">خروج</button>
+                    </div>
+                </div>
+                <div class="game-canvas-wrap" id="gameCanvasWrap">
+                    <canvas id="cyberCanvas"></canvas>
+                    <div class="game-overlay-panel" id="gamePauseOverlay">
+                        <div class="go-card">
+                            <h3>⏸ توقف موقت</h3>
+                            <p>برای ادامه، لمس کن یا کلیک کن</p>
+                        </div>
+                    </div>
+                    <div class="game-overlay-panel" id="gameOverOverlay">
+                        <div class="go-card">
+                            <h3 id="goTitle">🏁 بازی تمام شد!</h3>
+                            <p id="goScoreText">امتیاز: 0</p>
+                            <p class="go-best" id="goBestText"></p>
+                            <div class="go-actions">
+                                <button class="btn-main" id="btnGoRestart">🔁 دوباره</button>
+                                <button class="btn-main" id="btnGoMenu">🏠 منو</button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1970,6 +2288,14 @@ window.mu_syncHtmlBg = function(){
         const TG = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
         const IS_TELEGRAM = !!TG || /Telegram/i.test(navigator.userAgent || '');
         try { TG && TG.ready && TG.ready(); TG && TG.expand && TG.expand(); } catch (_) {}
+        // Stops Telegram's own "swipe down to minimize the mini app" gesture from
+        // competing with normal in-app scrolling/dragging (note lists, the drawing
+        // canvas, game swipes) — without this, a vertical touch-move inside the app
+        // can get intercepted by Telegram itself instead of reaching the page,
+        // which is exactly the kind of thing that makes touch feel laggy/unreliable.
+        // Feature-detected + try/catch like the other TG.* calls here, since older
+        // Telegram clients simply won't have this method.
+        try { TG && TG.disableVerticalSwipes && TG.disableVerticalSwipes(); } catch (_) {}
 
         /* ---- real usable viewport height (fixes wasted/clipped space in Telegram) ----
            Plain 100vh inside Telegram's in-app WebView is unreliable: it doesn't track
@@ -2133,12 +2459,16 @@ window.mu_syncHtmlBg = function(){
             // Most-recently-edited notes first, so if we run out of budget it's
             // the oldest/least-touched notes left out, not the one being worked on.
             const sorted = categories.slice().sort((a, b) => (Date.parse(b.lastEdited) || 0) - (Date.parse(a.lastEdited) || 0));
-            let included = sorted.map(item => ({
-                id: item.id, name: item.name, folder: item.folder,
-                text: item.text, html: cloudStripImages(item.html),
-                tags: item.tags, pinned: item.pinned, favorite: item.favorite,
-                lastEdited: item.lastEdited
-            }));
+            let included = sorted.map(item => {
+                const persisted = getPersistedCategory(item);
+                return {
+                    id: persisted.id, name: persisted.name, folder: persisted.folder,
+                    text: persisted.text, html: cloudStripImages(persisted.html),
+                    encrypted: persisted.encrypted, hint: persisted.hint,
+                    tags: persisted.tags, pinned: persisted.pinned, favorite: persisted.favorite,
+                    lastEdited: persisted.lastEdited
+                };
+            });
             const totalNotes = included.length;
             const customFolders = folders.filter(f => f !== DEFAULT_FOLDER);
             let skipped = 0;
@@ -2251,7 +2581,7 @@ window.mu_syncHtmlBg = function(){
                 rename: "تغییر نام",
                 removeLock: "حذف رمز",
                 setLock: "رمزگذاری",
-                setHint: "تعیین راهنمای رمز",
+                changeHint: "تغییر راهنمای رمز",
                 removeFromFolder: "خروج از پوشه",
                 forward: "جلو",
                 backward: "عقب",
@@ -2265,8 +2595,8 @@ window.mu_syncHtmlBg = function(){
                 promptNewFolder: "نام پوشه جدید:",
                 promptNewCategory: "نام یادداشت جدید:",
                 promptPassLock: "رمز جدید را وارد کنید:",
-                promptHint: "راهنمای یادآوری رمز (Hint) را وارد کنید:",
-                promptEnterPass: "رمز عبور را وارد کنید (جهت راهنما عبارت hint را تایپ کنید):",
+                promptHint: "راهنمای رمز را وارد کنید:",
+                promptEnterPass: "رمز عبور را وارد کنید:",
                 promptRename: "نام جدید:",
                 wrongPass: "رمز اشتباه است.",
                 noHintSet: "راهنمایی برای این یادداشت ثبت نشده است.",
@@ -2345,7 +2675,7 @@ window.mu_syncHtmlBg = function(){
                 rename: "Rename",
                 removeLock: "Remove Lock",
                 setLock: "Set Lock",
-                setHint: "Set Password Hint",
+                changeHint: "Change Password Hint",
                 removeFromFolder: "Remove Folder",
                 forward: "Up",
                 backward: "Down",
@@ -2359,8 +2689,8 @@ window.mu_syncHtmlBg = function(){
                 promptNewFolder: "New Folder Name:",
                 promptNewCategory: "New Note Name:",
                 promptPassLock: "Enter new password:",
-                promptHint: "Enter password reminder hint:",
-                promptEnterPass: "Enter password (type 'hint' for reminder):",
+                promptHint: "Enter password hint:",
+                promptEnterPass: "Enter password:",
                 promptRename: "New name:",
                 wrongPass: "Incorrect password.",
                 noHintSet: "No hint set for this note.",
@@ -2429,6 +2759,185 @@ window.mu_syncHtmlBg = function(){
         let currentGameInterval = null;
         let gameScore = 0;
         let gameAborter = new AbortController();
+        let gameStopFn = null;     // cleanup for the active game's animation loop
+        let gamePaused = false;    // true while the pause overlay is showing
+        let gameResizeTimer = null;
+
+        /* Markhin note encryption: password -> PBKDF2-SHA-256 -> AES-256-GCM.
+         * Passwords are never persisted. Locked-note text/html are persisted only as
+         * base64-encoded salt/iv/ciphertext. Decryption keys exist only in this tab.
+         */
+        const NOTE_CRYPTO_VERSION = 1;
+        const NOTE_KDF_ITERATIONS = 250000;
+        const NOTE_KDF_HASH = 'SHA-256';
+        const NOTE_AES_ALGORITHM = 'AES-GCM';
+        const NOTE_AES_KEY_BITS = 256;
+        const NOTE_SALT_BYTES = 16;
+        const NOTE_IV_BYTES = 12;
+        const noteSessionKeys = new Map();
+
+        function noteBytesToBase64(bytes) {
+            let binary = '';
+            const chunk = 0x8000;
+            for (let i = 0; i < bytes.length; i += chunk) {
+                binary += String.fromCharCode(...bytes.subarray(i, Math.min(i + chunk, bytes.length)));
+            }
+            return btoa(binary);
+        }
+
+        function noteBase64ToBytes(value) {
+            const binary = atob(String(value || ''));
+            const bytes = new Uint8Array(binary.length);
+            for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+            return bytes;
+        }
+
+        async function noteDeriveKey(password, salt) {
+            if (!window.crypto?.subtle) throw new Error('Web Crypto API is unavailable.');
+            const material = await crypto.subtle.importKey(
+                'raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveKey']
+            );
+            return crypto.subtle.deriveKey(
+                { name: 'PBKDF2', salt, iterations: NOTE_KDF_ITERATIONS, hash: NOTE_KDF_HASH },
+                material,
+                { name: NOTE_AES_ALGORITHM, length: NOTE_AES_KEY_BITS },
+                false,
+                ['encrypt', 'decrypt']
+            );
+        }
+
+        async function encryptNotePayload(password, html, text) {
+            const salt = crypto.getRandomValues(new Uint8Array(NOTE_SALT_BYTES));
+            const iv = crypto.getRandomValues(new Uint8Array(NOTE_IV_BYTES));
+            const key = await noteDeriveKey(password, salt);
+            const plaintext = new TextEncoder().encode(JSON.stringify({ html: String(html || ''), text: String(text || '') }));
+            const ciphertext = await crypto.subtle.encrypt({ name: NOTE_AES_ALGORITHM, iv }, key, plaintext);
+            return {
+                v: NOTE_CRYPTO_VERSION,
+                alg: NOTE_AES_ALGORITHM,
+                kdf: 'PBKDF2',
+                hash: NOTE_KDF_HASH,
+                iterations: NOTE_KDF_ITERATIONS,
+                salt: noteBytesToBase64(salt),
+                iv: noteBytesToBase64(iv),
+                ciphertext: noteBytesToBase64(new Uint8Array(ciphertext))
+            };
+        }
+
+        async function decryptNotePayload(password, encrypted) {
+            if (!encrypted || encrypted.v !== NOTE_CRYPTO_VERSION) throw new Error('Unsupported encrypted note format.');
+            if (encrypted.alg !== NOTE_AES_ALGORITHM || encrypted.kdf !== 'PBKDF2' || encrypted.hash !== NOTE_KDF_HASH || encrypted.iterations !== NOTE_KDF_ITERATIONS) {
+                throw new Error('Unsupported encrypted note parameters.');
+            }
+            const salt = noteBase64ToBytes(encrypted.salt);
+            const iv = noteBase64ToBytes(encrypted.iv);
+            const ciphertext = noteBase64ToBytes(encrypted.ciphertext);
+            const key = await noteDeriveKey(password, salt);
+            const plaintext = await crypto.subtle.decrypt({ name: NOTE_AES_ALGORITHM, iv }, key, ciphertext);
+            return JSON.parse(new TextDecoder().decode(plaintext));
+        }
+
+
+        async function createEncryptedExport(item) {
+            if (!item || !isNoteLocked(item)) throw new Error('Note is not encrypted.');
+            const passwordInput = await promptNotePassword(
+                item,
+                currentLang === 'fa' ? 'برای ساخت خروجی رمزنگاری‌شده، رمز فعلی یادداشت را وارد کنید.' : 'Enter the current note password to create the encrypted export.'
+            );
+            if (passwordInput === null) throw new Error('Export cancelled.');
+            const password = passwordInput.trim();
+            if (!password || !await unlockNote(item, password)) throw new Error('Wrong password.');
+            const persisted = getPersistedCategory(item);
+            const encrypted = await encryptNotePayload(password, item.html || '', item.text || '');
+            const envelope = {
+                format: 'markhin-encrypted-note',
+                version: 1,
+                exportedAt: new Date().toISOString(),
+                note: {
+                    id: persisted.id, name: persisted.name, folder: persisted.folder || '',
+                    hint: persisted.hint || '', tags: persisted.tags || [],
+                    pinned: !!persisted.pinned, favorite: !!persisted.favorite,
+                    fontFamily: persisted.fontFamily || '', fontSize: persisted.fontSize || undefined,
+                    encrypted
+                }
+            };
+            return new Blob([JSON.stringify(envelope, null, 2)], {type:'application/vnd.markhin.encrypted+json;charset=utf-8'});
+        }
+
+        async function exportLockedAwareSingle(item, chosenName, normalProducer, normalExt, normalMime) {
+            if (isNoteLocked(item)) {
+                const blob = await createEncryptedExport(item);
+                await robustDownload(blob, `${chosenName}.mne.json`, blob.type);
+                return true;
+            }
+            const data = await normalProducer();
+            const blob = data instanceof Blob ? data : new Blob([data], {type: normalMime});
+            await robustDownload(blob, `${chosenName}.${normalExt}`, normalMime);
+            return true;
+        }
+
+        function isEncryptedExportFile(file) {
+            return /\.mne\.json$/i.test(file?.name || '') || String(file?.type || '').includes('application/vnd.markhin.encrypted');
+        }
+
+        function isNoteLocked(item) {
+            return !!(item && item.encrypted && item.encrypted.ciphertext && item.encrypted.salt && item.encrypted.iv);
+        }
+
+        function getPersistedCategory(item) {
+            const copy = { ...item };
+            // Never serialize the transient password or decrypted plaintext of a locked note.
+            delete copy.password;
+            if (isNoteLocked(item)) {
+                copy.text = '';
+                copy.html = '';
+                copy.isDecoy = false;
+            }
+            return copy;
+        }
+
+        function serializeCategoriesForStorage() {
+            return categories.map(getPersistedCategory);
+        }
+
+        async function unlockNote(item, password) {
+            if (!isNoteLocked(item)) return false;
+            try {
+                const payload = await decryptNotePayload(String(password), item.encrypted);
+                item.html = String(payload.html || '');
+                item.text = String(payload.text || '');
+                item.isDecoy = false;
+                noteSessionKeys.set(item.id, String(password));
+                return true;
+            } catch (_) {
+                return false;
+            }
+        }
+
+        function clearDecryptedNote(item) {
+            if (!item) return;
+            item.text = '';
+            item.html = '';
+            item.isDecoy = false;
+            noteSessionKeys.delete(item.id);
+        }
+
+        async function migrateLegacyPasswordNotes() {
+            let changed = false;
+            for (const item of categories) {
+                if (!item || typeof item.password !== 'string' || !item.password) continue;
+                // Legacy notes had plaintext password + plaintext content. Convert them once
+                // and immediately remove the password/content from the persisted shape.
+                const pass = item.password.trim();
+                if (!pass) { delete item.password; continue; }
+                item.encrypted = await encryptNotePayload(pass, item.html || '', item.text || '');
+                delete item.password;
+                item.isDecoy = false;
+                clearDecryptedNote(item);
+                changed = true;
+            }
+            if (changed) saveToLocalStorage();
+        }
 
         /*
          * Normalizes a raw category/note object coming from localStorage, a JSON backup,
@@ -2446,7 +2955,9 @@ window.mu_syncHtmlBg = function(){
                 text: String(src.text ?? ''),
                 html: String(src.html ?? src.text ?? ''),
                 lastEdited: src.lastEdited ? String(src.lastEdited) : '',
+                // Legacy `password` is read only long enough for one-time migration on startup.
                 password: typeof src.password === 'string' ? src.password : '',
+                encrypted: src.encrypted && typeof src.encrypted === 'object' ? { ...src.encrypted } : null,
                 hint: typeof src.hint === 'string' ? src.hint : '',
                 isDecoy: false,
                 // Advanced-system fields (Time Capsule / Ghost Note / Decay).
@@ -2462,6 +2973,8 @@ window.mu_syncHtmlBg = function(){
                 tags: Array.isArray(src.tags) ? src.tags.filter(Boolean).map(String) : [],
                 pinned: !!src.pinned,
                 favorite: !!src.favorite,
+                archived: !!src.archived,
+                order: Number(src.order) || 0,
                 fakeContent: typeof src.fakeContent === 'string' ? src.fakeContent : '',
                 fontFamily: typeof src.fontFamily === 'string' ? src.fontFamily : '',
                 fontSize: Number(src.fontSize) || 13
@@ -2473,7 +2986,7 @@ window.mu_syncHtmlBg = function(){
         // fires as soon as the DOM itself is parsed — everything this function
         // touches (localStorage, page elements) is ready by then — so the app
         // starts noticeably faster, especially on a slow connection.
-        document.addEventListener('DOMContentLoaded', function() {
+        document.addEventListener('DOMContentLoaded', async function() {
             const savedLang = localStorage.getItem('app_lang_v15');
             if (savedLang === 'fa' || savedLang === 'en') currentLang = savedLang;
 
@@ -2489,7 +3002,11 @@ window.mu_syncHtmlBg = function(){
                 categories = Array.isArray(parsed) ? parsed : [];
             }
             categories = categories.filter(item => item && typeof item === 'object').map((item, index) => normalizeCategory(item, index));
-            categories.forEach(item => { item.html = sanitizeHtml(item.html || item.text || ''); });
+            categories.forEach(item => {
+                if (isNoteLocked(item)) { item.html = ''; item.text = ''; }
+                else item.html = sanitizeHtml(item.html || item.text || '');
+            });
+            await migrateLegacyPasswordNotes();
 
             if (savedFolders) {
                 const parsedFolders = safeParseJSON(savedFolders, []);
@@ -2506,6 +3023,15 @@ window.mu_syncHtmlBg = function(){
             applyLanguageUI();
             applyTheme(currentThemeIndex);
             renderApp();
+            /* Dashboard button: this used to only get added inside the
+               window 'load' handler further down, which waits for every web
+               font and external script to finish — on a slow connection
+               that's a very visible delay after the rest of the UI is
+               already interactive. Adding it here too (addTopControls()
+               guards against duplicates) makes it appear at the same time as
+               everything else; the later 'load' call becomes a harmless
+               no-op. */
+            addTopControls();
             updateLockBtnState();
         });
 
@@ -2517,7 +3043,7 @@ window.mu_syncHtmlBg = function(){
         }
 
         function updateLockBtnState() {
-            const lockedItems = categories.filter(item => item.password);
+            const lockedItems = categories.filter(isNoteLocked);
             const lockBtn = document.getElementById('qaLockBtn');
             if (!lockBtn) return;
             if (lockedItems.length > 0 && lockedItems.every(item => unlockedQaIds.includes(item.id))) {
@@ -2527,8 +3053,8 @@ window.mu_syncHtmlBg = function(){
             }
         }
 
-        function promptUnlockQa() {
-            const lockedItems = categories.filter(item => item.password);
+        async function promptUnlockQa() {
+            const lockedItems = categories.filter(isNoteLocked);
             if (lockedItems.length === 0) {
                 alert("هیچ یادداشت رمزگذاری‌شده‌ای وجود ندارد.");
                 return;
@@ -2541,7 +3067,12 @@ window.mu_syncHtmlBg = function(){
             });
             promptStr += "\nشماره یادداشتی که می‌خواهید وضعیت قفل آن را تغییر دهید وارد کنید:";
 
-            const userChoice = prompt(promptStr);
+            const userChoice = await promptStyledText({
+                title: '🔒 وضعیت قفل یادداشت‌ها',
+                message: promptStr,
+                placeholder: 'شماره یا نام یادداشت را وارد کن',
+                okText: '✔️ تایید'
+            });
             if (!userChoice) return;
 
             let targetItem = null;
@@ -2563,13 +3094,8 @@ window.mu_syncHtmlBg = function(){
                     alert(`قفل یادداشت "${targetItem.name}" بسته شد.`);
                 }
             } else {
-                const pass = prompt(`رمز عبور یادداشت "${targetItem.name}" را وارد کنید (برای دیدن راهنما کلمه hint را بنویسید):`);
-                if (pass && pass.trim().toLowerCase() === 'hint') {
-                    alert(targetItem.hint ? (i18n[currentLang].hintTitle + targetItem.hint) : i18n[currentLang].noHintSet);
-                    return;
-                }
-
-                if (pass === targetItem.password) {
+                const pass = await promptNotePassword(targetItem);
+                if (pass !== null && await unlockNote(targetItem, pass.trim())) {
                     unlockedQaIds.push(targetItem.id);
                     alert(`قفل یادداشت "${targetItem.name}" برای بخش پرسش باز شد.`);
                 } else {
@@ -2617,7 +3143,7 @@ window.mu_syncHtmlBg = function(){
             let matchingSentence = "";
 
             categories.forEach(item => {
-                if (item.password && !unlockedQaIds.includes(item.id)) return;
+                if (isNoteLocked(item) && !unlockedQaIds.includes(item.id)) return;
                 if (item.isDecoy) return;
 
                 const textContent = normalizeText(item.text || '');
@@ -2647,7 +3173,7 @@ window.mu_syncHtmlBg = function(){
                 resBox.innerHTML = `💡 <b>پاسخ:</b> با توجه به یادداشت «<b>${escapeHtml(bestMatch.name)}</b>»:\n"${escapeHtml(matchingSentence)}"`;
                 resBox.style.display = 'block';
             } else {
-                let foundItem = categories.find(c => (!c.password || unlockedQaIds.includes(c.id)) && !c.isDecoy && (c.text || "").toLowerCase().includes(query));
+                let foundItem = categories.find(c => (!isNoteLocked(c) || unlockedQaIds.includes(c.id)) && !c.isDecoy && (c.text || "").toLowerCase().includes(query));
                 if (foundItem) {
                     resBox.innerHTML = `💡 <b>پاسخ:</b> با توجه به یادداشت «<b>${escapeHtml(foundItem.name)}</b>»:\n"${escapeHtml(foundItem.text)}"`;
                     resBox.style.display = 'block';
@@ -2746,6 +3272,7 @@ window.mu_syncHtmlBg = function(){
             document.getElementById('btnNewCategory').innerText = t.addCategory;
             document.getElementById('btnNewFolder').innerText = t.addFolder;
             document.getElementById('btnToggleDeleteFolder').innerText = isDeleteFolderMode ? t.cancelDeleteFolder : t.deleteFolder;
+            if(document.getElementById('btnArchivedNotes')) document.getElementById('btnArchivedNotes').innerText=currentLang==='fa'?'📦 یادداشت‌های بایگانی‌شده':'📦 Archived notes';
             
             const btnExportTxt = document.getElementById('btnExportTxt');
             if (btnExportTxt) btnExportTxt.innerText = t.exportTxt;
@@ -2766,7 +3293,7 @@ window.mu_syncHtmlBg = function(){
         let lastGoodStorageSnapshot = null;
         function saveToLocalStorage() {
             try {
-                const payload = JSON.stringify(categories);
+                const payload = JSON.stringify(serializeCategoriesForStorage());
                 localStorage.setItem('app_categories_v13', payload);
                 lastGoodStorageSnapshot = payload;
                 scheduleCloudBackup();
@@ -2801,13 +3328,28 @@ window.mu_syncHtmlBg = function(){
         function applyTheme(index) {
             if (!themes.length) return;
             currentThemeIndex = Math.max(0, Math.min(Number(index) || 0, themes.length - 1));
-            themes.forEach(t => document.body.classList.remove(t.class));
             const activeTheme = themes[currentThemeIndex];
+
+            // Turn off every transition for one frame so the new theme's
+            // colors apply instantly instead of every button/card/panel
+            // animating its own background/border/text-color separately —
+            // that simultaneous animation across dozens of elements was the
+            // source of the lag/jitter on switch. Re-enabled two frames
+            // later (after the browser has actually painted the new theme),
+            // so normal hover/press transitions keep working right after.
+            document.body.classList.add('theme-switching');
+            themes.forEach(t => document.body.classList.remove(t.class));
             document.body.classList.add(activeTheme.class);
             if (window.mu_syncHtmlBg) window.mu_syncHtmlBg();
-            
+
             document.getElementById('themeEmoji').innerText = activeTheme.emoji;
             document.getElementById('themeLabel').innerText = currentLang === 'fa' ? activeTheme.nameFa : activeTheme.nameEn;
+
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    document.body.classList.remove('theme-switching');
+                });
+            });
         }
 
         function renderApp(openId = activeOpenId) {
@@ -2990,7 +3532,7 @@ window.mu_syncHtmlBg = function(){
                 const btn = document.createElement('button');
                 btn.className = `custom-btn ${activeOpenId === item.id ? 'active-btn' : ''}`;
                 btn.setAttribute('aria-expanded', activeOpenId === item.id ? 'true' : 'false');
-                const lockIcon = item.password ? '🔒 ' : '';
+                const lockIcon = isNoteLocked(item) ? '🔒 ' : '';
                 btn.innerHTML = `${lockIcon}${escapeHtml(item.name)}`;
                 btn.onclick = () => handleCategoryClick(item.id);
                 btnContainer.appendChild(btn);
@@ -3016,7 +3558,9 @@ window.mu_syncHtmlBg = function(){
                 const isHidden = !!hiddenState[item.id];
                 let contentHtml = item.isDecoy
                     ? sanitizeHtml(item.fakeContent || t.unauthorized)
-                    : sanitizeHtml(item.html || item.text || '');
+                    : (isNoteLocked(item) && !noteSessionKeys.has(item.id) && !item.html && !item.text)
+                        ? sanitizeHtml(t.unauthorized)
+                        : sanitizeHtml(item.html || item.text || '');
 
                 const isRecordingThis = (activeRecId === item.id);
                 const lastEditedText = item.lastEdited ? item.lastEdited : 'ثبت نشده';
@@ -3094,9 +3638,9 @@ window.mu_syncHtmlBg = function(){
                         <button onclick="downloadAsTxt('${item.id}')">${t.downloadTxt}</button>
                         <button onclick="renameCategory('${item.id}')">${t.rename}</button>
                         
-                        ${item.password 
+                        ${isNoteLocked(item) 
                             ? `<button onclick="removeLock('${item.id}')">${t.removeLock}</button>
-                               <button onclick="setHint('${item.id}')">${t.setHint}</button>` 
+                               <button onclick="changeHint('${item.id}')">${t.changeHint}</button>` 
                             : `<button onclick="setLock('${item.id}')">${t.setLock}</button>`
                         }
 
@@ -3200,248 +3744,575 @@ window.mu_syncHtmlBg = function(){
             saveCategory(id);
         }
 
+        // Polyfill for older WebViews (notably some Telegram in-app browser
+        // builds lag behind Chrome) that don't yet support ctx.roundRect(),
+        // used by the game graphics below.
+        if (!CanvasRenderingContext2D.prototype.roundRect) {
+            CanvasRenderingContext2D.prototype.roundRect = function (x, y, w, h, r) {
+                if (typeof r === 'number') r = { tl: r, tr: r, br: r, bl: r };
+                this.beginPath();
+                this.moveTo(x + r.tl, y);
+                this.lineTo(x + w - r.tr, y);
+                this.arcTo(x + w, y, x + w, y + r.tr, r.tr);
+                this.lineTo(x + w, y + h - r.br);
+                this.arcTo(x + w, y + h, x + w - r.br, y + h, r.br);
+                this.lineTo(x + r.bl, y + h);
+                this.arcTo(x, y + h, x, y + h - r.bl, r.bl);
+                this.lineTo(x, y + r.tl);
+                this.arcTo(x, y, x + r.tl, y, r.tl);
+                this.closePath();
+                return this;
+            };
+        }
+
         function openGameMenu() {
             document.getElementById('gameModal').style.display = 'flex';
             document.getElementById('gameSelectMenu').style.display = 'block';
             document.getElementById('gamePlayArea').style.display = 'none';
+            document.getElementById('gameCard').classList.remove('gc-playing');
             clearGameEvents();
+            mAiGameTelegramChrome(true);
         }
 
         function backToGameMenu() {
             clearGameEvents();
             document.getElementById('gameSelectMenu').style.display = 'block';
             document.getElementById('gamePlayArea').style.display = 'none';
+            document.getElementById('gameCard').classList.remove('gc-playing');
         }
 
         function closeGame() {
             document.getElementById('gameModal').style.display = 'none';
+            document.getElementById('gameCard').classList.remove('gc-playing');
             clearGameEvents();
+            mAiGameTelegramChrome(false);
         }
-        
+
+        // Adapts Telegram's native chrome to the game modal's lifetime:
+        //  - expand() so the modal actually gets the full available height
+        //    instead of Telegram's collapsed default view.
+        //  - disableVerticalSwipes() (Bot API 7.7+) so Telegram's own
+        //    swipe-down-to-minimize gesture can't fire while the player is
+        //    dragging/swiping on the canvas to steer Snake.
+        //  - BackButton takes over the hardware/gesture back action so it
+        //    steps out of the game (play -> menu -> closed) instead of
+        //    closing the whole Mini App by mistake.
+        // Everything is feature-detected and no-ops instantly outside Telegram.
+        function mAiGameBackHandler() {
+            const playing = document.getElementById('gamePlayArea').style.display === 'flex';
+            if (playing) backToGameMenu(); else closeGame();
+        }
+        function mAiGameTelegramChrome(active) {
+            if (!TG) return;
+            try {
+                if (active) {
+                    TG.expand && TG.expand();
+                    if (typeof TG.disableVerticalSwipes === 'function') TG.disableVerticalSwipes();
+                    if (TG.BackButton) {
+                        TG.BackButton.onClick(mAiGameBackHandler);
+                        TG.BackButton.show();
+                    }
+                } else {
+                    if (typeof TG.enableVerticalSwipes === 'function') TG.enableVerticalSwipes();
+                    if (TG.BackButton) {
+                        TG.BackButton.offClick(mAiGameBackHandler);
+                        TG.BackButton.hide();
+                    }
+                }
+            } catch (_) {}
+        }
+
+        // Small wrapper so every haptic call site stays one line and never
+        // throws on clients (or plain browsers) that lack the API.
+        function mAiGameHaptic(kind) {
+            if (!TG || !TG.HapticFeedback) return;
+            try {
+                if (kind === 'error') TG.HapticFeedback.notificationOccurred('error');
+                else TG.HapticFeedback.impactOccurred(kind || 'light');
+            } catch (_) {}
+        }
+
         function clearGameEvents() {
             if (currentGameInterval) {
                 clearInterval(currentGameInterval);
                 currentGameInterval = null;
             }
+            if (gameStopFn) {
+                try { gameStopFn(); } catch (_) {}
+                gameStopFn = null;
+            }
+            gamePaused = false;
+            hideGameOverlay('gamePauseOverlay');
+            hideGameOverlay('gameOverOverlay');
             gameAborter.abort();
             gameAborter = new AbortController();
         }
 
-        function startNeonSnake() {
+        /* ---------------- shared fullscreen-game helpers ---------------- */
+
+        function showGameOverlay(id) { document.getElementById(id)?.classList.add('show'); }
+        function hideGameOverlay(id) { document.getElementById(id)?.classList.remove('show'); }
+
+        function markhinGameBestScore(key, score) {
+            const storageKey = 'markhin_game_best_' + key;
+            let best = 0;
+            try { best = parseInt(localStorage.getItem(storageKey) || '0', 10) || 0; } catch (_) {}
+            if (score > best) {
+                best = score;
+                try { localStorage.setItem(storageKey, String(best)); } catch (_) {}
+            }
+            return best;
+        }
+
+        // Sizes the canvas to fill its wrapper, backed by real device pixels
+        // (so it stays crisp full-screen on high-DPI phones) while all game
+        // logic keeps working in plain CSS-pixel coordinates. Both games now
+        // call this with mode 'fill' so the arena uses the whole area under
+        // the top bar, edge to edge; 'square' is kept for any future game
+        // that wants a centered square arena instead. Returns the logical
+        // {width, height} to draw with.
+        function fitGameCanvas(canvas, mode) {
+            const wrap = document.getElementById('gameCanvasWrap');
+            const rect = wrap.getBoundingClientRect();
+            let w = Math.max(1, Math.floor(rect.width));
+            let h = Math.max(1, Math.floor(rect.height));
+            if (mode === 'square') {
+                const side = Math.max(120, Math.min(w, h));
+                w = side; h = side;
+            }
+            const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+            canvas.width = Math.round(w * dpr);
+            canvas.height = Math.round(h * dpr);
+            canvas.style.width = w + 'px';
+            canvas.style.height = h + 'px';
+            const ctx = canvas.getContext('2d');
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            return { width: w, height: h, ctx };
+        }
+
+        // Wires the game-over card once per game and returns a function that
+        // reveals it with the final score. Handles the Telegram-in-app-browser
+        // issue where native alert()/confirm() can be blocked or look jarring —
+        // this in-canvas overlay works everywhere and lets the player restart
+        // or return to the menu with a single tap.
+        function presentGameOver(scoreVal, bestKey, titleText, onRestart) {
+            gamePaused = true;
+            const best = markhinGameBestScore(bestKey, scoreVal);
+            const fa = currentLang === 'fa';
+            document.getElementById('goTitle').textContent = titleText;
+            document.getElementById('goScoreText').textContent = (fa ? 'امتیاز: ' : 'Score: ') + scoreVal;
+            document.getElementById('goBestText').textContent = (fa ? 'رکورد: ' : 'Best: ') + best;
+            const restartBtn = document.getElementById('btnGoRestart');
+            const menuBtn = document.getElementById('btnGoMenu');
+            restartBtn.onclick = () => { hideGameOverlay('gameOverOverlay'); onRestart(); };
+            menuBtn.onclick = () => { hideGameOverlay('gameOverOverlay'); backToGameMenu(); };
+            showGameOverlay('gameOverOverlay');
+        }
+
+        // Auto-pause when the tab/app is backgrounded (Telegram Mini Apps and
+        // mobile browsers both suspend timers/rAF then resume with a huge
+        // elapsed gap, which used to make the bird "teleport" through pipes
+        // or the snake skip several cells the instant you came back — this
+        // shows a pause card instead and only resumes on a deliberate tap).
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden && document.getElementById('gamePlayArea').style.display === 'flex' && !gamePaused) {
+                gamePaused = true;
+                showGameOverlay('gamePauseOverlay');
+            }
+        });
+        document.getElementById('gamePauseOverlay').addEventListener('click', () => {
+            if (gamePaused) {
+                gamePaused = false;
+                hideGameOverlay('gamePauseOverlay');
+            }
+        });
+
+        // Re-fit the canvas on rotation/resize instead of leaving it stretched
+        // or letter-boxed at the old dimensions — restarts the current game
+        // cleanly rather than trying to reflow mid-run state. Hooked to both
+        // the normal browser resize event AND Telegram's own 'viewportChanged'
+        // event, since Telegram can change the usable height (expanding,
+        // collapsing, safe-area shifts) without ever firing a window resize.
+        function mAiGameScheduleRefit() {
+            const playing = document.getElementById('gamePlayArea').style.display === 'flex';
+            if (!playing) return;
+            clearTimeout(gameResizeTimer);
+            gameResizeTimer = setTimeout(() => {
+                if (window.__markhinActiveGame === 'snake') startNeonSnake();
+                else if (window.__markhinActiveGame === 'flappy') startCyberFlappy();
+            }, 200);
+        }
+        window.addEventListener('resize', mAiGameScheduleRefit);
+        try { TG && TG.onEvent && TG.onEvent('viewportChanged', mAiGameScheduleRefit); } catch (_) {}
+
+        function enterGamePlayMode() {
             document.getElementById('gameSelectMenu').style.display = 'none';
-            document.getElementById('gamePlayArea').style.display = 'block';
+            // Was 'block': #gamePlayArea's CSS is display:flex so its two
+            // children (.game-topbar and .game-canvas-wrap, which has
+            // flex:1 1 auto) stack and the canvas area stretches to fill
+            // every remaining pixel. Overriding it to 'block' here broke
+            // that flex layout, so .game-canvas-wrap only took its natural
+            // content height and left an empty, untouchable strip at the
+            // bottom of the screen — exactly the dead zone being reported.
+            document.getElementById('gamePlayArea').style.display = 'flex';
+            document.getElementById('gameCard').classList.add('gc-playing');
+            hideGameOverlay('gameOverOverlay');
+            hideGameOverlay('gamePauseOverlay');
+            gamePaused = false;
+        }
+
+        /* ---------------------------- Neon Snake ---------------------------- */
+
+        function startNeonSnake() {
+            window.__markhinActiveGame = 'snake';
+            const fa = currentLang === 'fa';
+            enterGamePlayMode();
             document.getElementById('gameTitleActive').innerText = 'NEON SNAKE';
-            document.getElementById('gameDescActive').innerText = 'با کلیدهای جهت‌نما یا لمس صفحه (کشیدن دست) مار را هدایت کنید!';
+            document.getElementById('gameDescActive').innerText = fa
+                ? 'با کلیدهای جهت‌نما یا کشیدن دست، مار را هدایت کن!'
+                : 'Steer with arrow keys or swipe!';
 
             clearGameEvents();
             const canvas = document.getElementById('cyberCanvas');
-            const ctx = canvas.getContext('2d');
-            const gridSize = 15;
-            let snake = [{x: 150, y: 150}, {x: 135, y: 150}, {x: 120, y: 150}];
+            // Was 'square' — that centered a small square arena inside the
+            // tall play area and left big empty bars above/below it (the
+            // "game is just a little patch" issue). 'fill' uses the entire
+            // area under the top bar instead, same as Flappy already did.
+            const { width, height, ctx } = fitGameCanvas(canvas, 'fill');
+
+            // Aim for a comfortably touch-friendly grid rather than a fixed
+            // pixel size, so the arena scales with the actual screen.
+            const targetCols = 20;
+            const gridSize = Math.max(14, Math.floor(width / targetCols));
+            const cols = Math.floor(width / gridSize);
+            const rows = Math.floor(height / gridSize);
+            const boardW = cols * gridSize, boardH = rows * gridSize;
+            const offsetX = (width - boardW) / 2, offsetY = (height - boardH) / 2;
+
+            const startX = Math.floor(cols / 2) * gridSize;
+            const startY = Math.floor(rows / 2) * gridSize;
+            let snake = [{x: startX, y: startY}, {x: startX - gridSize, y: startY}, {x: startX - gridSize * 2, y: startY}];
             let dx = gridSize, dy = 0;
-            let nextDx = dx, nextDy = dy;
+            // A short input queue (instead of a single "next direction") makes
+            // fast swipes/keys register correctly instead of being silently
+            // dropped or occasionally allowing a same-tick reversal into the
+            // snake's own neck.
+            let inputQueue = [];
             let food = {x: 0, y: 0};
+            let stepMs = 130;
+            let ended = false;
             gameScore = 0;
-            document.getElementById('gameScore').innerText = 'امتیاز: ' + gameScore;
+            document.getElementById('gameScore').innerText = (fa ? 'امتیاز: ' : 'Score: ') + gameScore;
+
+            function queueDir(ndx, ndy) {
+                const last = inputQueue.length ? inputQueue[inputQueue.length - 1] : {x: dx, y: dy};
+                if (ndx === -last.x && ndy === -last.y) return; // no 180° reversals
+                if (ndx === last.x && ndy === last.y) return;
+                if (inputQueue.length >= 2) inputQueue.shift();
+                inputQueue.push({x: ndx, y: ndy});
+            }
 
             function spawnFood() {
-                const cellsX = Math.floor(canvas.width / gridSize);
-                const cellsY = Math.floor(canvas.height / gridSize);
                 let attempts = 0;
                 do {
-                    food.x = Math.floor(Math.random() * cellsX) * gridSize;
-                    food.y = Math.floor(Math.random() * cellsY) * gridSize;
+                    food.x = Math.floor(Math.random() * cols) * gridSize;
+                    food.y = Math.floor(Math.random() * rows) * gridSize;
                     attempts++;
-                } while (snake.some(part => part.x === food.x && part.y === food.y) && attempts < 100);
+                } while (snake.some(part => part.x === food.x && part.y === food.y) && attempts < 200);
             }
             spawnFood();
 
             window.addEventListener('keydown', (e) => {
                 if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) e.preventDefault();
-                if (e.key === 'ArrowUp' && dy === 0) { nextDx = 0; nextDy = -gridSize; }
-                if (e.key === 'ArrowDown' && dy === 0) { nextDx = 0; nextDy = gridSize; }
-                if (e.key === 'ArrowLeft' && dx === 0) { nextDx = -gridSize; nextDy = 0; }
-                if (e.key === 'ArrowRight' && dx === 0) { nextDx = gridSize; nextDy = 0; }
+                if (e.key === 'ArrowUp') queueDir(0, -gridSize);
+                if (e.key === 'ArrowDown') queueDir(0, gridSize);
+                if (e.key === 'ArrowLeft') queueDir(-gridSize, 0);
+                if (e.key === 'ArrowRight') queueDir(gridSize, 0);
             }, { signal: gameAborter.signal });
 
             let touchStartX = null, touchStartY = null;
-            
-            canvas.addEventListener('touchstart', e => {
+            // Bound to the wrapper (the whole area under the top bar), not
+            // just the canvas, so every tap/swipe there steers the snake —
+            // per the request that anything except the top bar should count
+            // as game input. The .game-overlay-panel check lets taps on the
+            // pause/game-over cards (and their buttons) reach those cards
+            // normally instead of being eaten as a swipe.
+            const snakeWrap = document.getElementById('gameCanvasWrap');
+
+            snakeWrap.addEventListener('touchstart', e => {
+                if (e.target.closest('.game-overlay-panel')) return;
                 touchStartX = e.touches[0].clientX;
                 touchStartY = e.touches[0].clientY;
-                e.preventDefault(); 
-            }, { passive: false, signal: gameAborter.signal });
-            
-            canvas.addEventListener('touchmove', e => {
-                if (!touchStartX || !touchStartY) return;
-                let diffX = e.touches[0].clientX - touchStartX;
-                let diffY = e.touches[0].clientY - touchStartY;
-                
-                if (Math.abs(diffX) > 20 || Math.abs(diffY) > 20) {
-                    if (Math.abs(diffX) > Math.abs(diffY)) {
-                        if (diffX > 0 && dx === 0) { nextDx = gridSize; nextDy = 0; }
-                        else if (diffX < 0 && dx === 0) { nextDx = -gridSize; nextDy = 0; }
-                    } else {
-                        if (diffY > 0 && dy === 0) { nextDx = 0; nextDy = gridSize; }
-                        else if (diffY < 0 && dy === 0) { nextDx = 0; nextDy = -gridSize; }
-                    }
-                    touchStartX = null; 
-                    touchStartY = null;
-                }
-                e.preventDefault(); 
-            }, { passive: false, signal: gameAborter.signal });
-
-            currentGameInterval = setInterval(() => {
-                ctx.fillStyle = '#050505';
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-                dx = nextDx; dy = nextDy;
-                let head = {x: snake[0].x + dx, y: snake[0].y + dy};
-
-                if (head.x < 0 || head.x >= canvas.width || head.y < 0 || head.y >= canvas.height) {
-                    if (currentGameInterval) {
-                        backToGameMenu();
-                        alert('بازی تمام شد! امتیاز شما: ' + gameScore);
-                    }
-                    return;
-                }
-
-                const ateFood = (head.x === food.x && head.y === food.y);
-                // If the snake isn't eating this tick, its tail is about to move
-                // away (see snake.pop() below), so the cell the tail currently
-                // occupies is not actually a collision — exclude it from the check.
-                // Eating keeps the tail in place, so then it's checked like any
-                // other body segment.
-                const bodyToCheck = ateFood ? snake : snake.slice(0, -1);
-                for (let i = 0; i < bodyToCheck.length; i++) {
-                    if (head.x === bodyToCheck[i].x && head.y === bodyToCheck[i].y) {
-                        backToGameMenu();
-                        alert('بازی تمام شد! امتیاز شما: ' + gameScore);
-                        return;
-                    }
-                }
-
-                snake.unshift(head);
-
-                if (ateFood) {
-                    gameScore += 10;
-                    document.getElementById('gameScore').innerText = 'امتیاز: ' + gameScore;
-                    spawnFood();
-                } else {
-                    snake.pop();
-                }
-
-                ctx.fillStyle = '#ff0055';
-                ctx.shadowBlur = 10;
-                ctx.shadowColor = '#ff0055';
-                ctx.fillRect(food.x, food.y, gridSize - 2, gridSize - 2);
-
-                ctx.fillStyle = '#00f0ff';
-                ctx.shadowColor = '#00f0ff';
-                snake.forEach((part, index) => {
-                    ctx.fillRect(part.x, part.y, gridSize - 2, gridSize - 2);
-                });
-                ctx.shadowBlur = 0;
-            }, 100);
-        }
-
-        function startCyberFlappy() {
-            document.getElementById('gameSelectMenu').style.display = 'none';
-            document.getElementById('gamePlayArea').style.display = 'block';
-            document.getElementById('gameTitleActive').innerText = 'CYBER FLAPPY';
-            document.getElementById('gameDescActive').innerText = 'برای پرش روی صفحه لمس کنید یا کلید Space را فشار دهید!';
-
-            clearGameEvents();
-            const canvas = document.getElementById('cyberCanvas');
-            const ctx = canvas.getContext('2d');
-            
-            let birdY = 150, birdVy = 0, gravity = 0.6, jump = -8;
-            let pipes = [];
-            let gameOver = false;
-            let frame = 0;
-            gameScore = 0;
-            document.getElementById('gameScore').innerText = 'امتیاز: ' + gameScore;
-
-            function triggerJump() {
-                birdVy = jump;
-            }
-
-            window.addEventListener('keydown', (e) => { 
-                if (e.code === 'Space') { 
-                    triggerJump(); 
-                    e.preventDefault(); 
-                } 
-            }, { signal: gameAborter.signal });
-            
-            canvas.addEventListener('mousedown', (e) => { 
-                triggerJump(); 
-                e.preventDefault(); 
-            }, { signal: gameAborter.signal });
-
-            canvas.addEventListener('touchstart', (e) => {
-                triggerJump();
                 e.preventDefault();
             }, { passive: false, signal: gameAborter.signal });
 
-            currentGameInterval = setInterval(() => {
-                frame++;
-                birdVy += gravity;
-                birdY += birdVy;
+            snakeWrap.addEventListener('touchmove', e => {
+                if (e.target.closest('.game-overlay-panel')) return;
+                if (touchStartX === null || touchStartY === null) return;
+                let diffX = e.touches[0].clientX - touchStartX;
+                let diffY = e.touches[0].clientY - touchStartY;
 
+                // Lowered from 20 to 14px so a quick flick registers sooner —
+                // part of making touch control feel more responsive.
+                if (Math.abs(diffX) > 14 || Math.abs(diffY) > 14) {
+                    if (Math.abs(diffX) > Math.abs(diffY)) {
+                        queueDir(diffX > 0 ? gridSize : -gridSize, 0);
+                    } else {
+                        queueDir(0, diffY > 0 ? gridSize : -gridSize);
+                    }
+                    touchStartX = null;
+                    touchStartY = null;
+                }
+                e.preventDefault();
+            }, { passive: false, signal: gameAborter.signal });
+
+            function endSnake() {
+                if (ended) return;
+                ended = true;
+                mAiGameHaptic('error');
+                presentGameOver(gameScore, 'snake', fa ? '🐍 بازی تمام شد!' : '🐍 Game over!', startNeonSnake);
+            }
+
+            let raf = null, lastTick = 0, acc = 0;
+            function loop(ts) {
+                raf = requestAnimationFrame(loop);
+                if (gamePaused || ended) { lastTick = ts; return; }
+                if (!lastTick) lastTick = ts;
+                // Clamp the elapsed time so a throttled/backgrounded tab can't
+                // dump a multi-second gap into the accumulator and force the
+                // snake to jump several cells (and straight through walls) the
+                // instant the tab becomes visible again.
+                let dt = Math.min(ts - lastTick, 250);
+                lastTick = ts;
+                acc += dt;
+
+                while (acc >= stepMs) {
+                    acc -= stepMs;
+                    if (inputQueue.length) {
+                        const next = inputQueue.shift();
+                        dx = next.x; dy = next.y;
+                    }
+                    let head = {x: snake[0].x + dx, y: snake[0].y + dy};
+
+                    if (head.x < 0 || head.x >= boardW || head.y < 0 || head.y >= boardH) {
+                        endSnake();
+                        return;
+                    }
+
+                    const ateFood = (head.x === food.x && head.y === food.y);
+                    const bodyToCheck = ateFood ? snake : snake.slice(0, -1);
+                    for (let i = 0; i < bodyToCheck.length; i++) {
+                        if (head.x === bodyToCheck[i].x && head.y === bodyToCheck[i].y) {
+                            endSnake();
+                            return;
+                        }
+                    }
+
+                    snake.unshift(head);
+                    if (ateFood) {
+                        gameScore += 10;
+                        document.getElementById('gameScore').innerText = (fa ? 'امتیاز: ' : 'Score: ') + gameScore;
+                        if (gameScore % 50 === 0) stepMs = Math.max(70, stepMs - 6);
+                        mAiGameHaptic('light');
+                        spawnFood();
+                    } else {
+                        snake.pop();
+                    }
+                }
+
+                // -------- draw --------
+                ctx.clearRect(0, 0, width, height);
                 ctx.fillStyle = '#050505';
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.fillRect(0, 0, width, height);
 
-                if (frame % 90 === 0) {
-                    let gapH = 100;
-                    let topH = Math.floor(Math.random() * (canvas.height - gapH - 80)) + 40;
-                    pipes.push({ x: canvas.width, top: topH, bottom: canvas.height - topH - gapH, passed: false });
+                ctx.save();
+                ctx.translate(offsetX, offsetY);
+
+                ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+                ctx.lineWidth = 1;
+                for (let x = 0; x <= boardW; x += gridSize) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, boardH); ctx.stroke(); }
+                for (let y = 0; y <= boardH; y += gridSize) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(boardW, y); ctx.stroke(); }
+
+                const pulse = 1 + Math.sin(ts / 180) * 0.12;
+                const fs = (gridSize - 2) * pulse;
+                const fOff = ((gridSize - 2) - fs) / 2;
+                ctx.fillStyle = '#ff0055';
+                ctx.shadowBlur = 14;
+                ctx.shadowColor = '#ff0055';
+                ctx.beginPath();
+                ctx.roundRect(food.x + 1 + fOff, food.y + 1 + fOff, fs, fs, 5);
+                ctx.fill();
+
+                snake.forEach((part, index) => {
+                    const t = index / Math.max(1, snake.length - 1);
+                    ctx.fillStyle = index === 0 ? '#c4fbff' : `hsl(${188 + t * 20}, 100%, ${62 - t * 22}%)`;
+                    ctx.shadowColor = '#00f0ff';
+                    ctx.shadowBlur = index === 0 ? 14 : 6;
+                    ctx.beginPath();
+                    ctx.roundRect(part.x + 1, part.y + 1, gridSize - 2, gridSize - 2, 5);
+                    ctx.fill();
+                });
+                ctx.shadowBlur = 0;
+                ctx.restore();
+            }
+            raf = requestAnimationFrame(loop);
+            gameStopFn = () => { if (raf) cancelAnimationFrame(raf); };
+        }
+
+        /* --------------------------- Cyber Flappy ---------------------------- */
+
+        function startCyberFlappy() {
+            window.__markhinActiveGame = 'flappy';
+            const fa = currentLang === 'fa';
+            enterGamePlayMode();
+            document.getElementById('gameTitleActive').innerText = 'CYBER FLAPPY';
+            document.getElementById('gameDescActive').innerText = fa
+                ? 'برای پرش لمس کن یا کلید Space را بزن!'
+                : 'Tap or press Space to fly!';
+
+            clearGameEvents();
+            const canvas = document.getElementById('cyberCanvas');
+            const { width, height, ctx } = fitGameCanvas(canvas, 'fill');
+
+            const birdX = Math.max(50, width * 0.18);
+            const birdR = Math.max(10, Math.min(20, height * 0.026));
+            const gravity = height * 0.0016;
+            const jump = -height * 0.021;
+            const pipeW = Math.max(46, width * 0.11);
+            const pixelGap = width * 0.6;
+
+            // Progressive-but-always-passable difficulty: speed and gap size
+            // both move along an asymptotic curve (pipesPassed / (pipesPassed + K))
+            // instead of a hard linear ramp to a nearby cap. That means the
+            // game keeps getting harder pipe after pipe, but the increments
+            // shrink over time and the values approach a fixed ceiling/floor
+            // they never cross — so no matter how far a run goes, the next
+            // pipe is always a little harder than the last but never becomes
+            // literally unbeatable.
+            const baseGapH = Math.max(140, height * 0.3);
+            const minGapH = Math.max(baseGapH * 0.6, birdR * 7.5, pipeW);
+            const basePipeSpeed = Math.max(2.4, width * 0.0045);
+            const maxPipeSpeedGain = basePipeSpeed * 1.3;
+            const difficultyRamp = 12; // pipes to reach ~50% of the way to max difficulty
+            let pipesPassed = 0;
+            function currentDifficulty() { return pipesPassed / (pipesPassed + difficultyRamp); }
+            function currentGapH() { return baseGapH - (baseGapH - minGapH) * currentDifficulty(); }
+
+            let pipeSpeed = basePipeSpeed;
+
+            let birdY = height / 2, birdVy = 0;
+            let pipes = [];
+            let ended = false;
+            let distSinceSpawn = 0;
+            gameScore = 0;
+            document.getElementById('gameScore').innerText = (fa ? 'امتیاز: ' : 'Score: ') + gameScore;
+
+            function triggerJump() { if (!gamePaused && !ended) { birdVy = jump; mAiGameHaptic('light'); } }
+
+            window.addEventListener('keydown', (e) => {
+                if (e.code === 'Space') { triggerJump(); e.preventDefault(); }
+            }, { signal: gameAborter.signal });
+
+            // Bound to the wrapper (whole area under the top bar), not just
+            // the canvas, and skipping taps on the pause/game-over overlay so
+            // those cards' own buttons still work normally.
+            const flappyWrap = document.getElementById('gameCanvasWrap');
+
+            flappyWrap.addEventListener('mousedown', (e) => {
+                if (e.target.closest('.game-overlay-panel')) return;
+                triggerJump(); e.preventDefault();
+            }, { signal: gameAborter.signal });
+
+            flappyWrap.addEventListener('touchstart', (e) => {
+                if (e.target.closest('.game-overlay-panel')) return;
+                triggerJump(); e.preventDefault();
+            }, { passive: false, signal: gameAborter.signal });
+
+            function endFlappy() {
+                if (ended) return;
+                ended = true;
+                mAiGameHaptic('error');
+                presentGameOver(gameScore, 'flappy', fa ? '🚀 برخورد کردی!' : '🚀 Crashed!', startCyberFlappy);
+            }
+
+            let raf = null, lastTs = 0;
+            function loop(ts) {
+                raf = requestAnimationFrame(loop);
+                if (gamePaused || ended) { lastTs = ts; return; }
+                if (!lastTs) lastTs = ts;
+                // Cap dt like Snake does — otherwise a backgrounded tab lets
+                // gravity accumulate for the whole time it was hidden and the
+                // bird instantly plunges through the floor the moment you
+                // switch back, which used to feel like an unfair, sudden death.
+                const dt = Math.min((ts - lastTs) / 16.67, 3);
+                lastTs = ts;
+
+                birdVy += gravity * dt;
+                birdY += birdVy * dt;
+
+                ctx.clearRect(0, 0, width, height);
+                const bg = ctx.createLinearGradient(0, 0, 0, height);
+                bg.addColorStop(0, '#050505');
+                bg.addColorStop(1, '#0a0a14');
+                ctx.fillStyle = bg;
+                ctx.fillRect(0, 0, width, height);
+
+                distSinceSpawn += pipeSpeed * dt;
+                if (distSinceSpawn >= pixelGap) {
+                    distSinceSpawn = 0;
+                    const gapH = currentGapH();
+                    const topRange = Math.max(20, height - gapH - height * 0.16);
+                    const topH = Math.floor(Math.random() * topRange) + height * 0.08;
+                    pipes.push({ x: width, top: topH, bottom: height - topH - gapH, passed: false });
                 }
 
                 ctx.fillStyle = '#00ff66';
-                ctx.shadowBlur = 8;
+                ctx.shadowBlur = 10;
                 ctx.shadowColor = '#00ff66';
-                pipes.forEach(p => {
-                    p.x -= 3;
-                    ctx.fillRect(p.x, 0, 35, p.top);
-                    ctx.fillRect(p.x, canvas.height - p.bottom, 35, p.bottom);
+                for (const p of pipes) {
+                    p.x -= pipeSpeed * dt;
+                    ctx.fillRect(p.x, 0, pipeW, p.top);
+                    ctx.fillRect(p.x, height - p.bottom, pipeW, p.bottom);
 
-                    if (!p.passed && p.x < 50) {
+                    if (!p.passed && p.x + pipeW < birdX) {
                         p.passed = true;
+                        pipesPassed++;
                         gameScore += 5;
-                        document.getElementById('gameScore').innerText = 'امتیاز: ' + gameScore;
+                        document.getElementById('gameScore').innerText = (fa ? 'امتیاز: ' : 'Score: ') + gameScore;
+                        pipeSpeed = basePipeSpeed + maxPipeSpeedGain * currentDifficulty();
                     }
 
-                    if (50 + 15 > p.x && 50 - 15 < p.x + 35) {
-                        if (birdY - 10 < p.top || birdY + 10 > canvas.height - p.bottom) {
-                            if (gameOver) return;
-                            gameOver = true;
-                            backToGameMenu();
-                            alert('باختید! امتیاز شما: ' + gameScore);
+                    if (birdX + birdR > p.x && birdX - birdR < p.x + pipeW) {
+                        if (birdY - birdR < p.top || birdY + birdR > height - p.bottom) {
+                            endFlappy();
                         }
                     }
-                });
+                }
                 ctx.shadowBlur = 0;
+                pipes = pipes.filter(p => p.x > -pipeW - 5);
 
-                pipes = pipes.filter(p => p.x > -40);
-
-                if (birdY > canvas.height || birdY < 0) {
-                    if (!gameOver) {
-                        gameOver = true;
-                        backToGameMenu();
-                        alert('باختید! امتیاز شما: ' + gameScore);
-                    }
+                if (birdY - birdR > height || birdY + birdR < 0) {
+                    endFlappy();
                 }
 
                 ctx.beginPath();
-                ctx.arc(50, birdY, 12, 0, Math.PI * 2);
+                const tilt = Math.max(-0.5, Math.min(0.9, birdVy / (height * 0.02)));
+                ctx.save();
+                ctx.translate(birdX, birdY);
+                ctx.rotate(tilt * 0.5);
+                ctx.beginPath();
+                ctx.arc(0, 0, birdR, 0, Math.PI * 2);
                 ctx.fillStyle = '#00f0ff';
-                ctx.shadowBlur = 12;
+                ctx.shadowBlur = 14;
                 ctx.shadowColor = '#00f0ff';
                 ctx.fill();
+                ctx.restore();
                 ctx.shadowBlur = 0;
-
-            }, 30);
+            }
+            raf = requestAnimationFrame(loop);
+            gameStopFn = () => { if (raf) cancelAnimationFrame(raf); };
         }
+
 
         function applyBold(id) {
             const textEl = document.getElementById(`text-${id}`);
@@ -3929,18 +4800,131 @@ window.mu_syncHtmlBg = function(){
             }
         }
 
-        function handleCategoryClick(id) {
+        function promptNotePassword(item, actionText = '') {
+            return new Promise(resolve => {
+                const fa = currentLang === 'fa';
+                const uid = 'npp' + Date.now() + Math.random().toString(36).slice(2, 7);
+                const modalEl = document.getElementById('advancedModal');
+                let settled = false;
+                const hintText = String(item?.hint || '').trim();
+                const placeholder = hintText
+                    ? hintText + (fa ? ' (راهنما)' : ' (hint)')
+                    : (fa ? '🔐 رمز عبور را وارد کنید' : '🔐 Enter password');
+                const finish = value => {
+                    if (settled) return;
+                    settled = true;
+                    if (modalEl) modalEl.removeEventListener('click', outsideClick, true);
+                    closeAdvancedModal();
+                    resolve(value);
+                };
+                const outsideClick = e => { if (e.target === modalEl) finish(null); };
+                if (modalEl) modalEl.addEventListener('click', outsideClick, true);
+                showAdvanced(`
+                    <div class="advanced-head image-export-picker-head">
+                        <div>
+                            <h3 style="margin:0">🔒 ${escapeHtml(item.name || (fa ? 'یادداشت' : 'Note'))}</h3>
+                            <p class="markhin-filename-hint">${escapeHtml(actionText || (fa ? 'برای باز کردن یادداشت، رمز عبور را وارد کنید.' : 'Enter the password to unlock this note.'))}</p>
+                        </div>
+                        <button class="btn-main" type="button" id="${uid}_x">✕</button>
+                    </div>
+                    <div class="markhin-filename-row">
+                        <input type="password" id="${uid}_input" class="markhin-filename-input" placeholder="${escapeHtml(placeholder)}" maxlength="512" autocomplete="current-password" spellcheck="false">
+                    </div>
+                    <div class="markhin-filename-actions">
+                        <button class="btn-main" type="button" id="${uid}_cancel">${fa ? 'انصراف' : 'Cancel'}</button>
+                        <button class="btn-main image-export-all-btn" type="button" id="${uid}_ok">${fa ? '🔓 باز کردن' : '🔓 Unlock'}</button>
+                    </div>
+                `);
+                setTimeout(() => {
+                    const input = document.getElementById(uid + '_input');
+                    const ok = document.getElementById(uid + '_ok');
+                    const cancel = document.getElementById(uid + '_cancel');
+                    const x = document.getElementById(uid + '_x');
+                    if (input) input.focus();
+                    const submit = () => finish(input ? input.value : '');
+                    if (input) input.addEventListener('keydown', e => {
+                        if (e.key === 'Enter') { e.preventDefault(); submit(); }
+                        else if (e.key === 'Escape') { e.preventDefault(); finish(null); }
+                    });
+                    if (ok) ok.onclick = submit;
+                    if (cancel) cancel.onclick = () => finish(null);
+                    if (x) x.onclick = () => finish(null);
+                }, 0);
+            });
+        }
+
+        /* Generic themed replacement for the browser's plain prompt() box —
+           same modal/input styling as the password unlock dialog above, so
+           "add note", "add folder", "rename", etc. all match the app's theme
+           instead of falling back to the OS's unstyled prompt. */
+        function promptStyledText(opts) {
+            opts = opts || {};
+            return new Promise(resolve => {
+                const fa = currentLang === 'fa';
+                const uid = 'sft' + Date.now() + Math.random().toString(36).slice(2, 7);
+                const modalEl = document.getElementById('advancedModal');
+                let settled = false;
+                const multiline = !!opts.multiline;
+                const finish = value => {
+                    if (settled) return;
+                    settled = true;
+                    if (modalEl) modalEl.removeEventListener('click', outsideClick, true);
+                    closeAdvancedModal();
+                    resolve(value);
+                };
+                const outsideClick = e => { if (e.target === modalEl) finish(null); };
+                if (modalEl) modalEl.addEventListener('click', outsideClick, true);
+                const defaultValue = opts.defaultValue || '';
+                const inputHtml = multiline
+                    ? `<textarea id="${uid}_input" class="markhin-filename-input" style="min-height:110px;resize:vertical" placeholder="${escapeHtml(opts.placeholder || '')}" maxlength="8000" spellcheck="false">${escapeHtml(defaultValue)}</textarea>`
+                    : `<input type="${escapeHtml(opts.type || 'text')}" id="${uid}_input" class="markhin-filename-input" placeholder="${escapeHtml(opts.placeholder || '')}" value="${escapeHtml(defaultValue)}" maxlength="512" autocomplete="off" spellcheck="false">`;
+                showAdvanced(`
+                    <div class="advanced-head image-export-picker-head">
+                        <div>
+                            <h3 style="margin:0">${escapeHtml(opts.title || (fa ? 'ورود اطلاعات' : 'Enter value'))}</h3>
+                            ${opts.message ? `<p class="markhin-filename-hint">${escapeHtml(opts.message)}</p>` : ''}
+                        </div>
+                        <button class="btn-main" type="button" id="${uid}_x">✕</button>
+                    </div>
+                    <div class="markhin-filename-row">
+                        ${inputHtml}
+                    </div>
+                    <div class="markhin-filename-actions">
+                        <button class="btn-main" type="button" id="${uid}_cancel">${escapeHtml(opts.cancelText || (fa ? 'انصراف' : 'Cancel'))}</button>
+                        <button class="btn-main image-export-all-btn" type="button" id="${uid}_ok">${escapeHtml(opts.okText || (fa ? '✔️ تایید' : '✔️ OK'))}</button>
+                    </div>
+                `);
+                setTimeout(() => {
+                    const input = document.getElementById(uid + '_input');
+                    const ok = document.getElementById(uid + '_ok');
+                    const cancel = document.getElementById(uid + '_cancel');
+                    const x = document.getElementById(uid + '_x');
+                    if (input) { input.focus(); if (!multiline && input.select) input.select(); }
+                    const submit = () => finish(input ? input.value : '');
+                    if (input) input.addEventListener('keydown', e => {
+                        if (e.key === 'Enter' && !multiline) { e.preventDefault(); submit(); }
+                        else if (e.key === 'Escape') { e.preventDefault(); finish(null); }
+                    });
+                    if (ok) ok.onclick = submit;
+                    if (cancel) cancel.onclick = () => finish(null);
+                    if (x) x.onclick = () => finish(null);
+                }, 0);
+            });
+        }
+
+        async function handleCategoryClick(id) {
             const item = categories.find(c => c.id === id);
             if (!item) return;
-            if (item.password) {
-                const pass = prompt(`"${item.name}" - ${i18n[currentLang].promptEnterPass}`);
-                // Cancel must not change the note state.
+            if (isNoteLocked(item)) {
+                const pass = await promptNotePassword(item);
                 if (pass === null) return;
-                if (pass.trim().toLowerCase() === 'hint') {
-                    alert(item.hint ? (i18n[currentLang].hintTitle + item.hint) : i18n[currentLang].noHintSet);
+                const ok = await unlockNote(item, pass.trim());
+                if (!ok) {
+                    item.isDecoy = true;
+                    toggleCategory(id);
+                    alert(i18n[currentLang].wrongPass);
                     return;
                 }
-                item.isDecoy = (pass !== item.password);
             } else {
                 item.isDecoy = false;
             }
@@ -3952,40 +4936,67 @@ window.mu_syncHtmlBg = function(){
             renderApp(activeOpenId);
         }
 
-        function setLock(id) {
-            const pass = prompt(i18n[currentLang].promptPassLock);
+        async function setLock(id) {
+            const fa = currentLang === 'fa';
+            const pass = await promptStyledText({
+                title: fa ? '🔒 قفل کردن یادداشت' : '🔒 Lock note',
+                placeholder: i18n[currentLang].promptPassLock,
+                type: 'password',
+                okText: fa ? '🔒 قفل کن' : '🔒 Lock'
+            });
             if (pass && pass.trim() !== '') {
-                const hint = prompt(i18n[currentLang].promptHint) || "";
+                const password = pass.trim();
+                const hint = (await promptStyledText({
+                    title: fa ? '💡 راهنمای رمز (اختیاری)' : '💡 Password hint (optional)',
+                    placeholder: i18n[currentLang].promptHint,
+                    okText: fa ? '✔️ تایید' : '✔️ OK'
+                })) || "";
                 const item = categories.find(c => c.id === id);
                 if (item) {
-                    item.password = pass.trim();
-                    item.hint = hint.trim();
-                    saveToLocalStorage();
-                    renderApp(id);
+                    try {
+                        const sourceHtml = item.html || '';
+                        const sourceText = item.text || '';
+                        item.encrypted = await encryptNotePayload(password, sourceHtml, sourceText);
+                        item.hint = hint.trim();
+                        item.isDecoy = false;
+                        noteSessionKeys.set(item.id, password);
+                        saveToLocalStorage();
+                        renderApp(id);
+                    } catch (error) {
+                        console.error(error);
+                        alert(currentLang === 'fa' ? 'رمزگذاری یادداشت انجام نشد.' : 'The note could not be encrypted.');
+                    }
                 }
             }
         }
 
-        function setHint(id) {
+        async function changeHint(id) {
             const item = categories.find(c => c.id === id);
             if (!item) return;
-            const newHint = prompt(i18n[currentLang].promptHint, item.hint || "");
+            const fa = currentLang === 'fa';
+            const newHint = await promptStyledText({
+                title: fa ? '💡 راهنمای رمز' : '💡 Password hint',
+                placeholder: i18n[currentLang].promptHint,
+                defaultValue: item.hint || "",
+                okText: fa ? '✔️ ذخیره' : '✔️ Save'
+            });
             if (newHint !== null) {
                 item.hint = newHint.trim();
                 saveToLocalStorage();
                 renderApp(id);
-                alert("راهنمای رمز با موفقیت ذخیره شد.");
+                alert(currentLang === 'fa' ? "راهنمای رمز با موفقیت تغییر کرد." : "Password hint updated successfully.");
             }
         }
 
-        function removeLock(id) {
+        async function removeLock(id) {
             const t = i18n[currentLang];
             const item = categories.find(c => c.id === id);
             if (item) {
-                const currentPass = prompt(t.promptEnterPass);
+                const currentPass = await promptNotePassword(item, currentLang === 'fa' ? 'برای حذف رمز، رمز فعلی را وارد کنید.' : 'Enter the current password to remove the lock.');
                 if (currentPass === null) return;
-                if (currentPass === item.password) {
-                    item.password = "";
+                const ok = await unlockNote(item, currentPass.trim());
+                if (ok) {
+                    delete item.encrypted;
                     item.hint = "";
                     item.isDecoy = false;
                     unlockedQaIds = unlockedQaIds.filter(i => i !== id);
@@ -3997,7 +5008,7 @@ window.mu_syncHtmlBg = function(){
             }
         }
 
-        function saveCategory(id) {
+        async function saveCategory(id) {
             const item = categories.find(c => c.id === id);
             if (!item || item.isDecoy || hiddenState[id]) return;
             const textEl = document.getElementById(`text-${id}`);
@@ -4012,6 +5023,21 @@ window.mu_syncHtmlBg = function(){
             item.html = cleanHtml;
             item.text = cleanText;
 
+            if (isNoteLocked(item)) {
+                const sessionPassword = noteSessionKeys.get(item.id);
+                if (!sessionPassword) {
+                    alert(currentLang === 'fa' ? 'برای ویرایش این یادداشت ابتدا آن را باز کنید.' : 'Unlock this note before editing it.');
+                    return;
+                }
+                try {
+                    item.encrypted = await encryptNotePayload(sessionPassword, item.html, item.text);
+                } catch (error) {
+                    console.error(error);
+                    alert(currentLang === 'fa' ? 'رمزگذاری مجدد یادداشت انجام نشد.' : 'The note could not be re-encrypted.');
+                    return;
+                }
+            }
+
             if (changed) {
                 item.lastEdited = new Date().toUTCString();
             }
@@ -4020,7 +5046,7 @@ window.mu_syncHtmlBg = function(){
             renderApp(id);
         }
 
-        function autosaveCategory(id) {
+        async function autosaveCategory(id) {
             const item = categories.find(c => c.id === id);
             const textEl = document.getElementById(`text-${id}`);
             if (!item || !textEl || item.isDecoy || hiddenState[id]) return;
@@ -4035,6 +5061,16 @@ window.mu_syncHtmlBg = function(){
             // alone already reflects the real line breaks/spacing correctly;
             // the accurate (but heavier) extraction still runs on explicit save.
             item.text = (textEl.innerText || textEl.textContent || '').replace(/\u00a0/g, ' ');
+            if (isNoteLocked(item)) {
+                const sessionPassword = noteSessionKeys.get(item.id);
+                if (!sessionPassword) return;
+                try {
+                    item.encrypted = await encryptNotePayload(sessionPassword, item.html, item.text);
+                } catch (error) {
+                    console.error(error);
+                    return;
+                }
+            }
             item.lastEdited = new Date().toUTCString();
             saveToLocalStorage();
         }
@@ -4208,12 +5244,11 @@ window.mu_syncHtmlBg = function(){
                 return;
             }
 
-            const textContent = getTxtContent(id, item);
             const chosenName = await promptFilename(item.name, 'txt');
             if (chosenName === null) return;
-            const fileName = `${chosenName}.txt`;
             try {
-                await triggerDownload(textContent, fileName, 'text/plain;charset=utf-8');
+                if (isNoteLocked(item)) { const blob = await createEncryptedExport(item); await robustDownload(blob, `${chosenName}.mne.json`, blob.type); }
+                else { const textContent = getTxtContent(id, item); await triggerDownload(textContent, `${chosenName}.txt`, 'text/plain;charset=utf-8'); }
                 showToast(currentLang === 'fa' ? 'فایل متنی آماده شد.' : 'Text file is ready.');
             } catch (err) {
                 console.error(err);
@@ -4221,8 +5256,43 @@ window.mu_syncHtmlBg = function(){
             }
         }
 
+        async function buildMixedEncryptedExportZip(items, chosenName, format) {
+            const files = [];
+            const locked = items.filter(isNoteLocked);
+            const plain = items.filter(i => !isNoteLocked(i));
+            for (const item of locked) {
+                const blob = await createEncryptedExport(item);
+                files.push({name:`ENCRYPTED/${sanitizeFilename(item.name||'note')}.mne.json`,data:blob});
+            }
+            if (plain.length) {
+                if (format === 'txt') {
+                    const content = plain.map((item,index)=>`========================================\n${index+1}. ${item.name}${item.folder?` [Folder: ${item.folder}]`:''}\n========================================\n${getTxtContent(item.id,item).replace(/\n+$/,'')}\n`).join('\n');
+                    files.push({name:'PLAIN/markhin_notes.txt',data:new Blob([content],{type:'text/plain;charset=utf-8'})});
+                } else if (format === 'json' || format === 'csv' || format === 'md') {
+                    const ext=getStructuredExtension(format), mime=getStructuredMime(format);
+                    files.push({name:`PLAIN/markhin_${format==='json'?'backup':format==='csv'?'data':'notes'}.${ext}`,data:new Blob([buildStructuredExport(format,plain)],{type:mime})});
+                } else if (format === 'pdf') {
+                    if (window.html2canvas&&window.jspdf?.jsPDF) files.push({name:'PLAIN/Markhin_Note_All_Notes.pdf',data:await createPDFBlob(plain)});
+                } else if (format === 'docx') {
+                    files.push({name:'PLAIN/Markhin_Note_All_Notes.docx',data:await createDOCXBlob(plain)});
+                } else if (format === 'png' || format === 'jpg') {
+                    for(let i=0;i<plain.length;i++) files.push({name:`PLAIN/${String(i+1).padStart(3,'0')}_${sanitizeFilename(plain[i].name||`note_${i+1}`)}.${format}`,data:await renderNoteToImage(plain[i],format)});
+                }
+            }
+            if(!files.length) throw new Error('No exportable notes');
+            const zip=await buildZipRobust(files);
+            await robustDownload(zip,`${chosenName}.zip`,'application/zip');
+        }
+
         async function downloadAllAsTxt() {
             if (categories.length === 0) return;
+            const exportItems=getExportableCategories();
+            if (exportItems.some(isNoteLocked)) {
+                const chosenName=await promptFilename('Markhin_Note_All_Texts','zip',{desc:currentLang==='fa'?'یادداشت‌های قفل‌شده داخل فایل‌های رمزنگاری‌شده قرار می‌گیرند.':'Locked notes will be included as encrypted Markhin exports.'});
+                if(chosenName===null)return;
+                try{await buildMixedEncryptedExportZip(exportItems,chosenName,'txt');showToast(currentLang==='fa'?'ZIP امن آماده شد.':'Secure ZIP export is ready.');}catch(e){console.error(e);alert(currentLang==='fa'?'خروجی انجام نشد.':'Export failed.');}
+                return;
+            }
 
             let mergedContent = '';
             categories.forEach((item, index) => {
@@ -4261,7 +5331,7 @@ window.mu_syncHtmlBg = function(){
             // as a clickable card without requiring it to be opened first — could dump
             // a locked note's real content without ever asking for its password.
             return categories.filter(item => item && !item.isDecoy &&
-                (!item.password || unlockedQaIds.includes(item.id) || activeOpenId === item.id));
+                (!isNoteLocked(item) || unlockedQaIds.includes(item.id) || activeOpenId === item.id));
         }
 
         function buildExportText(item) {
@@ -4575,13 +5645,19 @@ window.mu_syncHtmlBg = function(){
             const item=getExportableCategories().find(x=>String(x.id)===String(id)); if(!item)return;
             const chosenName = await promptFilename(item.name||'Markhin_Note', format);
             if (chosenName === null) return;
-            try { const blob=await renderNoteToImage(item,format); const method=await robustDownload(blob,`${chosenName}.${format}`,format==='jpg'?'image/jpeg':'image/png'); showToast(currentLang==='fa'?`تصویر «${item.name}» آماده شد.`:`Image for “${item.name}” is ready.`); console.log('image download method:',method); }
+            try { if(isNoteLocked(item)){ const blob=await createEncryptedExport(item); await robustDownload(blob,`${chosenName}.mne.json`,blob.type); return; } const blob=await renderNoteToImage(item,format); const method=await robustDownload(blob,`${chosenName}.${format}`,format==='jpg'?'image/jpeg':'image/png'); showToast(currentLang==='fa'?`تصویر «${item.name}» آماده شد.`:`Image for “${item.name}” is ready.`); console.log('image download method:',method); }
             catch(err){console.error(err);alert(currentLang==='fa'?'دانلود تصویر انجام نشد. دوباره امتحان کن.':'Image download failed. Please try again.');}
         }
 
         async function downloadAllImages(format) {
             const items=getExportableCategories(); if(!items.length)return;
             const normalized=format==='jpg'?'jpg':'png';
+            if(items.some(isNoteLocked)){
+                const chosenName=await promptFilename(`Markhin_Note_All_Images_${normalized.toUpperCase()}`,'zip',{desc:currentLang==='fa'?'یادداشت‌های قفل‌شده به‌صورت رمزنگاری‌شده داخل ZIP قرار می‌گیرند.':'Locked notes will be included encrypted inside the ZIP.'});
+                if(chosenName===null)return;
+                try{await buildMixedEncryptedExportZip(items,chosenName,normalized);closeAdvancedModal();showToast(currentLang==='fa'?'ZIP امن تصاویر آماده شد.':'Secure image export ZIP is ready.');}catch(e){console.error(e);alert(currentLang==='fa'?'خروجی تصاویر انجام نشد.':'Image export failed.');}
+                return;
+            }
             const chosenZipName = await promptFilename(`Markhin_Note_All_Images_${normalized.toUpperCase()}`, 'zip', {
                 desc: currentLang==='fa' ? 'نام فایل ZIP شامل تصویر همه یادداشت‌ها.' : 'Name for the ZIP file containing all note images.'
             });
@@ -4678,6 +5754,12 @@ window.mu_syncHtmlBg = function(){
         async function downloadAllPDF() {
             const items = getExportableCategories();
             if (!items.length) return;
+            if (items.some(isNoteLocked)) {
+                const chosenName=await promptFilename('Markhin_Note_All_Notes','zip',{desc:currentLang==='fa'?'یادداشت‌های قفل‌شده به‌صورت رمزنگاری‌شده داخل ZIP قرار می‌گیرند.':'Locked notes will be included encrypted inside the ZIP.'});
+                if(chosenName===null){closeAdvancedModal();return;}
+                try{await buildMixedEncryptedExportZip(items,chosenName,'pdf');closeAdvancedModal();showToast(currentLang==='fa'?'ZIP امن PDF آماده شد.':'Secure PDF export ZIP is ready.');}catch(e){console.error(e);alert(currentLang==='fa'?'خروجی PDF انجام نشد.':'PDF export failed.');}
+                return;
+            }
             const chosenName = await promptFilename('Markhin_Note_All_Notes', 'pdf', {
                 desc: currentLang === 'fa' ? 'نام فایل PDF شامل همه یادداشت‌ها.' : 'Name for the PDF containing all notes.'
             });
@@ -5254,9 +6336,14 @@ window.mu_syncHtmlBg = function(){
 
         
         // Helper functions for Category & Folders
-        function addNewCategory() {
+        async function addNewCategory() {
             const t = i18n[currentLang];
-            const name = prompt(t.promptNewCategory);
+            const fa = currentLang === 'fa';
+            const name = await promptStyledText({
+                title: fa ? '📝 یادداشت جدید' : '📝 New note',
+                placeholder: t.promptNewCategory,
+                okText: fa ? '➕ افزودن' : '➕ Add'
+            });
             if (name && name.trim() !== '') {
                 const newCategory = {
                     id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
@@ -5288,10 +6375,16 @@ window.mu_syncHtmlBg = function(){
             }
         }
 
-        function renameCategory(id) {
+        async function renameCategory(id) {
             const item = categories.find(c => c.id === id);
             if (item) {
-                const newName = prompt(i18n[currentLang].promptRename, item.name);
+                const fa = currentLang === 'fa';
+                const newName = await promptStyledText({
+                    title: fa ? '✏️ تغییر نام یادداشت' : '✏️ Rename note',
+                    placeholder: i18n[currentLang].promptRename,
+                    defaultValue: item.name,
+                    okText: fa ? '✔️ ذخیره' : '✔️ Save'
+                });
                 if (newName && newName.trim() !== '') {
                     item.name = newName.trim();
                     saveToLocalStorage();
@@ -5345,6 +6438,27 @@ window.mu_syncHtmlBg = function(){
             reader.onload = function(e) {
                 try {
                     const data = JSON.parse(e.target.result);
+                    // A single encrypted-note export (.mne.json) is intentionally
+                    // imported as an encrypted note; its password is never stored.
+                    if (data && data.format === 'markhin-encrypted-note' && data.note && data.note.encrypted) {
+                        const note = data.note;
+                        if (!note.encrypted.ciphertext || !note.encrypted.salt || !note.encrypted.iv) throw new Error('Invalid encrypted note');
+                        const imported = normalizeCategory({
+                            id: note.id || `${Date.now()}_${Math.random().toString(36).slice(2,8)}`,
+                            name: note.name || 'Imported Note', folder: note.folder || '',
+                            text: '', html: '', encrypted: note.encrypted, hint: note.hint || '',
+                            tags: note.tags || [], pinned: !!note.pinned, favorite: !!note.favorite,
+                            fontFamily: note.fontFamily || '', fontSize: note.fontSize, lastEdited: data.exportedAt || new Date().toUTCString()
+                        }, categories.length);
+                        categories.push(imported);
+                        if (imported.folder && imported.folder !== DEFAULT_FOLDER && !folders.includes(imported.folder)) folders.push(imported.folder);
+                        saveToLocalStorage();
+                        saveFoldersToLocalStorage();
+                        activeOpenId = null;
+                        renderApp();
+                        showToast(currentLang === 'fa' ? 'یادداشت رمزنگاری‌شده وارد شد؛ برای باز کردن رمز را وارد کن.' : 'Encrypted note imported; enter its password to open it.');
+                        return;
+                    }
                     if (!data || !Array.isArray(data.categories)) throw new Error('Invalid backup');
                     // Unlike CSV/TXT import (which add notes alongside existing ones), restoring
                     // a JSON backup replaces the entire dataset — make sure that's really what
@@ -5353,8 +6467,11 @@ window.mu_syncHtmlBg = function(){
                         ? `این کار همه یادداشت‌ها و پوشه‌های فعلی (${categories.length} یادداشت) را با محتوای این فایل بکاپ جایگزین می‌کند و قابل بازگشت نیست. ادامه می‌دهید؟`
                         : `This will replace ALL current notes and folders (${categories.length} notes) with the contents of this backup file and cannot be undone. Continue?`;
                     if (!confirm(confirmMsg)) return;
-                    categories = data.categories.filter(x => x && typeof x === 'object').map((item, index) => normalizeCategory(item, index));
-                    categories.forEach(item => { item.html = sanitizeHtml(item.html || item.text || ''); });
+                        categories = data.categories.filter(x => x && typeof x === 'object').map((item, index) => normalizeCategory(item, index));
+                    categories.forEach(item => {
+                        if (isNoteLocked(item)) { item.html = ''; item.text = ''; item.isDecoy = false; }
+                        else item.html = sanitizeHtml(item.html || item.text || '');
+                    });
                     const importedFolders = Array.isArray(data.folders) ? data.folders.filter(f => typeof f === 'string' && f.trim()) : [];
                     folders = [DEFAULT_FOLDER, ...[...new Set(importedFolders.filter(f => f !== 'همه' && f !== 'All' && f !== DEFAULT_FOLDER).map(f => f.trim()))]];
                     categories.forEach(item => { if (item.folder && !folders.includes(item.folder)) item.folder = ''; });
@@ -5470,6 +6587,12 @@ window.mu_syncHtmlBg = function(){
 
         async function downloadStructuredAll(type) {
             const items = getExportableCategories(); if (!items.length) return;
+            if (items.some(isNoteLocked)) {
+                const chosenName=await promptFilename(`markhin_${type}_secure`,'zip',{desc:currentLang==='fa'?'یادداشت‌های قفل‌شده داخل فایل‌های رمزنگاری‌شده قرار می‌گیرند.':'Locked notes will be included as encrypted Markhin exports.'});
+                if(chosenName===null){closeAdvancedModal();return;}
+                try{await buildMixedEncryptedExportZip(items,chosenName,type);closeAdvancedModal();showToast(currentLang==='fa'?'ZIP امن آماده شد.':'Secure ZIP export is ready.');}catch(e){console.error(e);alert(currentLang==='fa'?'خروجی انجام نشد.':'Export failed.');}
+                return;
+            }
             const ext = getStructuredExtension(type);
             const base = {json:'backup',csv:'data',md:'notes',txt:'notes'}[type] || 'export';
             const chosenName = await promptFilename(`markhin_${base}`, ext, {
@@ -5485,13 +6608,14 @@ window.mu_syncHtmlBg = function(){
 
         async function downloadStructuredSingle(id, type) {
             const item = categories.find(c => String(c.id) === String(id) && !c.isDecoy &&
-                (!c.password || unlockedQaIds.includes(c.id) || activeOpenId === c.id));
+                (!isNoteLocked(c) || unlockedQaIds.includes(c.id) || activeOpenId === c.id));
             if (!item) return;
             const ext = getStructuredExtension(type);
             const defaultBase = sanitizeFilename(item.name || (currentLang === 'fa' ? 'یادداشت' : 'Note'));
             const chosenName = await promptFilename(defaultBase, ext);
             if (chosenName === null) { closeAdvancedModal(); return; }
             try {
+                if(isNoteLocked(item)){ const blob=await createEncryptedExport(item); await robustDownload(blob,`${chosenName}.mne.json`,blob.type); return; }
                 const blob = new Blob([buildStructuredExport(type, [item])], {type:getStructuredMime(type)});
                 await robustDownload(blob, `${chosenName}.${ext}`, getStructuredMime(type));
             } catch (e) { console.error('Structured single export error:', e); alert(currentLang==='fa'?'دانلود خروجی انجام نشد.':'Export download failed.'); }
@@ -5592,6 +6716,12 @@ window.mu_syncHtmlBg = function(){
                 if(btn){btn.disabled=true;btn.innerHTML='⏳ ساخت بسته...';}
                 const files=[];
                 let skipped=0;
+                const lockedItems=items.filter(isNoteLocked);
+                const plainItems=items.filter(i=>!isNoteLocked(i));
+                for (const locked of lockedItems) {
+                    try { const blob=await createEncryptedExport(locked); files.push({name:`ENCRYPTED/${sanitizeFilename(locked.name||'note')}.mne.json`,data:blob}); }
+                    catch(e){ skipped++; console.warn('Encrypted export skipped:',locked.name,e); }
+                }
                 // Every export is isolated: if one format fails, the remaining formats continue.
                 const addExport = async (name, producer) => {
                     try {
@@ -5606,18 +6736,18 @@ window.mu_syncHtmlBg = function(){
                     }
                 };
 
-                if(selected.json) await addExport('markhin_backup.json', async () => JSON.stringify({categories:categories.map(i=>({...i,text:getTxtContent(i.id,i)})),folders},null,2));
-                if(selected.csv) await addExport('markhin_data.csv', async () => '\ufeff'+[['ID','Name','Folder','Text','Tags','Pinned','Favorite','FontFamily','FontSize'],...items.map(i=>[i.id,i.name,i.folder||'',getTxtContent(i.id,i)||'',(i.tags||[]).join('; '),i.pinned?'1':'0',i.favorite?'1':'0',i.fontFamily||'',i.fontSize||''])].map(r=>r.map(csvEscape).join(',')).join('\r\n'));
-                if(selected.md) await addExport('markhin_notes.md', async () => '# Markhin Note\n\n'+items.map((item,index)=>`# ${index+1}. ${markdownEscape(item.name)}\n\n${htmlToMarkdown(item.html,item.text)}`).join('\n\n---\n\n'));
-                if(selected.txt) await addExport('markhin_notes.txt', async () => items.map((item,index)=>`========================================\n${index+1}. ${item.name}${item.folder?` [Folder: ${item.folder}]`:''}\n========================================\n${getTxtContent(item.id,item).replace(/\n+$/,'')}\n`).join('\n'));
+                if(selected.json && plainItems.length) await addExport('markhin_backup.json', async () => JSON.stringify({categories:plainItems.map(i=>({...i,text:getTxtContent(i.id,i)})),folders},null,2));
+                if(selected.csv && plainItems.length) await addExport('markhin_data.csv', async () => '\ufeff'+[['ID','Name','Folder','Text','Tags','Pinned','Favorite','FontFamily','FontSize'],...plainItems.map(i=>[i.id,i.name,i.folder||'',getTxtContent(i.id,i)||'',(i.tags||[]).join('; '),i.pinned?'1':'0',i.favorite?'1':'0',i.fontFamily||'',i.fontSize||''])].map(r=>r.map(csvEscape).join(',')).join('\r\n'));
+                if(selected.md && plainItems.length) await addExport('markhin_notes.md', async () => '# Markhin Note\n\n'+plainItems.map((item,index)=>`# ${index+1}. ${markdownEscape(item.name)}\n\n${htmlToMarkdown(item.html,item.text)}`).join('\n\n---\n\n'));
+                if(selected.txt && plainItems.length) await addExport('markhin_notes.txt', async () => plainItems.map((item,index)=>`========================================\n${index+1}. ${item.name}${item.folder?` [Folder: ${item.folder}]`:''}\n========================================\n${getTxtContent(item.id,item).replace(/\n+$/,'')}\n`).join('\n'));
 
-                if(selected.docx) await addExport(items.length===1?`${sanitizeFilename(items[0].name)}.docx`:'Markhin_Note_All_Notes.docx', () => createDOCXBlob(items));
-                if(selected.pdf) await addExport(items.length===1?`${sanitizeFilename(items[0].name)}.pdf`:'Markhin_Note_All_Notes.pdf', () => createPDFBlob(items));
+                if(selected.docx && plainItems.length) await addExport(plainItems.length===1?`${sanitizeFilename(plainItems[0].name)}.docx`:'Markhin_Note_All_Notes.docx', () => createDOCXBlob(plainItems));
+                if(selected.pdf && plainItems.length) await addExport(plainItems.length===1?`${sanitizeFilename(plainItems[0].name)}.pdf`:'Markhin_Note_All_Notes.pdf', () => createPDFBlob(plainItems));
 
                 // Images are also isolated one-by-one. A failed image does not stop other images/formats.
-                for(let i=0;i<items.length;i++){
+                for(let i=0;i<plainItems.length;i++){
                     for(const fmt of ['png','jpg']){
-                        if(selected[fmt]) await addExport(`${fmt.toUpperCase()}/${String(i+1).padStart(3,'0')}_${sanitizeFilename(items[i].name||`note_${i+1}`)}.${fmt}`, () => renderNoteToImage(items[i],fmt));
+                        if(selected[fmt] && plainItems.length) await addExport(`${fmt.toUpperCase()}/${String(i+1).padStart(3,'0')}_${sanitizeFilename(plainItems[i].name||`note_${i+1}`)}.${fmt}`, () => renderNoteToImage(plainItems[i],fmt));
                     }
                     if(selected.png || selected.jpg) await new Promise(r=>setTimeout(r,0));
                 }
@@ -5804,7 +6934,7 @@ window.mu_syncHtmlBg = function(){
                     // Time Capsule / Ghost Note / Decay now live directly on each note object
                     // (see categoriesJson above), so there's no separate metadata blob left
                     // to seed here — the snapshot carries everything in one key.
-                    const categoriesJson = jsEscape(JSON.stringify(categories));
+                    const categoriesJson = jsEscape(JSON.stringify(serializeCategoriesForStorage()));
                     const foldersJson = jsEscape(JSON.stringify(folders.filter(f => f !== DEFAULT_FOLDER)));
                     seedLines += `
                             localStorage.setItem('app_categories_v13', '${categoriesJson}');
@@ -5933,7 +7063,7 @@ window.mu_syncHtmlBg = function(){
             if(changed) saveToLocalStorage();
             return changed;
         }
-        function isArchived(item){ return false; }
+        function isArchived(item){ return !!(item && item.archived); }
         // Periodically re-check Ghost/Decay state and refresh the countdown
         // badges even while the app is left open — previously this only ran once
         // on page load, so a Ghost Note wouldn't actually vanish, and a capsule
@@ -5959,18 +7089,30 @@ window.mu_syncHtmlBg = function(){
         };
 
         // Time Capsule: the note remains visible but cannot be opened until the date.
-        function setTimeCapsule(id){
+        async function setTimeCapsule(id){
             const item=categories.find(c=>c.id===id); if(!item)return;
-            const raw=prompt(currentLang==='fa'?'زمان باز شدن را وارد کن (مثلاً 2026-12-31 18:00)':'Enter unlock time (e.g. 2026-12-31 18:00)');
+            const fa=currentLang==='fa';
+            const raw=await promptStyledText({
+                title: fa?'⏳ کپسول زمانی':'⏳ Time Capsule',
+                placeholder: fa?'زمان باز شدن را وارد کن (مثلاً 2026-12-31 18:00)':'Enter unlock time (e.g. 2026-12-31 18:00)',
+                okText: fa?'⏳ فعال کن':'⏳ Arm'
+            });
             if(!raw)return;
             const ts=Date.parse(raw); if(!Number.isFinite(ts)||ts<=Date.now()){showToast(currentLang==='fa'?'زمان باید در آینده باشد.':'Time must be in the future.');return;}
             item.unlockAt=ts; saveToLocalStorage(); renderApp(id); showToast(currentLang==='fa'?'کپسول زمان فعال شد.':'Time Capsule armed.');
         }
         function clearTimeCapsule(id){const item=categories.find(c=>c.id===id);if(!item)return;item.unlockAt='';saveToLocalStorage();renderApp(id)}
 
-        function setGhostNote(id){
+        async function setGhostNote(id){
             const item=categories.find(c=>c.id===id);if(!item)return;
-            const raw=prompt(currentLang==='fa'?'بعد از چند ساعت محو شود؟ (مثلاً 24)':'Disappear after how many hours? (e.g. 24)','24');
+            const fa=currentLang==='fa';
+            const raw=await promptStyledText({
+                title: fa?'👻 Ghost Note':'👻 Ghost Note',
+                placeholder: fa?'بعد از چند ساعت محو شود؟ (مثلاً 24)':'Disappear after how many hours? (e.g. 24)',
+                defaultValue: '24',
+                type: 'number',
+                okText: fa?'👻 فعال کن':'👻 Arm'
+            });
             if(raw===null)return; const hours=Number(raw); if(!Number.isFinite(hours)||hours<=0){showToast(currentLang==='fa'?'عدد نامعتبر است.':'Invalid duration.');return;}
             item.ghostUntil=Date.now()+hours*3600000; saveToLocalStorage(); renderApp(id); showToast(currentLang==='fa'?'Ghost Note فعال شد.':'Ghost Note armed.');
         }
@@ -6047,9 +7189,16 @@ window.mu_syncHtmlBg = function(){
                 `</div>`);
         }
         function wordSet(html){return new Set((String(html||'').replace(/<[^>]+>/g,' ').toLowerCase().match(/[\p{L}\p{N}]{2,}/gu)||[]));}
-        function setDecayLevel(id){
+        async function setDecayLevel(id){
             const item=categories.find(c=>c.id===id);if(!item)return;
-            const raw=prompt(currentLang==='fa'?'سطح را انتخاب کن: 0 فعال، 1 خوابیده، 2 فراموش‌شده، 3 باستانی':'Choose level: 0 Active, 1 Dormant, 2 Forgotten, 3 Ancient',String(item.decayLevel||0));
+            const fa=currentLang==='fa';
+            const raw=await promptStyledText({
+                title: fa?'🧭 سطح کهنگی':'🧭 Decay level',
+                placeholder: fa?'سطح را انتخاب کن: 0 فعال، 1 خوابیده، 2 فراموش‌شده، 3 باستانی':'Choose level: 0 Active, 1 Dormant, 2 Forgotten, 3 Ancient',
+                defaultValue: String(item.decayLevel||0),
+                type: 'number',
+                okText: fa?'✔️ ثبت':'✔️ Set'
+            });
             if(raw===null)return;
             const v=Math.max(0,Math.min(3,parseInt(raw,10)||0));
             item.decayLevel=v; item.decayManual=true; saveToLocalStorage(); renderApp(id);
@@ -6083,7 +7232,7 @@ window.mu_syncHtmlBg = function(){
             const terms=q.split(/\s+/).filter(Boolean); const expanded=[...terms];terms.forEach(t=>{if(SMART_SYNONYMS[t])expanded.push(...SMART_SYNONYMS[t].map(normalizeText));});
             return categories.filter(c=>!isArchived(c)).map(c=>{const hay=normalizeText(`${c.name} ${c.text} ${c.html?.replace(/<[^>]+>/g,' ')||''}`);let score=0;expanded.forEach(t=>{if(hay.includes(t))score+=terms.includes(t)?3:1});if(normalizeText(c.name).includes(q))score+=8;return {c,score};}).filter(x=>x.score>0).sort((a,b)=>b.score-a.score).map(x=>x.c);
         }
-        function runSmartSearch(){const q=prompt(currentLang==='fa'?'جستجوی هوشمند آفلاین:':'Offline smart search:');if(!q)return;const results=smartSearch(q);if(!results.length){showToast(currentLang==='fa'?'چیزی پیدا نشد.':'Nothing found.');return;}activeOpenId=results[0].id;renderApp(activeOpenId);showToast((currentLang==='fa'?'بهترین تطبیق: ':'Best match: ')+results[0].name);}
+        async function runSmartSearch(){const q=prompt(currentLang==='fa'?'جستجوی هوشمند آفلاین:':'Offline smart search:');if(!q)return;const results=smartSearch(q);if(!results.length){showToast(currentLang==='fa'?'چیزی پیدا نشد.':'Nothing found.');return;}await handleCategoryClick(results[0].id);if(activeOpenId===results[0].id)showToast((currentLang==='fa'?'بهترین تطبیق: ':'Best match: ')+results[0].name);}
 
         function openRandomPortal(){
             const pool=categories.filter(c=>!isArchived(c));
@@ -6093,14 +7242,15 @@ window.mu_syncHtmlBg = function(){
             const item=source[Math.floor(Math.random()*source.length)];
             const portal=document.createElement('div');portal.className='random-portal active';document.body.appendChild(portal);
             glitchTransition();
-            setTimeout(()=>{
-                activeOpenId=item.id;
-                renderApp(item.id);
-                glitchTransition();
-                setTimeout(()=>{
-                    const target=document.getElementById(`container-${item.id}`);
-                    if(target) target.scrollIntoView({behavior:'smooth',block:'center'});
-                },80);
+            setTimeout(async ()=>{
+                await handleCategoryClick(item.id);
+                if(activeOpenId===item.id){
+                    glitchTransition();
+                    setTimeout(()=>{
+                        const target=document.getElementById(`container-${item.id}`);
+                        if(target) target.scrollIntoView({behavior:'smooth',block:'center'});
+                    },80);
+                }
             },360);
             setTimeout(()=>portal.remove(),1100);
         }
@@ -6145,8 +7295,8 @@ window.mu_syncHtmlBg = function(){
             // Locked notes that haven't been unlocked from the Ask section keep their content
             // out of the similarity analysis entirely (same rule the AI/semantic-search
             // features already follow) — they still appear as isolated, dimmed nodes.
-            const openNotes=notes.filter(n=>!n.password||unlockedQaIds.includes(n.id));
-            const lockedNotes=notes.filter(n=>n.password&&!unlockedQaIds.includes(n.id));
+            const openNotes=notes.filter(n=>!isNoteLocked(n)||unlockedQaIds.includes(n.id));
+            const lockedNotes=notes.filter(n=>isNoteLocked(n)&&!unlockedQaIds.includes(n.id));
             const wordSets={}; openNotes.forEach(n=>{ wordSets[n.id]=kgWordSet(n); });
 
             // Keep each note's strongest few connections instead of one arbitrary hub
@@ -6267,7 +7417,7 @@ window.mu_syncHtmlBg = function(){
                 pairInfo[key]={score:e.score,sharedWords:shared,sharedTags};
             });
             const notesById={};
-            fullOrder.forEach(n=>{ notesById[n.id]={name:n.name||'Note',locked:!!(n.password&&!unlockedQaIds.includes(n.id)),tags:Array.isArray(n.tags)?n.tags:[]}; });
+            fullOrder.forEach(n=>{ notesById[n.id]={name:n.name||'Note',locked:!!(isNoteLocked(n)&&!unlockedQaIds.includes(n.id)),tags:Array.isArray(n.tags)?n.tags:[]}; });
             window.__kgData={notesById,pairInfo,connMap};
 
             let svg=`<svg id="knowledgeGraph" viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg">`;
@@ -6277,7 +7427,7 @@ window.mu_syncHtmlBg = function(){
                 svg+=`<line class="kg-edge" data-a="${e.a}" data-b="${e.b}" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="currentColor" stroke-width="${width}" opacity="${op}"/>`;
             });
             fullOrder.forEach(n=>{
-                const [x,y]=positions[n.id]; const locked=n.password&&!unlockedQaIds.includes(n.id);
+                const [x,y]=positions[n.id]; const locked=isNoteLocked(n)&&!unlockedQaIds.includes(n.id);
                 const r=radius[n.id];
                 const fullName=(n.name||'Note'); const maxChars=r>=63?24:(r>=45?18:13);
                 const label=fullName.length>maxChars?fullName.slice(0,maxChars-1)+'…':fullName;
@@ -6359,7 +7509,7 @@ window.mu_syncHtmlBg = function(){
                 `<p style="opacity:.6;font-size:11px;margin:-2px 0 8px">${fa?`${connIds.length} ارتباط — این‌ها را با هم مشترک دارند:`:`${connIds.length} connection(s) — here's what they share:`}</p>`+
                 `<div class="kg-info-list">${rows}</div>`;
         }
-        function graphOpenNote(id){closeAdvancedModal();activeOpenId=id;renderApp(id);}
+        async function graphOpenNote(id){closeAdvancedModal();await handleCategoryClick(id);}
         function showAdvanced(html){const m=document.getElementById('advancedModal');document.getElementById('advancedCard').innerHTML=html;m.style.display='flex';}
         function closeAdvancedModal(){document.getElementById('advancedModal').style.display='none';const c=document.getElementById('advancedCard');if(c)c.classList.remove('kg-wide');}
         document.addEventListener('keydown',e=>{if(e.key==='Escape')closeAdvancedModal();if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='shift'){/* reserved */}if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='g'){e.preventDefault();openKnowledgeGraph();}if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='m'){e.preventDefault();runSmartSearch();}});
@@ -6391,6 +7541,8 @@ window.mu_syncHtmlBg = function(){
 .note-pin-action{border-color:rgba(255,209,102,.45)!important}
 .custom-btn.note-pinned{border-color:#ffd166;box-shadow:0 0 10px rgba(255,209,102,.12)}
 .custom-btn.note-favorite{border-color:#ff7aa8;box-shadow:0 0 10px rgba(255,122,168,.12)}.note-fav-action{border-color:rgba(255,122,168,.45)!important}
+.note-archive-action{border-color:var(--panel-border)!important}
+.custom-btn.note-archived{opacity:.72}
 .markhin-tag{display:inline-flex;align-items:center;padding:3px 8px;border:1px solid var(--panel-border);border-radius:999px;font-size:9px;margin:2px;opacity:.82}
 .markhin-tags{display:flex;flex-wrap:wrap;gap:3px;margin:5px 0 8px}
 .text-box table{border-collapse:collapse;width:100%;margin:10px 0}.text-box td,.text-box th{border:1px solid var(--panel-border);padding:7px}.text-box blockquote{margin:8px 0;padding:7px 12px;border-right:3px solid var(--text-color);background:rgba(255,255,255,.035)}.markhin-tag-input{width:100%;box-sizing:border-box;padding:7px 9px;border-radius:8px;border:1px solid var(--panel-border);background:rgba(0,0,0,.25);font-family:inherit;color:var(--text-color);outline:none}
@@ -6434,7 +7586,7 @@ const baseSearchChange=window.onSearchChange;
 function ensureItem(item){
  if(!item)return;
  item.tags=Array.isArray(item.tags)?item.tags.filter(Boolean).map(String):[];
- item.pinned=!!item.pinned; item.favorite=!!item.favorite;
+ item.pinned=!!item.pinned; item.favorite=!!item.favorite; item.archived=!!item.archived; item.order=Number(item.order)||0;
  item.fakeContent=typeof item.fakeContent==='string'?item.fakeContent:'';
  item.fontFamily=typeof item.fontFamily==='string'?item.fontFamily:'';
  item.fontSize=Number(item.fontSize)||13;
@@ -6452,7 +7604,7 @@ window.getVisibleCategories=function(){
 };
 function save(){saveToLocalStorage();saveFoldersToLocalStorage();}
 function noteButtonLabel(item){
- let s=(item.password?'🔒 ':'')+(item.pinned?'📌 ':'')+(item.favorite?'⭐ ':'')+String(item.name||'');
+ let s=(isNoteLocked(item)?'🔒 ':'')+(item.pinned?'📌 ':'')+(item.favorite?'⭐ ':'')+String(item.name||'');
  if(item.fakeContent)s='🎭 '+s; return s;
 }
 window.renderButtons=function(filtered){
@@ -6485,9 +7637,14 @@ window.renderFolders=function(){
    c.appendChild(w);
  });
 };
-window.addNewFolder=function(){
- const t=i18n[currentLang]; const parent=folders.filter(f=>f!==DEFAULT_FOLDER).length?prompt(currentLang==='fa'?'پوشه والد را وارد کن (خالی = ریشه):':'Parent folder (blank = root):',''):'';
- if(parent===null)return; const name=prompt(t.promptNewFolder); if(!name||!name.trim())return; const clean=(parent&&parent.trim()?parent.trim().replace(/^\/+|\/+$/g,'')+'/':'')+name.trim().replace(/^\/+|\/+$/g,'');
+window.addNewFolder=async function(){
+ const t=i18n[currentLang]; const fa=currentLang==='fa';
+ const parent=folders.filter(f=>f!==DEFAULT_FOLDER).length
+   ? await promptStyledText({title:fa?'📁 پوشه والد':'📁 Parent folder', placeholder:fa?'پوشه والد را وارد کن (خالی = ریشه):':'Parent folder (blank = root):', okText:fa?'ادامه':'Continue'})
+   : '';
+ if(parent===null)return;
+ const name=await promptStyledText({title:fa?'📁 پوشه جدید':'📁 New folder', placeholder:t.promptNewFolder, okText:fa?'➕ افزودن':'➕ Add'});
+ if(!name||!name.trim())return; const clean=(parent&&parent.trim()?parent.trim().replace(/^\/+|\/+$/g,'')+'/':'')+name.trim().replace(/^\/+|\/+$/g,'');
  if(folders.some(f=>normalizeText(f)===normalizeText(clean))){showToast(currentLang==='fa'?'این پوشه از قبل وجود دارد.':'That folder already exists.');return} folders.push(clean);saveFoldersToLocalStorage();renderFolders();
 };
 function mdToHtml(md){let x=escapeHtml(String(md||''));x=x.replace(/```([\s\S]*?)```/g,'<pre><code>$1</code></pre>');x=x.replace(/^>\s?(.*)$/gm,'<blockquote>$1</blockquote>');x=x.replace(/^###\s+(.*)$/gm,'<h3>$1</h3>').replace(/^##\s+(.*)$/gm,'<h2>$1</h2>').replace(/^#\s+(.*)$/gm,'<h1>$1</h1>');x=x.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,'<a href="$2">$1</a>');x=x.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/__(.+?)__/g,'<strong>$1</strong>').replace(/\*(.+?)\*/g,'<em>$1</em>').replace(/_(.+?)_/g,'<em>$1</em>');x=x.replace(/^[-*]\s+(.*)$/gm,'<li>$1</li>').replace(/(<li>.*<\/li>\n?)+/g,m=>'<ul>'+m+'</ul>');return x.split(/\n\n+/).map(p=>/^<(h\d|ul|pre|blockquote)/.test(p)?p:'<p>'+p.replace(/\n/g,'<br>')+'</p>').join('');}
@@ -6497,11 +7654,11 @@ function addFeatureTools(item,box){
  const tools=box.querySelector('.note-tools'); if(!tools||tools.dataset.features==='1')return;tools.dataset.features='1';
  const row=document.createElement('div');row.className='markhin-editor-tools';row.innerHTML=`<button type="button" title="Bold"><b>B</b></button><button type="button" title="Italic"><i>I</i></button><button type="button" title="Underline"><u>U</u></button><button type="button" title="Quote">❝</button><button type="button" title="List">☷</button><button type="button" title="Table">▦</button><button type="button" title="Link">🔗</button><button type="button" title="Undo">↶</button><button type="button" title="Redo">↷</button><select title="Font"><option value="">فارسی — پیش‌فرض</option><option value="Arial">English — Arial</option><option value="Share Tech Mono">English — Share Tech Mono</option><option value="Orbitron">English — Orbitron</option><option value="Quicksand">Mixed — Quicksand</option></select><select title="Size"><option value="12">12</option><option value="13">13</option><option value="15">15</option><option value="18">18</option><option value="22">22</option><option value="28">28</option></select>`;
  const btns=row.querySelectorAll('button'); const cmd=(c,v=null)=>{text.focus();document.execCommand(c,false,v);autosaveCategory(item.id)};
- btns[0].onclick=()=>cmd('bold');btns[1].onclick=()=>cmd('italic');btns[2].onclick=()=>cmd('underline');btns[3].onclick=()=>cmd('formatBlock','blockquote');btns[4].onclick=()=>cmd('insertUnorderedList');btns[5].onclick=()=>{const table='<table><tbody><tr><td>سلول ۱</td><td>سلول ۲</td></tr><tr><td>سلول ۳</td><td>سلول ۴</td></tr></tbody></table>';text.focus();document.execCommand('insertHTML',false,table);autosaveCategory(item.id)};btns[6].onclick=()=>{const u=prompt(currentLang==='fa'?'آدرس لینک:':'Link URL:','https://');if(u)cmd('createLink',u)};btns[7].onclick=()=>cmd('undo');btns[8].onclick=()=>cmd('redo');
+ btns[0].onclick=()=>cmd('bold');btns[1].onclick=()=>cmd('italic');btns[2].onclick=()=>cmd('underline');btns[3].onclick=()=>cmd('formatBlock','blockquote');btns[4].onclick=()=>cmd('insertUnorderedList');btns[5].onclick=()=>{const table='<table><tbody><tr><td>سلول ۱</td><td>سلول ۲</td></tr><tr><td>سلول ۳</td><td>سلول ۴</td></tr></tbody></table>';text.focus();document.execCommand('insertHTML',false,table);autosaveCategory(item.id)};btns[6].onclick=async()=>{const u=await promptStyledText({title:currentLang==='fa'?'🔗 افزودن لینک':'🔗 Add link',placeholder:currentLang==='fa'?'آدرس لینک:':'Link URL:',defaultValue:'https://',type:'url',okText:currentLang==='fa'?'✔️ افزودن':'✔️ Add'});if(u)cmd('createLink',u)};btns[7].onclick=()=>cmd('undo');btns[8].onclick=()=>cmd('redo');
  const selects=row.querySelectorAll('select');selects[0].value=item.fontFamily||'';selects[1].value=String(item.fontSize||13);selects[0].onchange=()=>{item.fontFamily=selects[0].value;text.style.fontFamily=selects[0].value;saveToLocalStorage()};selects[1].onchange=()=>{item.fontSize=Number(selects[1].value)||13;text.style.fontSize=item.fontSize+'px';saveToLocalStorage()};
  tools.parentNode.insertBefore(row,tools.nextSibling); text.style.fontFamily=item.fontFamily||'';text.style.fontSize=(item.fontSize||13)+'px';
- const meta=document.createElement('div');meta.className='markhin-feature-row';meta.innerHTML=`<button type="button" class="img-btn note-pin-action" title="${item.pinned?(currentLang==='fa'?'برداشتن پین':'Unpin'):(currentLang==='fa'?'پین کردن یادداشت':'Pin note')}">📌 ${item.pinned?'لغو پین':'پین کردن'}</button><button type="button" class="img-btn note-fav-action" title="${item.favorite?(currentLang==='fa'?'حذف از فیوریت':'Remove from Favorites'):(currentLang==='fa'?'افزودن به فیوریت':'Add to Favorites')}">⭐ ${item.favorite?'حذف از فیوریت':'افزودن به فیوریت'}</button><button type="button" class="img-btn">⧉ Duplicate</button><button type="button" class="img-btn">🎭 ${item.fakeContent?'ویرایش Fake':'Fake Note'}</button><button type="button" class="img-btn">📄 PDF</button><button type="button" class="img-btn">📝 DOCX</button><button type="button" class="img-btn">🌐 HTML</button><button type="button" class="img-btn">TXT</button><button type="button" class="img-btn">M↓ MD</button><button type="button" class="img-btn">🖼️ PNG</button><button type="button" class="img-btn">📤 Share</button>`;
- const ms=meta.querySelectorAll('button');ms[0].onclick=()=>toggleFlag(item,'pinned');ms[1].onclick=()=>toggleFlag(item,'favorite');ms[2].onclick=()=>duplicateNote(item.id);ms[3].onclick=()=>editFake(item.id);ms[4].onclick=()=>downloadSelectedPDF(item.id);ms[5].onclick=()=>downloadSelectedDOCX(item.id);ms[6].onclick=()=>exportSingleHTML(item.id);ms[7].onclick=()=>downloadAsTxt(item.id);ms[8].onclick=()=>downloadStructuredSingle(item.id,'md');ms[9].onclick=()=>downloadSelectedImage(item.id,'png');ms[10].onclick=()=>shareNote(item.id);text.parentNode.insertBefore(meta,text);
+ const meta=document.createElement('div');meta.className='markhin-feature-row';meta.innerHTML=`<button type="button" class="img-btn note-pin-action" title="${item.pinned?(currentLang==='fa'?'برداشتن پین':'Unpin'):(currentLang==='fa'?'پین کردن یادداشت':'Pin note')}">📌 ${item.pinned?'لغو پین':'پین کردن'}</button><button type="button" class="img-btn note-fav-action" title="${item.favorite?(currentLang==='fa'?'حذف از فیوریت':'Remove from Favorites'):(currentLang==='fa'?'افزودن به فیوریت':'Add to Favorites')}">⭐ ${item.favorite?'حذف از فیوریت':'افزودن به فیوریت'}</button><button type="button" class="img-btn note-archive-action" title="${currentLang==='fa'?'انتقال به بایگانی':'Move to archive'}">📦 ${currentLang==='fa'?'بایگانی':'Archive'}</button><button type="button" class="img-btn">⧉ Duplicate</button><button type="button" class="img-btn">🎭 ${item.fakeContent?'ویرایش Fake':'Fake Note'}</button><button type="button" class="img-btn">📄 PDF</button><button type="button" class="img-btn">📝 DOCX</button><button type="button" class="img-btn">🌐 HTML</button><button type="button" class="img-btn">TXT</button><button type="button" class="img-btn">M↓ MD</button><button type="button" class="img-btn">🖼️ PNG</button><button type="button" class="img-btn">📤 Share</button>`;
+ const ms=meta.querySelectorAll('button');ms[0].onclick=()=>toggleFlag(item,'pinned');ms[1].onclick=()=>toggleFlag(item,'favorite');ms[2].onclick=()=>toggleArchiveNote(item.id);ms[3].onclick=()=>duplicateNote(item.id);ms[4].onclick=()=>editFake(item.id);ms[5].onclick=()=>downloadSelectedPDF(item.id);ms[6].onclick=()=>downloadSelectedDOCX(item.id);ms[7].onclick=()=>exportSingleHTML(item.id);ms[8].onclick=()=>downloadAsTxt(item.id);ms[9].onclick=()=>downloadStructuredSingle(item.id,'md');ms[10].onclick=()=>downloadSelectedImage(item.id,'png');ms[11].onclick=()=>shareNote(item.id);text.parentNode.insertBefore(meta,text);
  const tags=document.createElement('div');tags.className='markhin-tag-field';
  const tagHelpFa='با کاما (,) بین تگ‌ها فاصله بذار. مثال: کار, مهم, پروژه X ← این‌جوری ۳ تگ جدا ساخته می‌شه: «کار»، «مهم» و «پروژه X».';
  const tagHelpEn='Separate tags with a comma (,). Example: work, important, project X → this makes 3 separate tags: "work", "important" and "project X".';
@@ -6532,9 +7689,75 @@ function addFeatureTools(item,box){
  text.addEventListener('input',updateCount);updateCount();
 }
 function toggleFlag(item,key){ensureItem(item);item[key]=!item[key];saveToLocalStorage();renderApp(item.id);const msg=key==='pinned'?(item[key]?(currentLang==='fa'?'📌 یادداشت پین شد':'📌 Note pinned'):(currentLang==='fa'?'📌 پین یادداشت برداشته شد':'📌 Note unpinned')):(item[key]?(currentLang==='fa'?'⭐ به فیوریت اضافه شد':'⭐ Added to Favorites'):(currentLang==='fa'?'⭐ از فیوریت حذف شد':'⭐ Removed from Favorites'));showToast(msg);}
+/* Archive: keeps the note itself untouched but hides it from every normal
+   list (main view, folders, search, dashboard counts — all already route
+   through isArchived()). Toggled from the note's own toolbar, or from the
+   Archive list in the dashboard (see markhinDash_showList('archived')). */
+function toggleArchiveNote(id){
+    const item=categories.find(x=>x.id===id); if(!item)return;
+    ensureItem(item);
+    item.archived=!item.archived;
+    // The note is about to vanish from the visible list once archived, so
+    // don't leave it "open" behind the scenes.
+    if(item.archived && activeOpenId===id) activeOpenId=null;
+    saveToLocalStorage();
+    renderApp(activeOpenId);
+    showToast(item.archived
+        ? (currentLang==='fa'?'📦 یادداشت به بایگانی منتقل شد':'📦 Note moved to archive')
+        : (currentLang==='fa'?'📦 یادداشت از بایگانی بازگردانده شد':'📦 Note restored from archive'));
+}
+window.toggleArchiveNote=toggleArchiveNote;
 window.duplicateNote=function(id){const o=categories.find(x=>x.id===id);if(!o)return;const n=JSON.parse(JSON.stringify(o));n.id=Date.now()+'_'+Math.random().toString(36).slice(2,9);n.name=(o.name||'Note')+' — Copy';n.pinned=false;n.favorite=false;n.isDecoy=false;n.lastEdited=new Date().toUTCString();categories.push(n);saveToLocalStorage();renderApp(n.id);};
-window.editFake=function(id){const item=categories.find(x=>x.id===id);if(!item)return;const v=prompt(currentLang==='fa'?'متن Fake Note را وارد کن. وقتی رمز اشتباه باشد این متن نمایش داده می‌شود:':'Enter fake content. It is shown when the wrong password is entered:',item.fakeContent||'این یادداشت چیزی برای نمایش ندارد.');if(v===null)return;item.fakeContent=v;item.password=item.password||prompt(currentLang==='fa'?'برای Fake Note یک رمز اصلی تعیین کن:':'Set the real password for this fake note:')||'';saveToLocalStorage();renderApp(id);};
-const baseHandle=window.handleCategoryClick;window.handleCategoryClick=function(id){const item=categories.find(c=>c.id===id);if(item?.password){const pass=prompt(`"${item.name}" - ${i18n[currentLang].promptEnterPass}`);if(pass===null)return;if(pass.trim().toLowerCase()==='hint'){alert(item.hint?i18n[currentLang].hintTitle+item.hint:i18n[currentLang].noHintSet);return;}item.isDecoy=pass!==item.password;}else item.isDecoy=false;activeOpenId=(activeOpenId===id)?null:id;renderApp(activeOpenId);};
+window.editFake=async function(id){
+    const item=categories.find(x=>x.id===id);if(!item)return;
+    const fa=currentLang==='fa';
+    const v=await promptStyledText({
+        title: fa?'🎭 محتوای Fake Note':'🎭 Fake note content',
+        message: fa?'متن Fake Note را وارد کن. وقتی رمز اشتباه باشد این متن نمایش داده می‌شود:':'Enter fake content. It is shown when the wrong password is entered:',
+        defaultValue: item.fakeContent||(fa?'این یادداشت چیزی برای نمایش ندارد.':'This note has nothing to show.'),
+        multiline: true,
+        okText: fa?'✔️ ذخیره':'✔️ Save'
+    });
+    if(v===null)return;
+    item.fakeContent=v;
+    if(!isNoteLocked(item)){
+        const pass=await promptStyledText({
+            title: fa?'🔒 رمز اصلی Fake Note':'🔒 Real password for this fake note',
+            placeholder: fa?'برای Fake Note یک رمز اصلی تعیین کن:':'Set the real password for this fake note:',
+            type: 'password',
+            okText: fa?'🔒 تنظیم':'🔒 Set'
+        });
+        if(pass&&pass.trim()){
+            try{
+                item.encrypted=await encryptNotePayload(pass.trim(),item.html||'',item.text||'');
+                noteSessionKeys.set(item.id,pass.trim());
+                saveToLocalStorage();
+                renderApp(id);
+            }catch(e){
+                console.error(e);
+                alert(fa?'رمزگذاری انجام نشد.':'Encryption failed.');
+            }
+            return;
+        }
+    }
+    saveToLocalStorage();
+    renderApp(id);
+};
+const baseHandle=window.handleCategoryClick;
+/* Scroll to a just-unlocked note's text. Only called when the note was closed
+   and is now being opened (never on wrong password, never when closing an
+   already-open note). Telegram's in-app WebView keeps settling its layout for
+   a beat after the password modal's on-screen keyboard closes, so we wait two
+   animation frames plus a short delay before measuring/scrolling instead of
+   scrolling immediately — this avoids landing at a stale (pre-keyboard-close)
+   scroll position inside the Telegram mini app. */
+function mkScrollToUnlockedNoteText(id){
+    requestAnimationFrame(()=>requestAnimationFrame(()=>setTimeout(()=>{
+        const textEl=document.getElementById(`text-${id}`);
+        if(textEl) textEl.scrollIntoView({behavior:'smooth',block:'start'});
+    },80)));
+}
+window.handleCategoryClick=async function(id){const item=categories.find(c=>c.id===id);if(!item)return;const wasOpen=(activeOpenId===id);if(isNoteLocked(item)){const pass=await promptNotePassword(item);if(pass===null)return;if(!await unlockNote(item,pass.trim())){item.isDecoy=true;activeOpenId=(activeOpenId===id)?null:id;renderApp(activeOpenId);alert(i18n[currentLang].wrongPass);return;}item.isDecoy=false;activeOpenId=(activeOpenId===id)?null:id;renderApp(activeOpenId);if(!wasOpen)mkScrollToUnlockedNoteText(id);return;}else item.isDecoy=false;activeOpenId=(activeOpenId===id)?null:id;renderApp(activeOpenId);};
 const oldRender=window.renderContents;window.renderContents=function(filtered){oldRender(filtered);const open=categories.find(x=>x.id===activeOpenId);if(open&&!open.isDecoy){const box=document.getElementById('container-'+open.id);if(box)setTimeout(()=>addFeatureTools(open,box),0)}};
 window.renderApp=function(openId=activeOpenId){baseRenderApp(openId);const open=categories.find(x=>x.id===activeOpenId);if(open&&!open.isDecoy){const box=document.getElementById('container-'+open.id);if(box)setTimeout(()=>addFeatureTools(open,box),0)}};
 
@@ -6544,6 +7767,7 @@ window.exportSingleHTML=async function(id){
     const fa = currentLang==='fa';
     const chosenName = await promptFilename(item.name, 'html');
     if (chosenName === null) return;
+    if (isNoteLocked(item)) { try { const blob=await createEncryptedExport(item); await robustDownload(blob, `${chosenName}.mne.json`, blob.type); showToast(fa?'فایل رمزنگاری‌شده آماده شد.':'Encrypted export is ready.'); } catch(e){ if(e?.message!=='Export cancelled.') alert(fa?'خروجی رمزنگاری‌شده انجام نشد.':'Encrypted export failed.'); } return; }
     const tags = Array.isArray(item.tags) ? item.tags : [];
     const lastEdited = item.lastEdited || '';
     const stamp = new Date().toLocaleString(fa ? 'fa-IR' : 'en-US');
@@ -6636,6 +7860,7 @@ window.shareNoteAs=async function(id, format){
         desc: fa ? 'نام فایلی که به اشتراک گذاشته یا دانلود می‌شود.' : 'Name for the file that will be shared or downloaded.'
     });
     if (chosenName === null) return;
+    if (isNoteLocked(item)) { try { const blob=await createEncryptedExport(item); const file=new File([blob],chosenName+'.mne.json',{type:blob.type}); if(navigator.share&&(!navigator.canShare||navigator.canShare({files:[file]}))){try{await navigator.share({title:item.name,files:[file]});return;}catch(e){if(e?.name==='AbortError')return;}} await robustDownload(blob,file.name,blob.type); showToast(fa?'خروجی رمزنگاری‌شده آماده شد.':'Encrypted export is ready.'); } catch(e){ if(e?.message!=='Export cancelled.') alert(fa?'خروجی رمزنگاری‌شده انجام نشد.':'Encrypted export failed.'); } return; }
     // PDF/DOCX/Image all take a moment to build (DOCX in particular loads its
     // engine from a CDN on first use) — without this the button looked dead
     // for a few seconds and it was easy to think the option was broken.
@@ -6736,19 +7961,32 @@ function markhinDash_notes(){return allItems().filter(x=>typeof isArchived!=='fu
 function markhinDash_noteRowHtml(item, opts){
     opts=opts||{};
     const fa=currentLang==='fa';
-    const flags=(item.password?'🔒 ':'')+(item.pinned?'📌 ':'')+(item.favorite?'⭐ ':'')+(item.fakeContent?'🎭 ':'')+(markhinDash_isGhostActive(item)?'👻 ':'')+(markhinDash_isCapsuleActive(item)?'⏳ ':'');
-    const snip=item.password?(fa?'یادداشت قفل‌شده':'Locked note'):mu_snippet(item,[]);
+    const flags=(isNoteLocked(item)?'🔒 ':'')+(item.pinned?'📌 ':'')+(item.favorite?'⭐ ':'')+(item.archived?'📦 ':'')+(item.fakeContent?'🎭 ':'')+(markhinDash_isGhostActive(item)?'👻 ':'')+(markhinDash_isCapsuleActive(item)?'⏳ ':'');
+    const snip=isNoteLocked(item)?(fa?'یادداشت قفل‌شده':'Locked note'):mu_snippet(item,[]);
     const tagsHtml=(item.tags||[]).slice(0,6).map(t=>'<span class="markhin-tag">#'+escapeHtml(t)+'</span>').join('');
     const meta=opts.metaLabel?`<span class="markhin-dash-meta">${opts.metaLabel}</span>`:'';
+    const actionHtml=opts.actionLabel?`<button type="button" class="btn-main markhin-dash-row-action" data-row-action="1">${escapeHtml(opts.actionLabel)}</button>`:'';
     return `<div class="markhin-smart-item" data-id="${escapeHtml(item.id)}">
-        <b>${escapeHtml(flags+String(item.name||''))}${meta}</b>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+            <b style="min-width:0">${escapeHtml(flags+String(item.name||''))}${meta}</b>
+            ${actionHtml}
+        </div>
         ${snip?`<div class="snippet">${escapeHtml(snip)}</div>`:''}
         ${tagsHtml?`<div class="markhin-tags" style="margin:6px 0 0">${tagsHtml}</div>`:''}
     </div>`;
 }
-function markhinDash_bindRows(container){
+function markhinDash_bindRows(container, opts){
+    opts=opts||{};
     container.querySelectorAll('.markhin-smart-item').forEach(el=>{
-        el.onclick=()=>{ const id=el.dataset.id; markhinDash_openNote(id); };
+        const id=el.dataset.id;
+        const actionBtn=el.querySelector('[data-row-action="1"]');
+        if(actionBtn){
+            actionBtn.onclick=(e)=>{ e.stopPropagation(); (opts.onRowAction||function(){})(id); };
+        }
+        el.onclick=(e)=>{
+            if(e.target.closest('[data-row-action="1"]')) return;
+            (opts.onRowClick||markhinDash_openNote)(id);
+        };
     });
 }
 function markhinDash_openNote(id){
@@ -6758,11 +7996,11 @@ function markhinDash_openNote(id){
 }
 window.markhinDash_openNote=markhinDash_openNote;
 
-function markhinDash_headHtml(title, back){
-    const fa=currentLang==='fa';
+function markhinDash_headHtml(title, back, backFn){
+    const closeAction = back ? (backFn||'markhinDashboardMain()') : 'closeAdvancedModal()';
     return `<div class="advanced-head">
-        <h3>${back?`<button class="btn-main markhin-dash-back" onclick="markhinDashboardMain()">${fa?'← بازگشت':'← Back'}</button> `:''}${title}</h3>
-        <button class="btn-main" onclick="closeAdvancedModal()">✕</button>
+        <h3>${title}</h3>
+        <button class="btn-main" onclick="${closeAction}">✕</button>
     </div>`;
 }
 
@@ -6773,24 +8011,49 @@ function markhinDash_showList(kind, value){
     if(kind==='tag'){ list=notes.filter(x=>(x.tags||[]).includes(value)); title=`# ${escapeHtml(value)}`; }
     else if(kind==='pinned'){ list=notes.filter(x=>x.pinned); title=`📌 ${fa?'یادداشت‌های پین‌شده':'Pinned notes'}`; }
     else if(kind==='favorite'){ list=notes.filter(x=>x.favorite); title=`⭐ ${fa?'علاقه‌مندی‌ها':'Favorites'}`; }
-    else if(kind==='locked'){ list=notes.filter(x=>x.password); title=`🔒 ${fa?'قفل‌شده‌ها':'Locked notes'}`; }
+    else if(kind==='locked'){ list=notes.filter(x=>isNoteLocked(x)); title=`🔒 ${fa?'قفل‌شده‌ها':'Locked notes'}`; }
     else if(kind==='fake'){ list=notes.filter(x=>x.fakeContent); title=`🎭 ${fa?'محتوای فریب‌دهنده':'Decoy content'}`; }
     else if(kind==='ghost'){ list=notes.filter(markhinDash_isGhostActive); title=`👻 ${fa?'Ghost Note های فعال':'Active Ghost Notes'}`; }
     else if(kind==='capsule'){ list=notes.filter(markhinDash_isCapsuleActive); title=`⏳ ${fa?'کپسول‌های زمانی فعال':'Active Time Capsules'}`; }
     else if(kind==='folder'){ list=notes.filter(x=>(x.folder||'')===value); title=`📁 ${escapeHtml(value||(fa?'بدون پوشه':'No folder'))}`; }
+    else if(kind==='archived'){ list=allItems().filter(isArchived); title=`📦 ${fa?'بایگانی':'Archive'}`; }
     else { list=notes; title=fa?'همه یادداشت‌ها':'All notes'; }
 
     list=list.slice().sort((a,b)=>(Number(b.pinned)-Number(a.pinned))||(Number(b.favorite)-Number(a.favorite))||((Date.parse(b.lastEdited)||0)-(Date.parse(a.lastEdited)||0)));
 
+    const isArchiveView=(kind==='archived');
+    const rowOpts=isArchiveView?{actionLabel:(fa?'↩ بازگرداندن':'↩ Restore')}:{};
+    const archiveActionsHtml=isArchiveView
+        ? `<div style="margin:2px 0 10px"><button class="btn-main image-export-all-btn" type="button" onclick="markhinDash_pickNoteToArchive()">${fa?'➕ افزودن یادداشت به بایگانی':'➕ Add note to archive'}</button></div>`
+        : '';
     const bodyHtml=list.length
-        ? `<div class="markhin-smart-results" style="max-height:60vh">${list.map(x=>markhinDash_noteRowHtml(x)).join('')}</div>`
-        : `<div class="markhin-smart-empty">${fa?'یادداشتی پیدا نشد.':'No notes found.'}</div>`;
+        ? `<div class="markhin-smart-results" style="max-height:60vh">${list.map(x=>markhinDash_noteRowHtml(x,rowOpts)).join('')}</div>`
+        : `<div class="markhin-smart-empty">${isArchiveView?(fa?'بایگانی خالی است.':'The archive is empty.'):(fa?'یادداشتی پیدا نشد.':'No notes found.')}</div>`;
 
-    showAdvanced(markhinDash_headHtml(title, true)+`<div style="margin:2px 0 10px;font-size:11px;opacity:.6">${fa?'تعداد':'Count'}: ${list.length}</div>`+bodyHtml);
+    showAdvanced(markhinDash_headHtml(title, !isArchiveView)+archiveActionsHtml+`<div style="margin:2px 0 10px;font-size:11px;opacity:.6">${fa?'تعداد':'Count'}: ${list.length}</div>`+bodyHtml);
     document.getElementById('advancedCard')?.classList.add('kg-wide');
-    markhinDash_bindRows(document.getElementById('advancedCard'));
+    markhinDash_bindRows(document.getElementById('advancedCard'), isArchiveView ? {
+        onRowAction:(id)=>{ toggleArchiveNote(id); markhinDash_showList('archived'); },
+        onRowClick:(id)=>{ toggleArchiveNote(id); markhinDash_openNote(id); }
+    } : {});
 }
 window.markhinDash_showList=markhinDash_showList;
+
+/* Lets you add an existing (non-archived) note to the Archive directly from
+   the Archive screen itself, not just from the note's own toolbar. */
+function markhinDash_pickNoteToArchive(){
+    const fa=currentLang==='fa';
+    const pool=allItems().filter(x=>!isArchived(x)).sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'fa'));
+    if(!pool.length){ showToast(fa?'یادداشتی برای افزودن به بایگانی وجود ندارد.':'No notes available to archive.'); markhinDash_showList('archived'); return; }
+    const rows=pool.map(x=>markhinDash_noteRowHtml(x,{actionLabel:fa?'📦 بایگانی':'📦 Archive'})).join('');
+    showAdvanced(markhinDash_headHtml(fa?'➕ افزودن یادداشت به بایگانی':'➕ Add note to archive', true, "markhinDash_showList('archived')")+`<div class="markhin-smart-results" style="max-height:60vh">${rows}</div>`);
+    document.getElementById('advancedCard')?.classList.add('kg-wide');
+    markhinDash_bindRows(document.getElementById('advancedCard'), {
+        onRowAction:(id)=>{ toggleArchiveNote(id); markhinDash_pickNoteToArchive(); },
+        onRowClick:(id)=>{ toggleArchiveNote(id); markhinDash_pickNoteToArchive(); }
+    });
+}
+window.markhinDash_pickNoteToArchive=markhinDash_pickNoteToArchive;
 
 function markhinDashboardMain(){
     const fa=currentLang==='fa';
@@ -6802,10 +8065,11 @@ function markhinDashboardMain(){
     const folders=[...new Set(notes.map(x=>x.folder).filter(Boolean))];
     const pinnedN=notes.filter(x=>x.pinned).length;
     const favN=notes.filter(x=>x.favorite).length;
-    const lockedN=notes.filter(x=>x.password).length;
+    const lockedN=notes.filter(x=>isNoteLocked(x)).length;
     const fakeN=notes.filter(x=>x.fakeContent).length;
     const ghostN=notes.filter(markhinDash_isGhostActive).length;
     const capsuleN=notes.filter(markhinDash_isCapsuleActive).length;
+    const archivedN=allItems().filter(isArchived).length;
     const avgWords=notes.length?Math.round(words/notes.length):0;
     const longest=notes.slice().sort((a,b)=>markhinDash_wordCount(b)-markhinDash_wordCount(a))[0];
     const recent=notes.slice().sort((a,b)=>(Date.parse(b.lastEdited)||0)-(Date.parse(a.lastEdited)||0)).slice(0,5);
@@ -6825,6 +8089,7 @@ function markhinDashboardMain(){
         statCard('⭐',fa?'علاقه‌مندی':'Favorite',favN,"markhinDash_showList('favorite')"),
         statCard('🔒',fa?'قفل‌شده':'Locked',lockedN,"markhinDash_showList('locked')"),
         statCard('🎭',fa?'فریب‌دهنده':'Decoy',fakeN,"markhinDash_showList('fake')"),
+        statCard('📦',fa?'بایگانی':'Archived',archivedN,"markhinDash_showList('archived')"),
         statCard('👻',fa?'Ghost فعال':'Active Ghost',ghostN,ghostN?"markhinDash_showList('ghost')":''),
         statCard('⏳',fa?'کپسول زمانی':'Time Capsule',capsuleN,capsuleN?"markhinDash_showList('capsule')":''),
         statCard('#',fa?'تگ‌ها':'Tags',tags.length),
@@ -6912,16 +8177,32 @@ async function markhinDash_cloudRestoreClick(){
         if (local) {
             if ((Date.parse(cloudItem.lastEdited) || 0) > (Date.parse(local.lastEdited) || 0)) {
                 local.name = cloudItem.name; local.folder = cloudItem.folder;
-                local.text = cloudItem.text; local.tags = cloudItem.tags;
-                local.pinned = cloudItem.pinned; local.favorite = cloudItem.favorite;
+                local.tags = cloudItem.tags;
+                local.pinned = cloudItem.pinned; local.favorite = cloudItem.favorite; local.archived = !!cloudItem.archived;
                 local.lastEdited = cloudItem.lastEdited;
-                // Only take the cloud HTML if the local note has no images of its
-                // own to lose — otherwise keep the local copy (with its images).
-                if (!/<img|img-drag-wrapper/.test(local.html || '')) local.html = cloudItem.html;
+                if (isNoteLocked(cloudItem)) {
+                    // Never let a cloud restore replace encrypted content with an
+                    // empty/plaintext representation. The encrypted envelope is the
+                    // authoritative content for locked notes.
+                    local.encrypted = { ...cloudItem.encrypted };
+                    local.hint = cloudItem.hint || '';
+                    local.text = ''; local.html = ''; local.isDecoy = false;
+                    noteSessionKeys.delete(local.id);
+                    unlockedQaIds = unlockedQaIds.filter(id => id !== local.id);
+                } else {
+                    local.encrypted = null;
+                    local.text = cloudItem.text;
+                    // Only take the cloud HTML if the local note has no images of its
+                    // own to lose — otherwise keep the local copy (with its images).
+                    if (!/<img|img-drag-wrapper/.test(local.html || '')) local.html = sanitizeHtml(cloudItem.html || cloudItem.text || '');
+                }
                 updated++;
             }
         } else {
-            categories.push(normalizeCategory(Object.assign({}, cloudItem, { history: [] }), categories.length));
+            const restored = normalizeCategory(Object.assign({}, cloudItem, { history: [] }), categories.length);
+            if (isNoteLocked(restored)) { restored.text = ''; restored.html = ''; restored.isDecoy = false; }
+            else restored.html = sanitizeHtml(restored.html || restored.text || '');
+            categories.push(restored);
             added++;
         }
     });
@@ -6949,7 +8230,8 @@ const oldToggle=window.toggleCategory;window.toggleCategory=function(id){const i
 
 <style id="markhinUltraStyles">
 /* ===== MARKHIN NOTE — ULTRA SEARCH + AI + DELETE MODE ===== */
-.note-btn-wrap{display:inline-flex;align-items:center;gap:4px}
+.note-btn-wrap{display:inline-flex;align-items:center;gap:4px;touch-action:pan-y}
+.note-btn-wrap.note-dragging{opacity:.65;transform:scale(1.03);box-shadow:0 10px 24px rgba(0,0,0,.4);z-index:5;position:relative}
 #buttonsContainer.note-delete-mode .custom-btn{animation:markhinJiggle .22s infinite alternate;transform-origin:center;border-color:rgba(239,68,68,.55)}
 @keyframes markhinJiggle{from{transform:rotate(-1.1deg)}to{transform:rotate(1.1deg)}}
 .note-del-x{background:rgba(239,68,68,.88)!important;color:#fff!important;border-color:rgba(239,68,68,.95)!important;border-radius:50%!important;width:25px;height:25px;min-width:25px;min-height:25px;padding:0!important;font-size:12px;display:flex;align-items:center;justify-content:center;flex:none;line-height:1;box-shadow:0 0 10px rgba(239,68,68,.45)}
@@ -7049,7 +8331,7 @@ function mu_matchesFilters(item, filters){
         if(f.type==='is'){
             if(f.val==='pinned') return !!item.pinned;
             if(f.val==='favorite') return !!item.favorite;
-            if(f.val==='locked') return !!item.password;
+            if(f.val==='locked') return !!isNoteLocked(item);
         }
         return true;
     });
@@ -7061,7 +8343,7 @@ function mu_scoreItem(item, textTerms){
     score += mu_fieldScore(item.name, textTerms, 6);
     score += mu_fieldScore((item.tags||[]).join(' '), textTerms, 4);
     score += mu_fieldScore(item.folder, textTerms, 2);
-    if(!item.password) score += mu_fieldScore(item.text||item.html||'', textTerms, 1);
+    if(!isNoteLocked(item)) score += mu_fieldScore(item.text||item.html||'', textTerms, 1);
     return score;
 }
 
@@ -7124,7 +8406,7 @@ function mu_queryTerms(raw){
 
 /* ---------- force-open a note (respects password, never toggles closed) ---------- */
 window.mu_forceOpenNote = mu_forceOpenNote;
-function mu_forceOpenNote(id){
+async function mu_forceOpenNote(id){
     const item = categories.find(c=>c.id===id);
     if(!item) return false;
     // Search used to be able to open a Time Capsule note before its unlock
@@ -7135,14 +8417,10 @@ function mu_forceOpenNote(id){
         return false;
     }
     if(item.unlockAt && Date.now() >= Number(item.unlockAt)){ item.unlockAt=''; saveToLocalStorage(); }
-    if(item.password){
-        const pass = prompt(`"${item.name}" - ${i18n[currentLang].promptEnterPass}`);
+    if(isNoteLocked(item)){
+        const pass = await promptNotePassword(item);
         if(pass===null) return false;
-        if(pass.trim().toLowerCase()==='hint'){
-            alert(item.hint ? (i18n[currentLang].hintTitle+item.hint) : i18n[currentLang].noHintSet);
-            return false;
-        }
-        item.isDecoy = (pass !== item.password);
+        item.isDecoy = !(await unlockNote(item, pass.trim()));
     } else {
         item.isDecoy = false;
     }
@@ -7151,8 +8429,8 @@ function mu_forceOpenNote(id){
     return !item.isDecoy;
 }
 
-function mu_openAndHighlight(id, terms){
-    const ok = mu_forceOpenNote(id);
+async function mu_openAndHighlight(id, terms){
+    const ok = await mu_forceOpenNote(id);
     if(!ok) return;
     setTimeout(()=>{
         const container = document.getElementById('container-'+id);
@@ -7198,16 +8476,16 @@ window.renderButtons = function(filtered){
 
     const rawQuery = (document.getElementById('searchInput')||{}).value || '';
     const searching = !!rawQuery.trim();
-    const ordered = searching ? list.slice() : [...list].sort((a,b)=>(Number(b.pinned)-Number(a.pinned))||(Number(b.favorite)-Number(a.favorite)));
+    const ordered = searching ? list.slice() : [...list].sort((a,b)=>(Number(b.pinned)-Number(a.pinned))||(Number(b.favorite)-Number(a.favorite))||((Number(a.order)||0)-(Number(b.order)||0)));
 
     ordered.forEach(item=>{
         if(!Array.isArray(item.tags)) item.tags=[];
-        const wrap = document.createElement('div'); wrap.className='note-btn-wrap';
+        const wrap = document.createElement('div'); wrap.className='note-btn-wrap'; wrap.dataset.id=item.id;
         const b = document.createElement('button');
         b.className = 'custom-btn '+(activeOpenId===item.id?'active-btn ':'')+(item.pinned?'note-pinned ':'')+(item.favorite?'note-favorite ':'');
         b.setAttribute('aria-expanded', activeOpenId===item.id ? 'true':'false');
         if(window.MarkhinNoteDeleteMode) b.style.animationDelay = (Math.random()*0.3).toFixed(2)+'s';
-        b.innerHTML = escapeHtml((item.password?'🔒 ':'')+(item.pinned?'📌 ':'')+(item.favorite?'⭐ ':'')+(item.fakeContent?'🎭 ':'')+String(item.name||''));
+        b.innerHTML = escapeHtml((isNoteLocked(item)?'🔒 ':'')+(item.pinned?'📌 ':'')+(item.favorite?'⭐ ':'')+(item.fakeContent?'🎭 ':'')+String(item.name||''));
         b.onclick = ()=>{
             if(searching){ mu_openAndHighlight(item.id, mu_queryTerms(rawQuery)); }
             else { handleCategoryClick(item.id); }
@@ -7223,6 +8501,97 @@ window.renderButtons = function(filtered){
         c.appendChild(wrap);
     });
 };
+
+/* ---------------------------------------------------------------
+   Press-and-hold drag-to-reorder for the main note list. Pointer
+   Events cover touch, mouse and pen in one code path (unlike native
+   HTML5 drag-and-drop, which most mobile/Telegram WebViews don't
+   fire for touch at all). A short hold is required before a drag
+   starts, so an ordinary tap-to-open or a finger-scroll is never
+   mistaken for a reorder.
+   --------------------------------------------------------------- */
+(function(){
+    const HOLD_MS = 380;
+    const MOVE_CANCEL_PX = 8;
+    let holdTimer = null;
+    let dragWrap = null;
+    let dragging = false;
+    let startX = 0, startY = 0;
+    let suppressClickUntil = 0;
+
+    function container(){ return document.getElementById('buttonsContainer'); }
+    function clearHold(){ if(holdTimer){ clearTimeout(holdTimer); holdTimer=null; } }
+
+    function endDrag(commit){
+        if(dragWrap){
+            dragWrap.classList.remove('note-dragging');
+            dragWrap.style.touchAction = '';
+        }
+        if(dragging && commit){
+            const c = container();
+            if(c){
+                const ids = [...c.querySelectorAll('.note-btn-wrap')].map(w=>w.dataset.id);
+                ids.forEach((id,idx)=>{ const it=categories.find(x=>x.id===id); if(it){ ensureItem(it); it.order = idx; } });
+                saveToLocalStorage();
+            }
+            suppressClickUntil = Date.now()+300;
+        }
+        dragging = false;
+        dragWrap = null;
+        clearHold();
+    }
+
+    document.addEventListener('pointerdown', function(e){
+        const wrap = e.target.closest('#buttonsContainer .note-btn-wrap');
+        if(!wrap) return;
+        if(window.MarkhinNoteDeleteMode) return; // delete mode already has its own tap target
+        if(e.target.closest('.note-del-x')) return;
+        const rawQuery = (document.getElementById('searchInput')||{}).value || '';
+        if(rawQuery.trim()) return; // reordering only applies to the plain, unfiltered list
+        startX = e.clientX; startY = e.clientY;
+        dragWrap = wrap;
+        clearHold();
+        holdTimer = setTimeout(()=>{
+            if(!dragWrap) return;
+            dragging = true;
+            dragWrap.classList.add('note-dragging');
+            dragWrap.style.touchAction = 'none';
+            if(navigator.vibrate){ try{ navigator.vibrate(12); }catch(_){} }
+        }, HOLD_MS);
+    }, {passive:true});
+
+    document.addEventListener('pointermove', function(e){
+        if(!dragWrap) return;
+        if(!dragging){
+            if(Math.abs(e.clientX-startX)>MOVE_CANCEL_PX || Math.abs(e.clientY-startY)>MOVE_CANCEL_PX){
+                clearHold(); dragWrap=null;
+            }
+            return;
+        }
+        e.preventDefault();
+        const c = container(); if(!c) return;
+        const siblings = [...c.querySelectorAll('.note-btn-wrap')].filter(w=>w!==dragWrap);
+        const y = e.clientY;
+        let placed = false;
+        for(const sib of siblings){
+            const r = sib.getBoundingClientRect();
+            if(y < r.top + r.height/2){ c.insertBefore(dragWrap, sib); placed=true; break; }
+        }
+        if(!placed) c.appendChild(dragWrap);
+    }, {passive:false});
+
+    document.addEventListener('pointerup', function(){ endDrag(true); });
+    document.addEventListener('pointercancel', function(){ endDrag(false); });
+
+    // Swallow the click that would otherwise follow a drag release, so
+    // dropping a note doesn't also toggle it open.
+    document.addEventListener('click', function(e){
+        if(Date.now() < suppressClickUntil && e.target.closest('#buttonsContainer .note-btn-wrap')){
+            e.stopPropagation();
+            e.preventDefault();
+        }
+    }, true);
+})();
 
 function mu_toggleNoteDeleteMode(){
     window.MarkhinNoteDeleteMode = !window.MarkhinNoteDeleteMode;
@@ -7264,7 +8633,7 @@ function mu_jumpToTopMatch(){
     const raw = (document.getElementById('searchInput')||{}).value || '';
     if(!raw.trim()) return;
     const visible = getVisibleCategories();
-    const target = visible.find(it=>!it.password) || null;
+    const target = visible.find(it=>!isNoteLocked(it)) || null;
     if(target){ mu_openAndHighlight(target.id, mu_queryTerms(raw)); }
 }
 window.mu_jumpToTopMatch = mu_jumpToTopMatch;
@@ -7479,7 +8848,7 @@ function mu_allSearchableItems(){
 }
 
 function mu_snippet(item, terms){
-    if(item.password) return currentLang==='fa' ? '🔒 یادداشت قفل‌شده' : '🔒 Locked note';
+    if(isNoteLocked(item)) return currentLang==='fa' ? '🔒 یادداشت قفل‌شده' : '🔒 Locked note';
     const plain = (item.text || (item.html ? item.html.replace(/<[^>]+>/g,' ') : '') || '').replace(/\s+/g,' ').trim();
     if(!plain) return '';
     const normPlain = mu_norm(plain);
@@ -7507,7 +8876,7 @@ function mu_renderSmartResults(query){
     box.innerHTML = scored.slice(0,40).map(({item})=>{
         const snip = mu_snippet(item, textTerms);
         return `<div class="markhin-smart-item" data-id="${escapeHtml(item.id)}">
-            <b>${item.password?'🔒 ':''}${mu_highlightPlain(item.name, textTerms)}</b>
+            <b>${isNoteLocked(item)?'🔒 ':''}${mu_highlightPlain(item.name, textTerms)}</b>
             <div class="snippet">${mu_highlightPlain(snip, textTerms)}</div>
         </div>`;
     }).join('');
@@ -7552,7 +8921,7 @@ async function mu_runSemanticSearch(){
     if(!MarkhinAI.isConfigured()){ closeAdvancedModal(); mu_openAiSettingsModal(); return; }
     const box = document.getElementById('muSmartResults');
     if(box) box.innerHTML = `<div class="markhin-ai-loading">🤖 ${fa?'در حال جستجوی معنایی...':'Running semantic search...'}</div>`;
-    const items = mu_allSearchableItems().filter(it=>!it.password || unlockedQaIds.includes(it.id));
+    const items = mu_allSearchableItems().filter(it=>!isNoteLocked(it) || unlockedQaIds.includes(it.id));
     const catalog = items.map(it=>({id:it.id, name:it.name, snippet:(it.text||'').replace(/\s+/g,' ').slice(0,180)}));
     const sys = fa
         ? 'تو یک موتور جستجوی معنایی هستی. فقط بر اساس فهرست یادداشت‌های داده‌شده، مرتبط‌ترین‌ها را به سوال کاربر پیدا کن. فقط یک آرایه JSON از id های مرتبط (به ترتیب ارتباط، حداکثر ۱۰ مورد) برگردان، هیچ متن دیگری ننویس.'
@@ -7568,7 +8937,7 @@ async function mu_runSemanticSearch(){
         if(box){
             box.innerHTML = ranked.map(item=>{
                 const snip = mu_snippet(item, terms);
-                return `<div class="markhin-smart-item" data-id="${escapeHtml(item.id)}"><b>${item.password?'🔒 ':''}${escapeHtml(item.name)}<span class="markhin-ai-badge">AI</span></b><div class="snippet">${escapeHtml(snip)}</div></div>`;
+                return `<div class="markhin-smart-item" data-id="${escapeHtml(item.id)}"><b>${isNoteLocked(item)?'🔒 ':''}${escapeHtml(item.name)}<span class="markhin-ai-badge">AI</span></b><div class="snippet">${escapeHtml(snip)}</div></div>`;
             }).join('');
             box.querySelectorAll('.markhin-smart-item').forEach(el=>{
                 el.onclick=()=>{ const id=el.dataset.id; closeAdvancedModal(); mu_openAndHighlight(id, terms); };
@@ -7739,7 +9108,7 @@ async function mu_askAI(){
     aiBox.style.display='block';
     const fa = currentLang==='fa';
     aiBox.innerHTML = `<div class="markhin-ai-loading">🤖 ${fa?'در حال پرسیدن از AI...':'Asking AI...'}</div>`;
-    const notes = categories.filter(c=>!c.isDecoy && (!c.password || unlockedQaIds.includes(c.id)));
+    const notes = categories.filter(c=>!c.isDecoy && (!isNoteLocked(c) || unlockedQaIds.includes(c.id)));
     const context = notes.map(n=>'### '+n.name+'\n'+(n.text||'').slice(0,800)).join('\n\n').slice(0,9000);
     const sys = fa
         ? 'فقط بر اساس یادداشت‌های زیر به سوال کاربر پاسخ بده. اگر پاسخ در یادداشت‌ها نبود، بگو اطلاعات کافی در یادداشت‌ها پیدا نشد. از دانش عمومی خودت استفاده نکن و مختصر پاسخ بده.'
@@ -7785,7 +9154,7 @@ async function mu_summarizeNote(id){
     const item = categories.find(c=>c.id===id); if(!item) return;
     const fa = currentLang==='fa';
     if(!MarkhinAI.isConfigured()){ mu_openAiSettingsModal(); return; }
-    if(item.password && !unlockedQaIds.includes(id)){ showToast(fa?'ابتدا این یادداشت را از بخش پرسش آنلاک کن.':'Unlock this note from the Ask section first.'); return; }
+    if(isNoteLocked(item) && !unlockedQaIds.includes(id)){ showToast(fa?'ابتدا این یادداشت را از بخش پرسش آنلاک کن.':'Unlock this note from the Ask section first.'); return; }
     showToast(fa?'در حال خلاصه‌سازی...':'Summarizing...');
     try{
         const plain = mu_notePlainText(item).slice(0,6000);
@@ -7811,7 +9180,7 @@ async function mu_suggestTags(id){
     const item = categories.find(c=>c.id===id); if(!item) return;
     const fa = currentLang==='fa';
     if(!MarkhinAI.isConfigured()){ mu_openAiSettingsModal(); return; }
-    if(item.password && !unlockedQaIds.includes(id)){ showToast(fa?'ابتدا این یادداشت را از بخش پرسش آنلاک کن.':'Unlock this note from the Ask section first.'); return; }
+    if(isNoteLocked(item) && !unlockedQaIds.includes(id)){ showToast(fa?'ابتدا این یادداشت را از بخش پرسش آنلاک کن.':'Unlock this note from the Ask section first.'); return; }
     showToast(fa?'در حال پیشنهاد برچسب...':'Suggesting tags...');
     try{
         const plain = mu_notePlainText(item).slice(0,4000);
