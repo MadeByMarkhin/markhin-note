@@ -7955,7 +7955,26 @@ function addFeatureTools(item,box){
  const fa=currentLang==='fa';
  const row=document.createElement('div');row.className='markhin-editor-tools';row.innerHTML=`<button type="button" title="Bold"><b>B</b></button><button type="button" title="Italic"><i>I</i></button><button type="button" title="Underline"><u>U</u></button><button type="button" title="Quote">❝</button><button type="button" title="List">☷</button><button type="button" title="Table">▦</button><button type="button" title="Link">🔗</button><select title="Font"><option value="">فارسی — پیش‌فرض</option><option value="Arial">English — Arial</option><option value="Share Tech Mono">English — Share Tech Mono</option><option value="Orbitron">English — Orbitron</option><option value="Quicksand">Mixed — Quicksand</option></select><select title="Size"><option value="12">12</option><option value="13">13</option><option value="15">15</option><option value="18">18</option><option value="22">22</option><option value="28">28</option></select>`;
  const btns=row.querySelectorAll('button'); const cmd=(c,v=null)=>{text.focus();document.execCommand(c,false,v);autosaveCategory(item.id)};
- btns[0].onclick=()=>cmd('bold');btns[1].onclick=()=>cmd('italic');btns[2].onclick=()=>cmd('underline');btns[3].onclick=()=>cmd('formatBlock','blockquote');btns[4].onclick=()=>cmd('insertUnorderedList');btns[5].onclick=()=>{const table='<table><tbody><tr><td>سلول ۱</td><td>سلول ۲</td></tr><tr><td>سلول ۳</td><td>سلول ۴</td></tr></tbody></table>';text.focus();document.execCommand('insertHTML',false,table);autosaveCategory(item.id)};btns[6].onclick=async()=>{const u=await promptStyledText({title:currentLang==='fa'?'🔗 افزودن لینک':'🔗 Add link',placeholder:currentLang==='fa'?'آدرس لینک:':'Link URL:',defaultValue:'https://',type:'url',okText:currentLang==='fa'?'✔️ افزودن':'✔️ Add'});if(u)cmd('createLink',u)};
+ btns[0].onclick=()=>cmd('bold');btns[1].onclick=()=>cmd('italic');btns[2].onclick=()=>cmd('underline');btns[3].onclick=()=>cmd('formatBlock','blockquote');btns[4].onclick=()=>cmd('insertUnorderedList');btns[5].onclick=()=>{const table='<table><tbody><tr><td>سلول ۱</td><td>سلول ۲</td></tr><tr><td>سلول ۳</td><td>سلول ۴</td></tr></tbody></table>';text.focus();
+  // Inserting via execCommand('insertHTML') while the caret sits inside a
+  // checklist item or quote nests the whole <table> INSIDE that <li>/
+  // <blockquote> instead of placing it as its own block. The nested table
+  // then renders with no visible grid — its cell text just runs together
+  // with whatever text followed the caret (reproducible: List, then Table).
+  // Fix: if the caret is inside a list item or blockquote, insert the table
+  // as a new block right after the enclosing list/quote instead, so it
+  // always renders as a normal, bordered table.
+  const sel=window.getSelection();
+  const anchorEl=sel&&sel.anchorNode&&(sel.anchorNode.nodeType===1?sel.anchorNode:sel.anchorNode.parentElement);
+  const host=anchorEl&&anchorEl.closest&&anchorEl.closest('li,blockquote');
+  if(host&&text.contains(host)){
+    const block=host.closest('ul,ol,blockquote')||host;
+    const wrap=document.createElement('div');wrap.innerHTML=table;
+    block.parentNode.insertBefore(wrap.firstElementChild,block.nextSibling);
+  } else {
+    document.execCommand('insertHTML',false,table);
+  }
+  autosaveCategory(item.id)};btns[6].onclick=async()=>{const u=await promptStyledText({title:currentLang==='fa'?'🔗 افزودن لینک':'🔗 Add link',placeholder:currentLang==='fa'?'آدرس لینک:':'Link URL:',defaultValue:'https://',type:'url',okText:currentLang==='fa'?'✔️ افزودن':'✔️ Add'});if(u)cmd('createLink',u)};
  const selects=row.querySelectorAll('select');selects[0].value=item.fontFamily||'';selects[1].value=String(item.fontSize||13);selects[0].onchange=()=>{item.fontFamily=selects[0].value;text.style.fontFamily=selects[0].value;saveToLocalStorage()};selects[1].onchange=()=>{item.fontSize=Number(selects[1].value)||13;text.style.fontSize=item.fontSize+'px';saveToLocalStorage()};
  tools.parentNode.insertBefore(row,tools.nextSibling); text.style.fontFamily=item.fontFamily||'';text.style.fontSize=(item.fontSize||13)+'px';
  const meta=document.createElement('div');meta.className='markhin-feature-row';meta.innerHTML=`<button type="button" class="img-btn note-pin-action" title="${item.pinned?(currentLang==='fa'?'برداشتن پین':'Unpin'):(currentLang==='fa'?'پین کردن یادداشت':'Pin note')}">📌 ${item.pinned?'لغو پین':'پین کردن'}</button><button type="button" class="img-btn note-fav-action" title="${item.favorite?(currentLang==='fa'?'حذف از فیوریت':'Remove from Favorites'):(currentLang==='fa'?'افزودن به فیوریت':'Add to Favorites')}">⭐ ${item.favorite?'حذف از فیوریت':'افزودن به فیوریت'}</button><button type="button" class="img-btn note-archive-action" title="${currentLang==='fa'?'انتقال به بایگانی':'Move to archive'}">📦 ${currentLang==='fa'?'بایگانی':'Archive'}</button><button type="button" class="img-btn">⧉ Duplicate</button><button type="button" class="img-btn">🎭 ${item.fakeContent?'ویرایش Fake':'Fake Note'}</button><button type="button" class="img-btn">📄 PDF</button><button type="button" class="img-btn">📝 DOCX</button><button type="button" class="img-btn">🌐 HTML</button><button type="button" class="img-btn">TXT</button><button type="button" class="img-btn">M↓ MD</button><button type="button" class="img-btn">🖼️ PNG</button><button type="button" class="img-btn">📤 Share</button>`;
