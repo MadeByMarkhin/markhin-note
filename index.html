@@ -703,10 +703,9 @@
         }
 
         .search-tools-row{display:flex;justify-content:center;align-items:center;gap:12px;flex-wrap:nowrap;margin-bottom:4px;width:100%}
-        .search-tools-row .search-box{margin:0;flex:1 1 auto;width:auto;max-width:none;min-width:0}
-        .search-tools-row #btnSmartSearch{flex:0 0 auto;min-width:145px;position:static;z-index:5;white-space:nowrap}
+        .search-tools-row #btnSmartSearch{flex:0 0 auto;min-width:180px;position:static;z-index:5;white-space:nowrap}
 
-        @media (max-width: 520px){.search-tools-row{gap:8px}.search-tools-row #btnSmartSearch{min-width:0;padding:10px 12px;font-size:12px}.search-tools-row .search-box{padding:10px 12px;font-size:12px}}
+        @media (max-width: 520px){.search-tools-row{gap:8px}.search-tools-row #btnSmartSearch{min-width:0;padding:10px 12px;font-size:12px}}
 
         .search-box:focus {
             box-shadow: 0 0 18px rgba(255,255,255,0.04);
@@ -2210,8 +2209,7 @@ window.mu_syncHtmlBg = function(){
 
     <div class="control-panel">
         <div class="search-tools-row">
-            <input type="text" id="searchInput" class="search-box" placeholder="جستجو..." oninput="debounceSearch()">
-            <button class="btn-main" id="btnSmartSearch" onclick="runSmartSearch()">🧠 جستجوی هوشمند</button>
+            <button class="btn-main" id="btnSmartSearch" onclick="runSmartSearch()">جستجو</button>
         </div>
 
         <div class="toolbar-section-box structure-section-box">
@@ -3351,7 +3349,6 @@ window.mu_syncHtmlBg = function(){
             document.getElementById('langLabel').innerText = currentLang === 'fa' ? 'FA' : 'EN';
 
             document.getElementById('uiTitle').innerText = t.title;
-            document.getElementById('searchInput').placeholder = t.searchPlaceholder;
             document.getElementById('qaInput').placeholder = t.qaPlaceholder;
             document.getElementById('btnAskQA').innerText = t.btnAsk;
 
@@ -3366,7 +3363,7 @@ window.mu_syncHtmlBg = function(){
             if(document.getElementById('btnCemetery')) document.getElementById('btnCemetery').innerText=currentLang==='fa'?'⚰️ گورستان':'⚰️ Cemetery';
             if(document.getElementById('cemeteryMotto')) document.getElementById('cemeteryMotto').innerText=currentLang==='fa'?'هیچ چیز همیشگی نیست..':'Nothing Lasts Forever..';
             if(document.getElementById('btnRandomPortal')) document.getElementById('btnRandomPortal').innerText=currentLang==='fa'?'🌀 پورتال رندوم':'🌀 Random Portal';
-            if(document.getElementById('btnSmartSearch')) document.getElementById('btnSmartSearch').innerText=currentLang==='fa'?'🧠 جستجوی هوشمند':'🧠 Smart Search';
+            if(document.getElementById('btnSmartSearch')) document.getElementById('btnSmartSearch').innerText=currentLang==='fa'?'جستجو':'Search';
 
             document.getElementById('gameMenuHeader').innerText = t.gameMenuH;
             document.getElementById('gameMenuDesc').innerText = t.gameMenuP;
@@ -9385,17 +9382,12 @@ window.mu_renderSmartResults = mu_renderSmartResults;
 
 function mu_openSmartSearchModal(){
     const fa = currentLang==='fa';
-    const aiOn = MarkhinAI.isConfigured();
     showAdvanced(`
         <div class="advanced-head">
-            <h3>🧠 ${fa?'جستجوی هوشمند':'Smart Search'}</h3>
+            <h3>${fa?'جستجو':'Search'}</h3>
             <button class="btn-main" onclick="closeAdvancedModal()">✕</button>
         </div>
-        <input type="text" id="muSmartInput" class="markhin-smart-input" placeholder="${fa?'تایپ کن... ⁦(مثلاً tag:کار یا is:pinned)⁩':'Type to search... (e.g. tag:work or is:pinned)'}" autocomplete="off">
-        <div class="ai-tools-row">
-            <button class="btn-main" id="muSemanticBtn" onclick="mu_runSemanticSearch()">🧬 ${fa?'جستجوی معنایی (AI)':'Semantic Search (AI)'}</button>
-            ${aiOn ? '' : `<span style="font-size:10px;opacity:.6">${fa?'برای فعال‌سازی، کلید API را در ⚙️ کنار «پرسش» تنظیم کن.':'Set your API key in ⚙️ next to Ask to enable this.'}</span>`}
-        </div>
+        <input type="text" id="muSmartInput" class="markhin-smart-input" placeholder="${fa?'تایپ کن...':'Type to search...'}" autocomplete="off">
         <div id="muSmartResults" class="markhin-smart-results"></div>
     `);
     const input = document.getElementById('muSmartInput');
@@ -9404,46 +9396,10 @@ function mu_openSmartSearchModal(){
         input.focus();
         let timer;
         input.addEventListener('input', ()=>{ clearTimeout(timer); timer=setTimeout(()=>mu_renderSmartResults(input.value), 160); });
-        input.addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); mu_runSemanticSearch(); } });
+        input.addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); } });
     }
 }
 window.runSmartSearch = mu_openSmartSearchModal;
-
-async function mu_runSemanticSearch(){
-    const input = document.getElementById('muSmartInput');
-    const q = input ? input.value.trim() : '';
-    const fa = currentLang==='fa';
-    if(!q){ showToast(fa?'ابتدا چیزی تایپ کن.':'Type a query first.'); return; }
-    if(!MarkhinAI.isConfigured()){ closeAdvancedModal(); mu_openAiSettingsModal(); return; }
-    const box = document.getElementById('muSmartResults');
-    if(box) box.innerHTML = `<div class="markhin-ai-loading">🤖 ${fa?'در حال جستجوی معنایی...':'Running semantic search...'}</div>`;
-    const items = mu_allSearchableItems().filter(it=>!isNoteLocked(it) || unlockedQaIds.includes(it.id));
-    const catalog = items.map(it=>({id:it.id, name:it.name, snippet:(it.text||'').replace(/\s+/g,' ').slice(0,180)}));
-    const sys = fa
-        ? 'تو یک موتور جستجوی معنایی هستی. فقط بر اساس فهرست یادداشت‌های داده‌شده، مرتبط‌ترین‌ها را به سوال کاربر پیدا کن. فقط یک آرایه JSON از id های مرتبط (به ترتیب ارتباط، حداکثر ۱۰ مورد) برگردان، هیچ متن دیگری ننویس.'
-        : 'You are a semantic search engine. Using only the given notes list, find the notes most relevant to the user query. Return ONLY a JSON array of relevant ids (ranked, max 10), nothing else.';
-    const userMsg = 'Query: '+q+'\nNotes:\n'+JSON.stringify(catalog).slice(0,12000);
-    try{
-        const reply = await MarkhinAI.chat([{role:'system',content:sys},{role:'user',content:userMsg}], {maxTokens:400});
-        let ids=[];
-        try{ const m=reply.match(/\[[\s\S]*\]/); ids = m ? JSON.parse(m[0]) : []; }catch(e){ ids=[]; }
-        const ranked = ids.map(id=>items.find(it=>String(it.id)===String(id))).filter(Boolean);
-        if(!ranked.length){ if(box) box.innerHTML='<div class="markhin-smart-empty">'+(fa?'AI نتیجه‌ای پیدا نکرد.':'AI found nothing.')+'</div>'; return; }
-        const terms = mu_parseQuery(q).textTerms;
-        if(box){
-            box.innerHTML = ranked.map(item=>{
-                const snip = mu_snippet(item, terms);
-                return `<div class="markhin-smart-item" data-id="${escapeHtml(item.id)}"><b>${isNoteLocked(item)?'🔒 ':''}${escapeHtml(item.name)}<span class="markhin-ai-badge">AI</span></b><div class="snippet">${escapeHtml(snip)}</div></div>`;
-            }).join('');
-            box.querySelectorAll('.markhin-smart-item').forEach(el=>{
-                el.onclick=()=>{ const id=el.dataset.id; closeAdvancedModal(); mu_openAndHighlight(id, terms); };
-            });
-        }
-    }catch(err){
-        if(box) box.innerHTML = `<div class="markhin-smart-empty">⚠️ ${fa?'خطا در ارتباط با AI: ':'AI request failed: '}${escapeHtml(err.message||String(err))}</div>`;
-    }
-}
-window.mu_runSemanticSearch = mu_runSemanticSearch;
 
 /* ---------- AI settings modal ---------- */
 function mu_openAiSettingsModal(){
@@ -9801,10 +9757,6 @@ window.applyLanguageUI = function(){
     if(delBtn) delBtn.textContent = window.MarkhinNoteDeleteMode ? (fa?'✅ پایان حذف':'✅ Done') : (fa?'🗑️ حذف یادداشت':'🗑️ Delete note');
     const gear = document.getElementById('muAiSettingsBtn');
     if(gear) gear.title = fa ? 'تنظیمات هوش مصنوعی' : 'AI settings';
-    const semBtn = document.getElementById('muSemanticBtn');
-    if(semBtn) semBtn.textContent = '🧬 '+(fa ? 'جستجوی معنایی (AI)' : 'Semantic Search (AI)');
-    const si = document.getElementById('searchInput');
-    if(si) si.placeholder = fa ? 'جستجو... ⁦(tag:کار is:pinned)⁩' : 'Search... (tag:work is:pinned)';
 };
 
 document.addEventListener('DOMContentLoaded', mu_injectUiControls);
