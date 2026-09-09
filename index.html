@@ -1337,6 +1337,13 @@
             display: block !important; 
             animation: popIn 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
         }
+        /* Used when a note stays open across a re-render (language switch,
+           theme change, search, etc.) instead of just now being opened —
+           skips the pop-in transform so the already-open note doesn't
+           visually shift/jump on every rebuild. */
+        .content-container.show.mu-noanim {
+            animation: none;
+        }
         
         @keyframes popIn {
             0% { opacity: 0; transform: scale(0.96) translateY(12px); }
@@ -1554,6 +1561,11 @@
             transition: var(--transition-smooth);
         }
         .mode-toggle-btn:hover { background: rgba(255,255,255,0.09); }
+        /* Pin/Favorite icon-only buttons next to the link-preview toggle:
+           same pill as the other mc-head-actions buttons, just narrower
+           since there's no label text, plus a lit-up state once active. */
+        .mode-toggle-btn.mc-icon-only { padding: 5px 8px; font-size: 12px; line-height: 1; }
+        .mode-toggle-btn.mc-icon-active { background: rgba(255,215,0,0.16); border-color: rgba(255,215,0,0.5); }
 
         .drawing-box {
             display: none;
@@ -1603,6 +1615,146 @@
             justify-content: flex-start;
             align-items: center;
             flex-wrap: wrap;
+        }
+
+        /* ============================================================
+           MARKHIN — Content Management Box Redesign (per-note editor)
+           Everything below styles the per-note "content management" card:
+           header, title field, grouped action-bar, and the consolidated
+           single-note export menu. Existing classes/ids used elsewhere
+           (.note-tools, .text-box, .action-bar, #text-<id>, etc.) are kept
+           so all the JS wired to them keeps working untouched — only the
+           visuals and the grouping/markup around them changed.
+           ============================================================ */
+        .content-container.show {
+            background: linear-gradient(165deg, rgba(0,180,216,0.07), rgba(0,8,18,0.4));
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(72,202,238,0.25);
+            border-radius: 20px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.05);
+            padding: 18px 16px 16px;
+        }
+
+        .mc-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-bottom: 12px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid var(--panel-border);
+        }
+        .mc-head-label {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 11.5px;
+            font-weight: 700;
+            letter-spacing: 0.3px;
+            color: var(--text-color);
+            opacity: 0.9;
+        }
+        .mc-head-actions {
+            display: flex;
+            gap: 6px;
+            /* Pin/Duplicate/Favorite/Preview-link/DNA: kept on one line in
+               both languages (icon-only where possible, shrinking first via
+               the mobile rule below) instead of wrapping to a second row.
+               overflow-x is just a safety net for extreme cases. */
+            flex-wrap: nowrap;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: none;
+        }
+        .mc-head-actions::-webkit-scrollbar { display: none; }
+        .mc-head-actions .mode-toggle-btn { flex: 0 0 auto; white-space: nowrap; }
+        @media (max-width: 600px) {
+            .mc-head-actions .mode-toggle-btn { padding: 4px 6px; font-size: 9px; }
+            .mc-head-actions .mode-toggle-btn.mc-icon-only { padding: 4px 6px; font-size: 11px; }
+        }
+
+        .mc-title-input {
+            display: block;
+            width: 100%;
+            box-sizing: border-box;
+            border: 1px solid var(--panel-border);
+            border-bottom: none;
+            outline: none;
+            background: rgba(0,0,0,0.32);
+            color: #fff;
+            font-family: inherit;
+            font-size: 15px;
+            font-weight: 800;
+            padding: 12px 14px;
+            border-radius: var(--border-radius-sm) var(--border-radius-sm) 0 0;
+            transition: var(--transition-smooth);
+        }
+        .mc-title-input::placeholder { color: rgba(255,255,255,0.35); font-weight: 600; }
+        .mc-title-input:focus { background: rgba(0,0,0,0.5); box-shadow: inset 0 -2px 0 var(--text-color); }
+        .mc-title-input:disabled { opacity: 0.5; cursor: not-allowed; }
+        .mc-title-input + .text-box { border-top-left-radius: 0; border-top-right-radius: 0; margin-top: 0; }
+
+        .action-bar {
+            margin-top: var(--spacing-md);
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .mc-group {
+            background: rgba(0,0,0,0.16);
+            border: 1px solid var(--panel-border);
+            border-radius: 14px;
+            padding: 10px 10px 9px;
+            transition: var(--transition-smooth);
+        }
+        .mc-group:hover { border-color: rgba(120,170,255,0.35); }
+        .mc-group-label {
+            display: block;
+            font-size: 10px;
+            font-weight: 800;
+            letter-spacing: 0.3px;
+            color: rgba(255,255,255,0.45);
+            margin-bottom: 8px;
+        }
+        .mc-row { display: flex; flex-wrap: wrap; gap: 7px; align-items: center; }
+        .mc-row button, .mc-row select, .mc-row label {
+            border: 1px solid var(--panel-border);
+            padding: 7px 12px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 11px;
+            font-family: inherit;
+            background: rgba(255,255,255,0.045);
+            color: var(--text-color);
+            transition: var(--transition-smooth);
+            backdrop-filter: blur(3px);
+        }
+        .mc-row button:hover {
+            background: rgba(255,255,255,0.12);
+            border-color: var(--text-color);
+            color: #fff;
+            transform: translateY(-2px);
+        }
+        .mc-row button:active { transform: translateY(0) scale(0.96); transition-duration: 0.08s; }
+
+        .mc-group.mc-danger { border-color: rgba(239,68,68,0.32); background: rgba(239,68,68,0.05); }
+        .mc-group.mc-danger .mc-group-label { color: rgba(239,68,68,0.75); }
+        .mc-btn-danger { border-color: rgba(239,68,68,0.5) !important; color: #ef4444 !important; }
+        .mc-btn-danger:hover { background: rgba(239,68,68,0.18) !important; }
+
+        .mc-btn-primary {
+            background: rgba(255,255,255,0.14) !important;
+            color: #fff !important;
+            border-color: var(--text-color) !important;
+            font-weight: 700 !important;
+        }
+        .mc-btn-primary:hover { transform: translateY(-2px) scale(1.02) !important; background: rgba(255,255,255,0.24) !important; }
+
+        @media (max-width: 600px) {
+            .mc-row button, .mc-row select { font-size: 10.5px; padding: 6px 9px; }
+            .mc-title-input { font-size: 14px; }
         }
 
         #gameModal {
@@ -2854,10 +3006,19 @@ window.mu_syncHtmlBg = function(){
                 noFolder: "بدون پوشه",
                 noResult: "موردی یافت نشد.",
                 contentManagement: "مدیریت محتوا:",
+                titleFieldPlaceholder: "عنوان یادداشت را بنویس...",
+                mcGroupPrimary: "ذخیره و نمایش",
+                mcGroupInsert: "AI و ترجمه",
+                mcGroupOrganize: "سازمان‌دهی",
+                mcGroupSecurity: "امنیت یادداشت",
+                mcGroupSpecial: "افکت‌های ویژه",
+                mcGroupExport: "خروجی",
+                mcGroupDanger: "منطقه خطر",
+                mcExportBtn: "خروجی این یادداشت",
                 previewLink: "پیش‌نمایش لینک",
                 hide: "مخفی کردن",
                 show: "نمایش",
-                addImage: "افزودن تصویر",
+                addImage: "تصویر",
                 translateToEn: "ترجمه به انگلیسی",
                 translateToFa: "ترجمه به فارسی",
                 revertToOriginal: "↩️ بازگشت به اصلی",
@@ -2904,8 +3065,8 @@ window.mu_syncHtmlBg = function(){
                 toolCircle: "دایره",
                 toolSize: "اندازه:",
                 canvasDimensions: "ابعاد:",
-                recAudio: "🎙 ضبط صدای شفاف",
-                stopAudio: "⏹ توقف ضبط"
+                recAudio: "🎙 ویس",
+                stopAudio: "⏹ ویس"
             },
             en: {
                 title: "Information & Accounts Manager",
@@ -2949,10 +3110,19 @@ window.mu_syncHtmlBg = function(){
                 noFolder: "No Folder",
                 noResult: "No items found.",
                 contentManagement: "Content Management:",
+                titleFieldPlaceholder: "Write a title for this note...",
+                mcGroupPrimary: "Save & Display",
+                mcGroupInsert: "AI & Translate",
+                mcGroupOrganize: "Organize",
+                mcGroupSecurity: "Note Security",
+                mcGroupSpecial: "Special Effects",
+                mcGroupExport: "Export",
+                mcGroupDanger: "Danger Zone",
+                mcExportBtn: "Export this note",
                 previewLink: "Link Preview",
                 hide: "Hide",
                 show: "Show",
-                addImage: "Add Image",
+                addImage: "Image",
                 translateToEn: "Translate to EN",
                 translateToFa: "Translate to FA",
                 revertToOriginal: "↩️ Revert to Original",
@@ -2999,8 +3169,8 @@ window.mu_syncHtmlBg = function(){
                 toolCircle: "Circle",
                 toolSize: "Size:",
                 canvasDimensions: "Size:",
-                recAudio: "🎙 Rec Voice",
-                stopAudio: "⏹ Stop Rec"
+                recAudio: "🎙 Voice",
+                stopAudio: "⏹ Voice"
             }
         };
 
@@ -3033,6 +3203,15 @@ window.mu_syncHtmlBg = function(){
         let isDeleteFolderMode = false;
         let hiddenState = {};
         let activeOpenId = null;
+        // When a re-render happens while a note is already open (language
+        // switch, theme change, search, etc.) and it stays the very same
+        // note, this holds that note's id so its box skips the "just
+        // opened" pop-in animation/transform below — that transform was
+        // replaying on every rebuild and visually shifting the open note,
+        // which read as the note jumping shut. It's only left unset (so the
+        // animation plays normally) when a note actually transitions from
+        // closed to open.
+        let mu_reopenNoAnimId = null;
         let currentThemeIndex = 0;
         let typingTimeout = null;
         let isTyping = false;
@@ -3653,19 +3832,47 @@ window.mu_syncHtmlBg = function(){
                WebViews that can make the browser pick a new scroll anchor, so a
                tap/cancel can look like the whole page jumped. Preserve only the
                viewport position here; application data and feature state stay
-               untouched. */
+               untouched.
+               When a note is open, restoring the exact same *absolute* scrollY
+               isn't enough on its own: switching UI language (or anything else
+               that changes label lengths — folder tabs, note-button titles,
+               section headers) changes how tall everything above the open note
+               is. The old scrollY can then land on a completely different part
+               of the page, which reads as the note closing / the page jumping
+               back to the top. So on top of restoring scrollY, anchor on the
+               open note's own box: remember how far down the viewport it sat
+               before the rebuild, then nudge the scroll after rebuilding so it
+               lands in that exact same spot again, however much the content
+               above it just grew or shrank. */
             const scrollY = window.scrollY || window.pageYOffset || 0;
             const activeEl = document.activeElement;
             const activeId = activeEl && activeEl.id ? activeEl.id : '';
+            const prevBox = openId ? document.getElementById('container-' + openId) : null;
+            const prevBoxTop = prevBox ? prevBox.getBoundingClientRect().top : null;
+            // If a box for this note already existed (and was showing) before
+            // this render, the note isn't newly opening — it's just being
+            // rebuilt in place — so its box shouldn't replay the "just
+            // opened" animation. Note callers (handleCategoryClick etc.)
+            // already flip the `activeOpenId` variable itself before calling
+            // renderApp, so that variable can't tell fresh-open apart from
+            // already-open here; the previous DOM box's own state can.
+            const wasAlreadyShowing = !!(prevBox && prevBox.classList.contains('show'));
             const visible = getVisibleCategories();
             activeOpenId = openId && visible.some(item => item.id === openId) ? openId : null;
+            mu_reopenNoAnimId = (activeOpenId && wasAlreadyShowing) ? activeOpenId : null;
             renderFolders();
             renderButtons(visible);
             renderContents(visible);
             updateLockBtnState();
 
             const restore = () => {
-                window.scrollTo(0, scrollY);
+                const newBox = activeOpenId ? document.getElementById('container-' + activeOpenId) : null;
+                if (newBox && prevBoxTop !== null) {
+                    const delta = newBox.getBoundingClientRect().top - prevBoxTop;
+                    window.scrollTo(0, (window.scrollY || window.pageYOffset || 0) + delta);
+                } else {
+                    window.scrollTo(0, scrollY);
+                }
                 if (activeId) {
                     const next = document.getElementById(activeId);
                     if (next && next !== document.activeElement) {
@@ -3675,6 +3882,25 @@ window.mu_syncHtmlBg = function(){
             };
             restore();
             requestAnimationFrame(restore);
+            // Extra later passes: per-note tools (formatting row, tags field,
+            // AI buttons) get appended a tick later via setTimeout(0) elsewhere,
+            // and on mobile, dismissing the on-screen keyboard (e.g. a focused
+            // note's text field losing focus to the tapped control) can trigger
+            // its own native scroll jump slightly after that. Re-anchoring a
+            // couple more times over the next moment catches both without
+            // any visible harm on runs where nothing shifts.
+            setTimeout(restore, 120);
+            setTimeout(restore, 350);
+            if (window.visualViewport) {
+                const vv = window.visualViewport;
+                let vvCalls = 0;
+                const onVvResize = () => {
+                    restore();
+                    if (++vvCalls >= 3) vv.removeEventListener('resize', onVvResize);
+                };
+                vv.addEventListener('resize', onVvResize);
+                setTimeout(() => vv.removeEventListener('resize', onVvResize), 1000);
+            }
         }
 
         function onSearchChange() {
@@ -3848,6 +4074,7 @@ window.mu_syncHtmlBg = function(){
                 const btn = document.createElement('button');
                 btn.className = `custom-btn ${activeOpenId === item.id ? 'active-btn' : ''}`;
                 btn.setAttribute('aria-expanded', activeOpenId === item.id ? 'true' : 'false');
+                btn.dataset.noteId = item.id;
                 const lockIcon = isNoteLocked(item) ? '🔒 ' : '';
                 btn.innerHTML = `${lockIcon}${escapeHtml(item.name)}`;
                 btn.onclick = () => handleCategoryClick(item.id);
@@ -3863,7 +4090,9 @@ window.mu_syncHtmlBg = function(){
             filtered.forEach((item) => {
                 const box = document.createElement('div');
                 box.id = `container-${item.id}`;
-                box.className = `content-container ${activeOpenId === item.id ? 'show' : ''}`;
+                const mu_isOpenBox = activeOpenId === item.id;
+                const mu_skipOpenAnim = mu_isOpenBox && mu_reopenNoAnimId === item.id;
+                box.className = `content-container ${mu_isOpenBox ? 'show' : ''} ${mu_skipOpenAnim ? 'mu-noanim' : ''}`;
 
                 let customFolders = folders.filter(f => f !== DEFAULT_FOLDER);
                 let folderOptions = `<option value="" ${!item.folder ? 'selected' : ''}>${t.noFolder}</option>`;
@@ -3882,19 +4111,19 @@ window.mu_syncHtmlBg = function(){
                 const lastEditedText = item.lastEdited ? item.lastEdited : 'ثبت نشده';
 
                 box.innerHTML = `
-                    <div class="edit-hint">
-                        <span>${t.contentManagement}</span>
-                        <button class="mode-toggle-btn" onclick="toggleLinkPreview('${item.id}')">${t.previewLink}</button>
-                        <button class="mode-toggle-btn" onclick="openNoteDNA('${item.id}')">🧬 DNA</button>
+                    <div class="mc-head">
+                        <span class="mc-head-label">🗂️ ${t.contentManagement}</span>
+                        <div class="mc-head-actions">
+                            <button class="mode-toggle-btn mc-icon-only ${item.pinned ? 'mc-icon-active' : ''}" title="${item.pinned ? (currentLang==='fa'?'برداشتن پین':'Unpin') : (currentLang==='fa'?'پین کردن یادداشت':'Pin note')}" onclick="mcToggleFlag('${item.id}','pinned')">📌</button>
+                            <button class="mode-toggle-btn mc-icon-only" title="${currentLang==='fa'?'کپی یادداشت':'Duplicate'}" onclick="duplicateNote('${item.id}')">⧉</button>
+                            <button class="mode-toggle-btn mc-icon-only ${item.favorite ? 'mc-icon-active' : ''}" title="${item.favorite ? (currentLang==='fa'?'حذف از فیوریت':'Remove from Favorites') : (currentLang==='fa'?'افزودن به فیوریت':'Add to Favorites')}" onclick="mcToggleFlag('${item.id}','favorite')">⭐</button>
+                            <button class="mode-toggle-btn" onclick="toggleLinkPreview('${item.id}')">${t.previewLink}</button>
+                            <button class="mode-toggle-btn" onclick="openNoteDNA('${item.id}')">🧬 DNA</button>
+                        </div>
                     </div>
                     <div class="markhin-badge-row" style="text-align:center;margin:-3px 0 8px;">${buildBadgesHtml(item)}</div>
 
-                    <div class="note-tools">
-                        <button type="button" class="img-btn" onclick="toggleDrawingBox('${item.id}')">🎨 ${t.draw}</button>
-                        <button type="button" class="img-btn" style="${isRecordingThis ? 'background:rgba(239,68,68,0.75);color:#fff;' : ''}" onclick="toggleAudioRecording('${item.id}')">
-                            ${isRecordingThis ? t.stopAudio : t.recAudio}
-                        </button>
-                    </div>
+                    <div class="note-tools"></div>
 
                     <div id="draw-box-${item.id}" class="drawing-box">
                         <div class="draw-toolbar">
@@ -3924,6 +4153,16 @@ window.mu_syncHtmlBg = function(){
                         <canvas id="canvas-${item.id}" width="350" height="180"></canvas>
                     </div>
 
+                    <input type="text"
+                           id="mc-title-${item.id}"
+                           class="mc-title-input"
+                           value="${escapeHtml(item.name || '')}"
+                           placeholder="${escapeHtml(t.titleFieldPlaceholder || t.rename)}"
+                           ${item.isDecoy ? 'disabled' : ''}
+                           oninput="mcLiveTitle('${item.id}', this.value)"
+                           onchange="mcCommitTitle('${item.id}')"
+                           onkeydown="if(event.key==='Enter'){event.preventDefault(); this.blur();}">
+
                     <div id="text-${item.id}" 
                          class="text-box ${isHidden ? 'masked' : ''} ${item.decayLevel ? 'decay-' + item.decayLevel : ''}" 
                          contenteditable="${!isHidden && !item.isDecoy}"
@@ -3938,41 +4177,76 @@ window.mu_syncHtmlBg = function(){
                     <div id="preview-${item.id}" class="preview-box"></div>
 
                     <div class="action-bar">
-                        <button class="btn-save-prominent" onclick="saveCategory('${item.id}')">💾 ${t.save}</button>
+                        <div class="mc-group">
+                            <span class="mc-group-label">${t.mcGroupPrimary}</span>
+                            <div class="mc-row">
+                                <button class="btn-save-prominent" onclick="saveCategory('${item.id}')">💾 ${t.save}</button>
+                                <button onclick="toggleVisibility('${item.id}')">${isHidden ? t.show : t.hide}</button>
+                                <button onclick="toggleArchiveNote('${item.id}')">📦 ${item.archived ? (currentLang==='fa'?'خروج از بایگانی':'Unarchive') : (currentLang==='fa'?'بایگانی':'Archive')}</button>
+                            </div>
+                        </div>
 
-                        <button onclick="toggleVisibility('${item.id}')">
-                            ${isHidden ? t.show : t.hide}
-                        </button>
+                        <div class="mc-group">
+                            <span class="mc-group-label">${t.mcGroupSecurity}</span>
+                            <div class="mc-row">
+                                ${isNoteLocked(item) 
+                                    ? `<button onclick="removeLock('${item.id}')">${t.removeLock}</button>
+                                       <button onclick="changeHint('${item.id}')">${t.changeHint}</button>` 
+                                    : `<button onclick="setLock('${item.id}')">${t.setLock}</button>`
+                                }
+                                <button onclick="editFake('${item.id}')">🎭 ${item.fakeContent ? (currentLang==='fa'?'ویرایش یادداشت جعلی':'Edit Fake Note') : (currentLang==='fa'?'یادداشت جعلی':'Fake Note')}</button>
+                            </div>
+                        </div>
 
-                        <button onclick="triggerImageUpload('${item.id}')">${t.addImage}</button>
-                        <input type="file" id="img-input-${item.id}" style="display:none" accept="image/*" onchange="insertImageToText('${item.id}', event)">
+                        <div class="mc-group">
+                            <span class="mc-group-label">${t.mcGroupInsert}</span>
+                            <div class="mc-ai-translate-row">
+                                <div class="mc-subgroup mc-subgroup-ai">
+                                    <span class="mc-subgroup-label">AI</span>
+                                    <div class="mc-row" id="mc-ai-row-${item.id}"></div>
+                                </div>
+                                <div class="mc-subgroup mc-subgroup-translate">
+                                    <span class="mc-subgroup-label">${currentLang==='fa'?'ترجمه':'Translate'}</span>
+                                    <div class="mc-row" id="mc-insert-row-${item.id}">
+                                        <button onclick="translateText('${item.id}', 'fa', 'en')">${currentLang==='fa'?'به انگلیسی':'to EN'}</button>
+                                        <button onclick="translateText('${item.id}', 'en', 'fa')">${currentLang==='fa'?'به فارسی':'to FA'}</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
 
-                        <button onclick="translateText('${item.id}', 'fa', 'en')">${t.translateToEn}</button>
-                        <button onclick="translateText('${item.id}', 'en', 'fa')">${t.translateToFa}</button>
+                        <div class="mc-group">
+                            <span class="mc-group-label">${t.mcGroupOrganize}</span>
+                            <div class="mc-row">
+                                <select onchange="changeCategoryFolder('${item.id}', this.value)">
+                                    ${folderOptions}
+                                </select>
+                                ${item.folder ? `<button onclick="removeFromFolder('${item.id}')">${t.removeFromFolder}</button>` : ''}
+                            </div>
+                        </div>
 
-                        <button onclick="copyCategory('${item.id}')">${t.copy}</button>
-                        <button onclick="downloadAsTxt('${item.id}')">${t.downloadTxt}</button>
-                        <button onclick="renameCategory('${item.id}')">${t.rename}</button>
-                        
-                        ${isNoteLocked(item) 
-                            ? `<button onclick="removeLock('${item.id}')">${t.removeLock}</button>
-                               <button onclick="changeHint('${item.id}')">${t.changeHint}</button>` 
-                            : `<button onclick="setLock('${item.id}')">${t.setLock}</button>`
-                        }
+                        <div class="mc-group">
+                            <span class="mc-group-label">${t.mcGroupSpecial}</span>
+                            <div class="mc-row">
+                                <button onclick="setTimeCapsule('${item.id}')">⏳ کپسول زمان</button>
+                                <button onclick="setGhostNote('${item.id}')">👻 Ghost</button>
+                                <button onclick="setDecayLevel('${item.id}')">⌛ Decay</button>
+                            </div>
+                        </div>
 
-                        <select onchange="changeCategoryFolder('${item.id}', this.value)">
-                            ${folderOptions}
-                        </select>
+                        <div class="mc-group">
+                            <span class="mc-group-label">${t.mcGroupExport}</span>
+                            <div class="mc-row">
+                                <button type="button" class="mc-btn-primary" onclick="openNoteExportPicker('${item.id}')">📤 ${t.mcExportBtn}</button>
+                            </div>
+                        </div>
 
-                        ${item.folder ? `<button onclick="removeFromFolder('${item.id}')">${t.removeFromFolder}</button>` : ''}
-
-                        <button onclick="moveCategory('${item.id}', -1)">${t.forward}</button>
-                        <button onclick="moveCategory('${item.id}', 1)">${t.backward}</button>
-                        
-                        <button onclick="setTimeCapsule('${item.id}')">⏳ کپسول زمان</button>
-                        <button onclick="setGhostNote('${item.id}')">👻 Ghost</button>
-                        <button onclick="setDecayLevel('${item.id}')">⌛ Decay</button>
-                        <button style="border-color:rgba(239,68,68,0.45); color:#ef4444;" onclick="deleteCategory('${item.id}')">${t.delete}</button>
+                        <div class="mc-group mc-danger">
+                            <span class="mc-group-label">${t.mcGroupDanger}</span>
+                            <div class="mc-row">
+                                <button class="mc-btn-danger" onclick="deleteCategory('${item.id}')">${t.delete}</button>
+                            </div>
+                        </div>
                     </div>
                 `;
                 contentContainer.appendChild(box);
@@ -5552,18 +5826,84 @@ window.mu_syncHtmlBg = function(){
             const item = categories.find(c => c.id === id);
             if (!item) return;
             const textToCopy = item.isDecoy ? (item.fakeContent || t.unauthorized) : (item.text || item.html || '');
-            try {
-                if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(textToCopy);
-                else {
-                    const ta = document.createElement('textarea');
-                    ta.value = textToCopy; document.body.appendChild(ta); ta.select();
-                    document.execCommand('copy'); ta.remove();
-                }
-                showToast(t.copied);
-            } catch (_) {
-                alert(t.copied);
+            // Telegram's in-app WebView (and some browser contexts) exposes
+            // navigator.clipboard but then rejects the actual writeText() call
+            // (no Permissions-Policy: clipboard-write for the embedding
+            // iframe, or no secure-context grant) — same class of silent
+            // WebView restriction documented elsewhere in this file for
+            // downloads. Previously that rejection fell straight into the
+            // catch block below, which alerted the same "copied" success
+            // message anyway — so the note's text never actually reached the
+            // clipboard, but the user was told it had. Now a Clipboard API
+            // failure retries with the older execCommand('copy') technique
+            // (which several WebViews still allow) before giving up for real.
+            let copied = false, lastErr = null;
+            if (navigator.clipboard?.writeText) {
+                try { await navigator.clipboard.writeText(textToCopy); copied = true; }
+                catch (e) { lastErr = e; }
             }
+            if (!copied) {
+                try {
+                    const ta = document.createElement('textarea');
+                    ta.value = textToCopy; ta.style.position = 'fixed'; ta.style.opacity = '0';
+                    document.body.appendChild(ta); ta.focus(); ta.select();
+                    copied = document.execCommand('copy');
+                    ta.remove();
+                } catch (e) { lastErr = e; }
+            }
+            if (copied) showToast(t.copied);
+            else alert((t.copyFailed || (fa_currentLangIsFa() ? '❌ کپی انجام نشد.' : '❌ Copy failed.')) + (lastErr ? '\n' + (lastErr.message || lastErr) : ''));
         }
+        function fa_currentLangIsFa(){ return currentLang === 'fa'; }
+
+        /* Deletes all of a note's text content after a single confirm().
+           The pre-clear content is checkpointed into the same per-note
+           undo/redo history used everywhere else in the file (see the
+           "Robust per-note text Undo/Redo history" block above), so
+           pressing the ↩️ Undo button right after is the recovery path if
+           this was pressed by mistake — no separate "are you sure" state
+           or trash/cemetery mechanism needed on top of the confirm(). */
+        async function clearNoteText(id) {
+            const item = categories.find(c => c.id === id);
+            const fa = currentLang === 'fa';
+            if (!item) return;
+            if (item.isDecoy || hiddenState[id]) {
+                showToast(fa ? 'ابتدا یادداشت را نمایش بده.' : 'Unhide the note first.');
+                return;
+            }
+            const textEl = document.getElementById('text-' + id);
+            if (!textEl) return;
+            if (!textEl.textContent.trim() && !textEl.querySelector('img,table,canvas,iframe,video,audio')) {
+                showToast(fa ? 'این یادداشت از قبل خالی است.' : 'This note is already empty.');
+                return;
+            }
+            const warnMsg = fa
+                ? 'کل متن این یادداشت پاک شود؟ در صورت پشیمانی می‌توانی با دکمه واگرد (↩️) آن را برگردانی.'
+                : 'Delete all the text in this note? You can bring it back with the ↩️ Undo button if you change your mind.';
+            if (!confirm(warnMsg)) return;
+
+            const preClearHtml = textEl.innerHTML;
+            mu_historyInit(id, preClearHtml);
+            mu_historyPush(id, preClearHtml);
+
+            textEl.innerHTML = '';
+            item.html = '';
+            item.text = '';
+            item.lastEdited = new Date().toUTCString();
+
+            if (isNoteLocked(item)) {
+                const sessionPassword = noteSessionKeys.get(item.id);
+                if (sessionPassword) {
+                    try { item.encrypted = await encryptNotePayload(sessionPassword, '', ''); }
+                    catch (error) { console.error(error); }
+                }
+            }
+
+            saveToLocalStorage();
+            mu_historyPush(id, '');
+            showToast(fa ? '🗑️ متن یادداشت پاک شد.' : '🗑️ Note text deleted.');
+        }
+        window.clearNoteText = clearNoteText;
 
         // Extract text for TXT export while preserving real line breaks and whitespace.
         // textContent collapses structural breaks between div/p elements, so innerText is
@@ -8028,12 +8368,18 @@ window.mu_syncHtmlBg = function(){
 .markhin-editor-tools{display:flex;flex-wrap:wrap;gap:5px;align-items:center;margin-bottom:7px}
 .markhin-editor-tools select,.markhin-editor-tools button{padding:6px 8px;border-radius:7px;border:1px solid var(--panel-border);background:rgba(0,0,0,.28);color:var(--text-color);font-family:inherit;font-size:10px;transition:background .18s ease,border-color .18s ease,transform .12s ease}.markhin-editor-tools button:hover{background:rgba(255,255,255,.14);border-color:var(--text-color)}.markhin-editor-tools button:active{background:rgba(255,255,255,.24);transform:scale(.92)}.markhin-editor-tools select:hover{border-color:var(--text-color)}.markhin-special-controls{display:grid;grid-template-columns:minmax(0,1fr);gap:10px;align-items:stretch;margin:10px 0 0}.markhin-special-box{display:flex;align-items:center;justify-content:center;gap:8px;min-height:52px;padding:8px 10px;border:1px solid var(--panel-border);border-radius:var(--border-radius-main);background:rgba(0,0,0,.12);box-sizing:border-box}.markhin-special-box .btn-main{flex:1;min-width:0}.markhin-tools-box{gap:8px}.markhin-tools-box .btn-main{max-width:50%}
 .markhin-editor-tools button{cursor:pointer}
-.markhin-undo-redo-row{display:flex;gap:8px;margin:2px 0 10px}
-.markhin-undo-redo-row .mu-undo-redo-btn{flex:1;padding:10px 8px;border-radius:10px;border:1px solid var(--panel-border);background:rgba(255,255,255,.07);color:var(--text-color);font-weight:800;font-size:12px;cursor:pointer;transition:background .15s ease,transform .12s ease}
-.markhin-undo-redo-row .mu-undo-redo-btn:hover{background:rgba(255,255,255,.16)}
+/* Delete-text/Copy-text/Undo/Redo/Draw/Voice/Image: one single line in
+   both languages (per user request). All seven are icon-only now (see
+   addFeatureTools' undoRedoRow template) so they're short enough to fit
+   without wrapping; nowrap+overflow-x is just a safety net. */
+.markhin-undo-redo-row{display:flex;flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;gap:6px;margin:2px 0 10px}
+.markhin-undo-redo-row::-webkit-scrollbar{display:none}
+.markhin-undo-redo-row .img-btn{flex:0 0 auto}
 .markhin-undo-redo-row .mu-undo-redo-btn:active{transform:scale(.95)}
 .mu-undo-redo-btn{font-weight:700}
 .mu-undo-redo-btn:disabled{opacity:.35;cursor:not-allowed;transform:none!important;background:rgba(0,0,0,.28)!important}
+.markhin-undo-redo-row .mc-ai-btn{border:1px solid var(--panel-border);background:rgba(120,170,255,.08)}
+.markhin-undo-redo-row .mc-ai-btn:hover{background:rgba(120,170,255,.2);border-color:rgba(120,170,255,.5)}
 .markhin-md-source{width:100%;min-height:260px;box-sizing:border-box;resize:vertical;padding:14px;border-radius:9px;border:1px solid var(--panel-border);background:rgba(0,0,0,.3);color:var(--text-color);font-family:'Share Tech Mono',monospace;line-height:1.8;direction:auto;outline:none}
 .markhin-drop-zone{position:fixed;inset:12px;z-index:10050;display:none;place-items:center;border:2px dashed var(--text-color);border-radius:18px;background:rgba(0,0,0,.72);backdrop-filter:blur(6px);font-size:18px;font-weight:800;pointer-events:none}
 .markhin-drop-zone.show{display:grid}
@@ -8050,6 +8396,25 @@ window.mu_syncHtmlBg = function(){
 @media(max-width:600px){.markhin-editor-tools select,.markhin-editor-tools button{font-size:9px;padding:7px 7px}.markhin-drop-zone{inset:7px;font-size:15px}}
         @media (max-width: 700px) {
         }
+
+/* AI (Summary/Tags/Translate) box + Translate(EN/FA) box: side by side on
+   one line, matched height, small buttons, both languages. */
+.mc-ai-translate-row{display:flex;flex-wrap:nowrap;gap:8px;align-items:stretch}
+.mc-subgroup{min-width:0;display:flex;flex-direction:column;gap:5px;padding:7px 8px;border:1px solid var(--panel-border);border-radius:10px;background:rgba(255,255,255,.03)}
+/* AI needs room for 3 buttons (Summary/Tags/Translate) while the Translate
+   box only ever holds 2 short buttons (to EN/to FA) — give AI the extra
+   space it needs and let Translate size itself to its own content, so
+   neither box's buttons wrap, shrink oddly, or spill past its border,
+   and both stay on one row together. */
+.mc-subgroup-ai{flex:1 1 auto}
+.mc-subgroup-translate{flex:0 0 auto}
+.mc-subgroup-label{font-size:9px;font-weight:800;letter-spacing:.3px;color:rgba(255,255,255,.45);white-space:nowrap}
+.mc-subgroup .mc-row{flex-wrap:nowrap;gap:4px;overflow-x:visible}
+.mc-subgroup .mc-row button,.mc-subgroup .mc-row .img-btn{padding:5px 7px;font-size:9.5px;white-space:nowrap;flex:0 0 auto}
+.mc-subgroup-ai .mc-row{justify-content:space-between}
+.mc-subgroup-ai .mc-row button,.mc-subgroup-ai .mc-row .img-btn{flex:1 1 0}
+@media(max-width:600px){.mc-subgroup .mc-row button,.mc-subgroup .mc-row .img-btn{padding:4px 5px;font-size:8.5px}}
+@media(max-width:420px){.mc-subgroup .mc-row button,.mc-subgroup .mc-row .img-btn{padding:4px 4px;font-size:8px}}
 
 </style>
 <script>
@@ -8142,6 +8507,13 @@ function addFeatureTools(item,box){
  // captured once per note-open before any edits happen this session.
  mu_historyInit(item.id, text.innerHTML);
  const fa=currentLang==='fa';
+ const t=i18n[currentLang];
+ const isRecordingThis=(activeRecId===item.id);
+ // Everything this function inserts (formatting toolbar, pin/favorite/
+ // archive row, undo/redo row) goes ABOVE the title field, not between
+ // it and the text box — the title must stay exactly above the text.
+ const titleEl=document.getElementById('mc-title-'+item.id);
+ const insertPoint=titleEl||text;
  const row=document.createElement('div');row.className='markhin-editor-tools';row.innerHTML=`<button type="button" title="Bold"><b>B</b></button><button type="button" title="Italic"><i>I</i></button><button type="button" title="Underline"><u>U</u></button><button type="button" title="Quote">❝</button><button type="button" title="List">☷</button><button type="button" title="Table">▦</button><button type="button" title="Link">🔗</button><select title="Size"><option value="12">12</option><option value="13">13</option><option value="15">15</option><option value="18">18</option><option value="22">22</option><option value="28">28</option></select>`;
  const btns=row.querySelectorAll('button'); const cmd=(c,v=null)=>{text.focus();document.execCommand(c,false,v);autosaveCategory(item.id)};
  btns[0].onclick=()=>cmd('bold');btns[1].onclick=()=>cmd('italic');btns[2].onclick=()=>cmd('underline');btns[3].onclick=()=>cmd('formatBlock','blockquote');btns[4].onclick=()=>cmd('insertUnorderedList');btns[5].onclick=()=>{const table='<table><tbody><tr><td>سلول ۱</td><td>سلول ۲</td></tr><tr><td>سلول ۳</td><td>سلول ۴</td></tr></tbody></table>';text.focus();
@@ -8166,17 +8538,35 @@ function addFeatureTools(item,box){
   autosaveCategory(item.id)};btns[6].onclick=async()=>{const u=await promptStyledText({title:currentLang==='fa'?'🔗 افزودن لینک':'🔗 Add link',placeholder:currentLang==='fa'?'آدرس لینک:':'Link URL:',defaultValue:'https://',type:'url',okText:currentLang==='fa'?'✔️ افزودن':'✔️ Add'});if(u)cmd('createLink',u)};
  const selects=row.querySelectorAll('select');selects[0].value=String(item.fontSize||13);selects[0].onchange=()=>{item.fontSize=Number(selects[0].value)||13;text.style.fontSize=item.fontSize+'px';saveToLocalStorage()};
  tools.parentNode.insertBefore(row,tools.nextSibling); text.style.fontFamily=item.fontFamily||'';text.style.fontSize=(item.fontSize||13)+'px';
- const meta=document.createElement('div');meta.className='markhin-feature-row';meta.innerHTML=`<button type="button" class="img-btn note-pin-action" title="${item.pinned?(currentLang==='fa'?'برداشتن پین':'Unpin'):(currentLang==='fa'?'پین کردن یادداشت':'Pin note')}">📌 ${item.pinned?'لغو پین':'پین کردن'}</button><button type="button" class="img-btn note-fav-action" title="${item.favorite?(currentLang==='fa'?'حذف از فیوریت':'Remove from Favorites'):(currentLang==='fa'?'افزودن به فیوریت':'Add to Favorites')}">⭐ ${item.favorite?'حذف از فیوریت':'افزودن به فیوریت'}</button><button type="button" class="img-btn note-archive-action" title="${currentLang==='fa'?'انتقال به بایگانی':'Move to archive'}">📦 ${currentLang==='fa'?'بایگانی':'Archive'}</button><button type="button" class="img-btn">⧉ Duplicate</button><button type="button" class="img-btn">🎭 ${item.fakeContent?'ویرایش Fake':'Fake Note'}</button><button type="button" class="img-btn">📄 PDF</button><button type="button" class="img-btn">📝 DOCX</button><button type="button" class="img-btn">🌐 HTML</button><button type="button" class="img-btn">TXT</button><button type="button" class="img-btn">M↓ MD</button><button type="button" class="img-btn">🖼️ PNG</button><button type="button" class="img-btn">📤 Share</button>`;
- const ms=meta.querySelectorAll('button');ms[0].onclick=()=>toggleFlag(item,'pinned');ms[1].onclick=()=>toggleFlag(item,'favorite');ms[2].onclick=()=>toggleArchiveNote(item.id);ms[3].onclick=()=>duplicateNote(item.id);ms[4].onclick=()=>editFake(item.id);ms[5].onclick=()=>downloadSelectedPDF(item.id);ms[6].onclick=()=>downloadSelectedDOCX(item.id);ms[7].onclick=()=>exportSingleHTML(item.id);ms[8].onclick=()=>downloadAsTxt(item.id);ms[9].onclick=()=>downloadStructuredSingle(item.id,'md');ms[10].onclick=()=>downloadSelectedImage(item.id,'png');ms[11].onclick=()=>shareNote(item.id);text.parentNode.insertBefore(meta,text);
- // Undo/Redo — its own clearly-visible row, placed directly above the text
- // box (closer to the text than anything else) instead of buried among the
- // small formatting icons, so it's easy to spot.
+ // Pin/Favorite/Archive/Duplicate/Fake Note/Share used to live together in a
+ // dedicated row inserted here. They've since moved next to their more
+ // relevant neighbors (Pin+Favorite by the link-preview header, Share +
+ // Duplicate on their own line, Archive in the Save & Display group, Fake
+ // Note in the Security group) — all rendered directly in renderContents()
+ // now, so there's nothing left to insert in this spot.
+ // Undo/Redo/Copy-text/Delete-text/Draw/Voice/Image — one combined row,
+ // placed directly above the text box. Copy-text and Delete-text are
+ // icon-only (Delete-text clears the note's text after a single confirm(),
+ // pushed through the same undo/redo history as every other content
+ // change, so the existing Undo button is the recovery path if it's
+ // pressed by mistake). Draw, Voice (record-audio) and Image (add-image)
+ // used to live elsewhere — Draw+Voice on the note-tools line, Image in
+ // the Translate & AI group — and were moved here, in that order, right
+ // after Redo. Voice's recording-state styling/label (previously computed
+ // once in renderContents() as isRecordingThis) is recomputed locally here
+ // from the same shared activeRecId global, since this function runs in a
+ // separate scope/IIFE.
+ // The 3 AI buttons (Summary/Tags/Translate) used to be appended to
+ // this same row by mu_addAiToolsToNote (further down the file); they now
+ // live inside the Translate & AI group box instead.
+ // Undo/Redo use the same compact .img-btn sizing as their row-mates
+ // (see the CSS comment by .markhin-undo-redo-row) instead of the old
+ // full-width bars, so the whole row reads as one line of small buttons.
  const undoRedoRow=document.createElement('div');undoRedoRow.className='markhin-undo-redo-row';
- undoRedoRow.innerHTML=`<button type="button" id="mu-undo-${item.id}" class="mu-undo-redo-btn" title="${fa?'واگرد (بازگشت به مرحله قبل)':'Undo (step back)'}">↩️ ${fa?'واگرد':'Undo'}</button><button type="button" id="mu-redo-${item.id}" class="mu-undo-redo-btn" title="${fa?'ازنو (رفتن به مرحله بعد)':'Redo (step forward)'}">↪️ ${fa?'ازنو':'Redo'}</button>`;
- const urBtns=undoRedoRow.querySelectorAll('button');
- urBtns[0].onclick=()=>mu_undoText(item.id);
- urBtns[1].onclick=()=>mu_redoText(item.id);
- text.parentNode.insertBefore(undoRedoRow,text);
+ undoRedoRow.innerHTML=`<button type="button" class="img-btn" title="${fa?'حذف متن یادداشت':'Delete note text'}" onclick="clearNoteText('${item.id}')">🗑️</button><button type="button" class="img-btn" title="${fa?'کپی متن':'Copy text'}" onclick="copyCategory('${item.id}')">📋</button><button type="button" id="mu-undo-${item.id}" class="img-btn mu-undo-redo-btn" title="${fa?'واگرد (بازگشت به مرحله قبل)':'Undo (step back)'}">↩️</button><button type="button" id="mu-redo-${item.id}" class="img-btn mu-undo-redo-btn" title="${fa?'ازنو (رفتن به مرحله بعد)':'Redo (step forward)'}">↪️</button><button type="button" class="img-btn" title="${t.draw}" onclick="toggleDrawingBox('${item.id}')">🎨</button><button type="button" class="img-btn" title="${isRecordingThis ? t.stopAudio : t.recAudio}" style="${isRecordingThis ? 'background:rgba(239,68,68,0.75);color:#fff;' : ''}" onclick="toggleAudioRecording('${item.id}')">${isRecordingThis ? '⏹️' : '🎙️'}</button><button type="button" class="img-btn" title="${t.addImage}" onclick="triggerImageUpload('${item.id}')">🖼️</button><button type="button" class="img-btn" onclick="shareNote('${item.id}')">📤 ${fa?'اشتراک':'Share'}</button><input type="file" id="img-input-${item.id}" style="display:none" accept="image/*" onchange="insertImageToText('${item.id}', event)">`;
+ undoRedoRow.querySelector('#mu-undo-'+item.id).onclick=()=>mu_undoText(item.id);
+ undoRedoRow.querySelector('#mu-redo-'+item.id).onclick=()=>mu_redoText(item.id);
+ text.parentNode.insertBefore(undoRedoRow,insertPoint);
  mu_updateUndoRedoButtons(item.id);
  const tags=document.createElement('div');tags.className='markhin-tag-field';
  const tagHelpFa='با کاما (,) بین تگ‌ها فاصله بذار. مثال: کار, مهم, پروژه X ← این‌جوری ۳ تگ جدا ساخته می‌شه: «کار»، «مهم» و «پروژه X».';
@@ -8208,6 +8598,74 @@ function addFeatureTools(item,box){
  };
  text.addEventListener('input',updateCount);updateCount();
 }
+// ---------------------------------------------------------------
+// Redesigned content-management box: title field + consolidated
+// per-note export menu (see renderContents()/addFeatureTools()).
+// ---------------------------------------------------------------
+function mcLiveTitle(id, value){
+    // Keep the note's tab label in sync as the person types the title,
+    // without a full re-render (which would drop focus from the input).
+    const item = categories.find(c => String(c.id) === String(id));
+    if (!item) return;
+    item.name = value;
+    const tab = document.querySelector('.custom-btn[data-note-id="' + id + '"]');
+    if (tab) {
+        const lockIcon = isNoteLocked(item) ? '🔒 ' : '';
+        tab.innerHTML = lockIcon + escapeHtml(value || '');
+    }
+}
+function mcCommitTitle(id){
+    const item = categories.find(c => String(c.id) === String(id));
+    if (!item) return;
+    const trimmed = String(item.name || '').trim();
+    item.name = trimmed || (currentLang === 'fa' ? 'یادداشت بدون عنوان' : 'Untitled note');
+    saveToLocalStorage();
+    const titleEl = document.getElementById('mc-title-' + id);
+    if (titleEl) titleEl.value = item.name;
+    const tab = document.querySelector('.custom-btn[data-note-id="' + id + '"]');
+    if (tab) {
+        const lockIcon = isNoteLocked(item) ? '🔒 ' : '';
+        tab.innerHTML = lockIcon + escapeHtml(item.name);
+    }
+}
+function openNoteExportPicker(id){
+    // A centered, themed modal (the same one every other export picker in
+    // the app uses) instead of an inline dropdown -- it never gets pushed
+    // off-screen and always matches the current color theme.
+    const item = categories.find(c => String(c.id) === String(id));
+    if (!item) return;
+    const fa = currentLang === 'fa';
+    const formats = [
+        { icon: '📄', name: 'TXT', action: `downloadAsTxt('${id}')` },
+        { icon: 'M↓', name: fa ? 'Markdown' : 'Markdown', action: `downloadStructuredSingle('${id}','md')` },
+        { icon: '⌘', name: 'JSON', action: `downloadStructuredSingle('${id}','json')` },
+        { icon: '▤', name: 'CSV', action: `downloadStructuredSingle('${id}','csv')` },
+        { icon: '🌐', name: 'HTML', action: `exportSingleHTML('${id}')` },
+        { icon: '📕', name: 'PDF', action: `downloadSelectedPDF('${id}')` },
+        { icon: '📝', name: 'DOCX', action: `downloadSelectedDOCX('${id}')` },
+        { icon: '🖼️', name: 'PNG', action: `downloadSelectedImage('${id}','png')` },
+        { icon: '🖼️', name: 'JPG', action: `downloadSelectedImage('${id}','jpg')` }
+    ];
+    const cards = formats.map(f => `<button type="button" class="image-export-choice" onclick="${f.action};closeAdvancedModal();">
+        <span class="image-export-choice-icon">${f.icon}</span>
+        <span class="image-export-choice-name">${escapeHtml(f.name)}</span>
+        <span class="image-export-choice-action">${fa ? `خروجی ${escapeHtml(f.name)} همین یادداشت` : `Export this note as ${escapeHtml(f.name)}`}</span>
+    </button>`).join('');
+    showAdvanced(`
+        <div class="advanced-head image-export-picker-head">
+            <div><h3 style="margin:0">📤 ${fa ? 'خروجی یادداشت' : 'Export note'}</h3><p style="margin:5px 0 0;opacity:.65;font-size:11px">${escapeHtml(item.name || '')}</p></div>
+            <button class="btn-main" onclick="closeAdvancedModal()">✕</button>
+        </div>
+        <div class="image-export-choice-grid">${cards}</div>
+    `);
+}
+// These run from inline onclick/oninput attributes in the note template,
+// which execute in global scope -- but this whole block sits inside an
+// IIFE, so the plain function declarations above are only local to it
+// unless explicitly exposed on window here.
+window.mcLiveTitle = mcLiveTitle;
+window.mcCommitTitle = mcCommitTitle;
+window.openNoteExportPicker = openNoteExportPicker;
 function toggleFlag(item,key){ensureItem(item);item[key]=!item[key];saveToLocalStorage();renderApp(item.id);const msg=key==='pinned'?(item[key]?(currentLang==='fa'?'📌 یادداشت پین شد':'📌 Note pinned'):(currentLang==='fa'?'📌 پین یادداشت برداشته شد':'📌 Note unpinned')):(item[key]?(currentLang==='fa'?'⭐ به فیوریت اضافه شد':'⭐ Added to Favorites'):(currentLang==='fa'?'⭐ از فیوریت حذف شد':'⭐ Removed from Favorites'));showToast(msg);}
 /* Archive: keeps the note itself untouched but hides it from every normal
    list (main view, folders, search, dashboard counts — all already route
@@ -8227,6 +8685,10 @@ function toggleArchiveNote(id){
         : (currentLang==='fa'?'📦 یادداشت از بایگانی بازگردانده شد':'📦 Note restored from archive'));
 }
 window.toggleArchiveNote=toggleArchiveNote;
+// Wrapper so the pin/favorite icon buttons in the mc-head (rendered from
+// renderContents' template, which only has the note's id in scope) can
+// reach toggleFlag, which expects the note object itself.
+window.mcToggleFlag=function(id,key){const it=categories.find(x=>x.id===id);if(!it)return;toggleFlag(it,key);};
 window.duplicateNote=function(id){const o=categories.find(x=>x.id===id);if(!o)return;const n=JSON.parse(JSON.stringify(o));n.id=Date.now()+'_'+Math.random().toString(36).slice(2,9);n.name=(o.name||'Note')+' — Copy';n.pinned=false;n.favorite=false;n.isDecoy=false;n.lastEdited=new Date().toUTCString();categories.push(n);saveToLocalStorage();renderApp(n.id);};
 window.editFake=async function(id){
     const item=categories.find(x=>x.id===id);if(!item)return;
@@ -8789,8 +9251,6 @@ mark.markhin-hit{background:rgba(255,209,102,.6);color:#111;padding:0 2px;border
 .markhin-smart-item .snippet{font-size:11.5px;opacity:.78;line-height:1.8}
 .markhin-smart-empty{opacity:.55;font-size:12px;text-align:center;padding:22px 0}
 .markhin-ai-badge{display:inline-block;font-size:9px;font-weight:700;padding:2px 7px;border-radius:999px;border:1px solid currentColor;opacity:.9;margin-inline-start:6px;vertical-align:middle;letter-spacing:.4px}
-.markhin-ai-tools-row .img-btn{border:1px solid var(--panel-border);background:rgba(120,170,255,.08)}
-.markhin-ai-tools-row .img-btn:hover{background:rgba(120,170,255,.2);border-color:rgba(120,170,255,.5)}
 .markhin-ai-settings-row{display:flex;flex-direction:column;gap:9px;margin-bottom:12px}
 .markhin-ai-settings-row label{font-size:11px;opacity:.75}
 .markhin-ai-settings-row input,.markhin-ai-settings-row select{width:100%;box-sizing:border-box;padding:9px 10px;border-radius:8px;border:1px solid var(--panel-border);background:rgba(0,0,0,.28);color:var(--text-color);font-family:inherit;font-size:12.5px;outline:none;transition:var(--transition-smooth)}
@@ -8799,7 +9259,6 @@ mark.markhin-hit{background:rgba(255,209,102,.6);color:#111;padding:0 2px;border
 .markhin-ai-loading::after{content:'';width:12px;height:12px;border-radius:50%;border:2px solid currentColor;border-top-color:transparent;flex:0 0 auto;animation:markhinSpin .8s linear infinite}
 .markhin-ai-lock-notice{opacity:.65;font-size:10.5px;line-height:1.7;padding:0 2px 8px;border-bottom:1px solid var(--panel-border);margin-bottom:8px}
 @keyframes markhinSpin{to{transform:rotate(360deg)}}
-.markhin-ai-tools-row{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 10px}
 #muAiAnswerBox{background:rgba(0,0,0,.35);border:1px solid var(--panel-border);border-radius:var(--border-radius-sm);padding:12px 14px;font-size:12px;line-height:1.8;box-sizing:border-box;word-break:break-word;animation:slideDown .28s ease-out;backdrop-filter:blur(3px)}
 #muAiSettingsBtn{font-size:15px}
 @media(max-width:600px){.markhin-smart-item .snippet{font-size:10.5px}}
@@ -9315,14 +9774,20 @@ document.addEventListener('click', function(e){
 /* Tapping anywhere empty on the page closes the currently open note.
    Excluded: the open note's own content area (so interacting with the
    note doesn't close it), its note button (which already toggles it
-   itself), and any open modal overlay (so using a modal doesn't yank
-   the note closed underneath it). */
+   itself), any open modal overlay (so using a modal doesn't yank
+   the note closed underneath it — includes the Game Zone modal, whose
+   own "close" button used to count as empty space), and the whole top
+   header bar (logo, arcade, MARKHIN AI, dashboard, theme, language) —
+   those are page controls, not empty space, and using them shouldn't
+   close the note either. */
 document.addEventListener('click', function(e){
     if(!activeOpenId) return;
     if(e.target.closest('.content-container')) return;
     if(e.target.closest('.note-btn-wrap')) return;
     if(e.target.closest('.advanced-modal')) return;
     if(e.target.closest('.markhin-move-menu')) return;
+    if(e.target.closest('.header-nav')) return;
+    if(e.target.closest('#gameModal')) return;
     activeOpenId = null;
     renderApp(null);
 }, true);
@@ -9828,19 +10293,23 @@ function mu_positionOpenNoteContent(){
     }
 }
 function mu_addAiToolsToNote(item, box){
-    if(!box || box.querySelector('.markhin-ai-tools-row')) return;
-    const text = document.getElementById('text-'+item.id);
-    if(!text) return;
-    const anchor = box.querySelector('.markhin-feature-row') || text;
-    const row = document.createElement('div');
-    row.className = 'markhin-feature-row markhin-ai-tools-row';
+    // The 3 AI buttons live in their own small "AI" sub-box (see
+    // .mc-subgroup / #mc-ai-row-<id>) next to the Translate sub-box, both
+    // inside the outer Insert & Translate (درج و ترجمه) group — appended
+    // here, once that row exists, rather than inserted as a standalone
+    // block.
+    if(!box) return;
+    const row = box.querySelector('#mc-ai-row-'+item.id);
+    if(!row || row.dataset.aiTools==='1') return;
+    row.dataset.aiTools='1';
     const fa = currentLang==='fa';
-    row.innerHTML = `<button type="button" class="img-btn">🧠 ${fa?'خلاصه AI':'AI Summary'}</button><button type="button" class="img-btn">🏷️ ${fa?'برچسب AI':'AI Tags'}</button><button type="button" class="img-btn">🌐 ${fa?'ترجمه AI':'AI Translate'}</button>`;
-    const btns = row.querySelectorAll('button');
+    const frag = document.createElement('div');
+    frag.innerHTML = `<button type="button" class="img-btn mc-ai-btn" title="${fa?'خلاصه AI':'AI Summary'}">🧠 ${fa?'خلاصه':'Summary'}</button><button type="button" class="img-btn mc-ai-btn" title="${fa?'برچسب AI':'AI Tags'}">🏷️ ${fa?'برچسب':'Tags'}</button><button type="button" class="img-btn mc-ai-btn" title="${fa?'ترجمه AI':'AI Translate'}">🌐 ${fa?'ترجمه':'Translate'}</button>`;
+    const btns = [...frag.children];
     btns[0].onclick = ()=>mu_summarizeNote(item.id);
     btns[1].onclick = ()=>mu_suggestTags(item.id);
     btns[2].onclick = ()=>mu_aiTranslateNote(item.id);
-    anchor.parentNode.insertBefore(row, anchor.nextSibling);
+    btns.forEach(b => row.appendChild(b));
 }
 
 /* Small language-picker modal for AI Translate. Resolves with 'en' or 'fa',
