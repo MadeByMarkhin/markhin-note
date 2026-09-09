@@ -19,8 +19,35 @@
     <link rel="preconnect" href="https://fonts.cdnfonts.com">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="https://fonts.cdnfonts.com/css/cyberpunk" media="print" onload="this.media='all'">
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=VT323&family=Orbitron:wght@700&family=Cinzel:wght@700&family=Share+Tech+Mono&family=Creepster&family=Poller+One&family=Dancing+Script:wght@700&family=Quicksand:wght@500;700&family=Pacifico&display=swap" media="print" onload="this.media='all'">
+    <link rel="stylesheet" href="https://fonts.cdnfonts.com/css/cyberpunk" media="print" onload="this.media='all';window.__muFontSwapRestore&&window.__muFontSwapRestore();">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=VT323&family=Orbitron:wght@700&family=Cinzel:wght@700&family=Share+Tech+Mono&family=Creepster&family=Poller+One&family=Dancing+Script:wght@700&family=Quicksand:wght@500;700&family=Pacifico&display=swap" media="print" onload="this.media='all';window.__muFontSwapRestore&&window.__muFontSwapRestore();">
+    <script>
+        /* Bug fix (page/options "jump" once a web font finishes loading):
+           the two <link> tags above intentionally load fonts non-blocking
+           (media="print" -> onload swap) so first paint isn't delayed on a
+           slow connection — see the comment further down explaining why.
+           The tradeoff is that when a font DOES finish loading a moment
+           later, the swap can change text metrics across the page (the
+           body's base font is one of these), reflowing button rows and
+           shifting page height right as a person may already be scrolling
+           — exactly the "jump" this app has been reported to have. Unlike
+           renderApp()/applyTheme() elsewhere in this file, which already
+           capture and restore scroll position around their own DOM
+           changes, this font swap previously had no such protection.
+           This function gives it the same protection: whichever font
+           link finishes loading calls this, and it puts the viewport
+           back where the person had it, after giving the browser two
+           frames to settle the new layout. Harmless if called twice
+           (once per font link). */
+        window.__muFontSwapRestore = function(){
+            var y = window.scrollY || window.pageYOffset || 0;
+            requestAnimationFrame(function(){
+                requestAnimationFrame(function(){
+                    window.scrollTo(0, y);
+                });
+            });
+        };
+    </script>
     <noscript>
         <link rel="stylesheet" href="https://fonts.cdnfonts.com/css/cyberpunk">
         <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=VT323&family=Orbitron:wght@700&family=Cinzel:wght@700&family=Share+Tech+Mono&family=Creepster&family=Poller+One&family=Dancing+Script:wght@700&family=Quicksand:wght@500;700&family=Pacifico&display=swap">
@@ -81,6 +108,7 @@
         body.theme-cloudy::before,
         body.theme-aurora::before, body.theme-aurora::after,
         body.theme-phantom::before, body.theme-phantom::after,
+        body.theme-aurora-phantom::before, body.theme-aurora-phantom::after,
         .top-right-controls {
             transform: translateZ(0);
             backface-visibility: hidden;
@@ -115,7 +143,12 @@
            a modal — so it was a second, independent source of the same scroll
            repaint spike. Dropping it for the same short scrolling window removes
            that cost too, with no visible difference since it's imperceptible
-           mid-scroll. */
+           mid-scroll. (This used to be widened to every element on the page, to
+           chase a report of buttons rendering blank — but removing blur from a
+           large surface like .control-panel for the ~150ms scroll-settle window
+           means it visibly pops back in after every scroll, which is worse: a
+           new, very noticeable jump on every single scroll. Kept scoped to just
+           these two contained elements instead.) */
         body.mu-scrolling .content-container.show,
         body.mu-scrolling .qa-response-box {
             backdrop-filter: none !important;
@@ -147,25 +180,39 @@
                drift and breathe slowly, like caustic light on the seabed. */
             content: "";
             position: fixed;
-            top: -20%; left: -20%; right: -20%; bottom: -20%;
+            /* Inset trimmed from -20% now that the drift keyframes below no
+               longer rotate/scale this layer (see oceanCaustics) — without
+               rotation there's no need for extra margin to hide the layer's
+               edge swinging into view, so the painted/blurred area (and the
+               GPU cost, which scales with that area) shrinks by roughly a
+               third for the same visual effect. */
+            top: -8%; left: -8%; right: -8%; bottom: -8%;
             background:
                 radial-gradient(ellipse 55% 32% at 22% 8%, rgba(173, 232, 244, 0.16) 0%, transparent 60%),
                 radial-gradient(ellipse 45% 30% at 78% 18%, rgba(0, 180, 216, 0.14) 0%, transparent 60%),
                 radial-gradient(ellipse 60% 38% at 55% 55%, rgba(2, 62, 138, 0.22) 0%, transparent 65%),
                 radial-gradient(ellipse 50% 30% at 30% 95%, rgba(0, 119, 182, 0.16) 0%, transparent 60%);
-            /* Blur radius trimmed from 9px: repaint cost of a full-viewport blur
-               scales with the square of the radius, so this is a meaningful GPU
-               saving for a layer that's redrawn every animation frame, with a
-               difference that's basically invisible at this softness level. */
-            filter: blur(6px);
+            /* Blur radius trimmed further (9px -> 6px -> 4px across two passes):
+               repaint cost of a full-viewport blur scales with the square of the
+               radius, so this is a meaningful GPU saving for a layer that's
+               redrawn every animation frame, with a difference that's basically
+               invisible at this softness level. */
+            filter: blur(4px);
             pointer-events: none;
             z-index: -1;
+            contain: paint;
             animation: oceanCaustics 20s ease-in-out infinite alternate;
         }
+        /* Trimmed to translate + opacity only (no scale/rotate): a filtered
+           (blurred) layer that's only translated stays a single pre-rasterized
+           GPU layer the compositor just slides around every frame — free.
+           Adding scale or rotate on top of a blur forces the browser to
+           re-rasterize the layer at points during the animation, which is
+           the actual expensive part. Visually near-identical drift. */
         @keyframes oceanCaustics {
-            0%   { transform: translate3d(0, 0, 0) scale(1) rotate(0deg); opacity: .8; }
-            50%  { transform: translate3d(-2.5%, 3%, 0) scale(1.06) rotate(1deg); opacity: 1; }
-            100% { transform: translate3d(2.5%, -2%, 0) scale(1.03) rotate(-1deg); opacity: .88; }
+            0%   { transform: translate3d(0, 0, 0); opacity: .85; }
+            50%  { transform: translate3d(-2%, 2%, 0); opacity: 1; }
+            100% { transform: translate3d(2%, -1.5%, 0); opacity: .9; }
         }
         body.theme-oceanic::after {
             /* A gentle stream of bubbles rising from the bottom of the screen. */
@@ -175,22 +222,25 @@
             pointer-events: none;
             z-index: -1;
             background-repeat: no-repeat;
+            /* Stop count trimmed from 7 to 4: background-position keyframes
+               can't be handed off to the compositor the way transform/opacity
+               can, so every tick repaints this whole fixed layer — fewer
+               gradient stops means less to recompute per repaint, for a bubble
+               stream that reads the same at a glance. */
             background-image:
-                radial-gradient(circle 3px at 8% 0%, rgba(202, 240, 248, .55), transparent 65%),
-                radial-gradient(circle 2px at 22% 0%, rgba(202, 240, 248, .4), transparent 65%),
-                radial-gradient(circle 4px at 38% 0%, rgba(202, 240, 248, .35), transparent 65%),
-                radial-gradient(circle 2.5px at 54% 0%, rgba(202, 240, 248, .5), transparent 65%),
-                radial-gradient(circle 3.5px at 68% 0%, rgba(202, 240, 248, .3), transparent 65%),
-                radial-gradient(circle 2px at 82% 0%, rgba(202, 240, 248, .45), transparent 65%),
-                radial-gradient(circle 3px at 94% 0%, rgba(202, 240, 248, .35), transparent 65%);
+                radial-gradient(circle 3px at 12% 0%, rgba(202, 240, 248, .55), transparent 65%),
+                radial-gradient(circle 4px at 38% 0%, rgba(202, 240, 248, .4), transparent 65%),
+                radial-gradient(circle 2.5px at 62% 0%, rgba(202, 240, 248, .5), transparent 65%),
+                radial-gradient(circle 3px at 86% 0%, rgba(202, 240, 248, .4), transparent 65%);
             background-position:
-                8% 108%, 22% 118%, 38% 112%, 54% 122%, 68% 108%, 82% 116%, 94% 110%;
-            animation: oceanBubbles 14s linear infinite;
+                12% 108%, 38% 118%, 62% 110%, 86% 116%;
+            contain: paint;
+            animation: oceanBubbles 16s linear infinite;
             opacity: .8;
         }
         @keyframes oceanBubbles {
-            0%   { background-position: 8% 108%, 22% 118%, 38% 112%, 54% 122%, 68% 108%, 82% 116%, 94% 110%; }
-            100% { background-position: 6% -15%, 26% -20%, 34% -12%, 60% -18%, 64% -10%, 86% -22%, 90% -14%; }
+            0%   { background-position: 12% 108%, 38% 118%, 62% 110%, 86% 116%; }
+            100% { background-position: 10% -15%, 34% -20%, 60% -12%, 84% -18%; }
         }
 
         body.theme-spider {
@@ -222,15 +272,16 @@
         body.theme-cloudy::before {
             content: "";
             position: fixed;
-            top: -15%; left: -25%; right: -25%; bottom: -15%;
+            top: -8%; left: -10%; right: -10%; bottom: -8%;
             background:
                 radial-gradient(ellipse 42% 18% at 20% 20%, rgba(226, 232, 240, 0.16) 0%, transparent 70%),
                 radial-gradient(ellipse 38% 16% at 65% 12%, rgba(203, 213, 225, 0.13) 0%, transparent 70%),
                 radial-gradient(ellipse 50% 20% at 85% 35%, rgba(226, 232, 240, 0.1) 0%, transparent 70%),
                 radial-gradient(ellipse 45% 18% at 30% 62%, rgba(148, 163, 184, 0.1) 0%, transparent 70%);
-            filter: blur(7px);
+            filter: blur(4px);
             pointer-events: none;
             z-index: -1;
+            contain: paint;
             animation: cloudDrift 42s linear infinite alternate;
         }
         @keyframes cloudDrift {
@@ -350,21 +401,29 @@
         body.theme-aurora::before {
             content: "";
             position: fixed;
-            top: -25%; left: -25%; right: -25%; bottom: -25%;
+            /* Inset trimmed — see the oceanic ::before comment above; the
+               drift keyframes below no longer rotate/scale this layer, so it
+               no longer needs a large margin to hide its edges swinging into
+               view, shrinking the blurred area substantially. */
+            top: -8%; left: -8%; right: -8%; bottom: -8%;
             background:
                 radial-gradient(ellipse 65% 22% at 15% 10%, rgba(125, 255, 208, 0.22) 0%, transparent 62%),
                 radial-gradient(ellipse 55% 18% at 55% 22%, rgba(140, 120, 255, 0.18) 0%, transparent 62%),
                 radial-gradient(ellipse 60% 20% at 85% 12%, rgba(80, 200, 255, 0.16) 0%, transparent 62%),
                 radial-gradient(ellipse 70% 26% at 40% 88%, rgba(94, 255, 200, 0.1) 0%, transparent 65%);
-            filter: blur(9px);
+            filter: blur(5px);
             pointer-events: none;
             z-index: -1;
+            contain: paint;
             animation: auroraDrift 18s ease-in-out infinite alternate;
         }
+        /* Trimmed to translate + opacity only — see the oceanCaustics comment
+           above for why dropping rotate/scaleY from a blurred layer's
+           animation is the actual GPU win, not just the blur radius. */
         @keyframes auroraDrift {
-            0%   { transform: translate3d(0, 0, 0) rotate(0deg) scaleY(1); opacity: 0.8; }
-            50%  { transform: translate3d(3%, -4%, 0) rotate(2deg) scaleY(1.12); opacity: 1; }
-            100% { transform: translate3d(-3%, 3%, 0) rotate(-2deg) scaleY(1.05); opacity: 0.88; }
+            0%   { transform: translate3d(0, 0, 0); opacity: 0.82; }
+            50%  { transform: translate3d(2.5%, -3%, 0); opacity: 1; }
+            100% { transform: translate3d(-2.5%, 2.5%, 0); opacity: 0.9; }
         }
         body.theme-aurora::after {
             content: "";
@@ -372,16 +431,17 @@
             inset: 0;
             pointer-events: none;
             z-index: -1;
+            contain: paint;
+            /* Star count trimmed from 8 to 5 — this layer isn't blurred so the
+               stops themselves are cheap, but it still repaints every twinkle
+               tick, so fewer stops is a direct per-frame saving. */
             background-image:
-                radial-gradient(circle 1px at 12% 18%, rgba(255, 255, 255, .8), transparent 100%),
-                radial-gradient(circle 1px at 30% 8%, rgba(255, 255, 255, .6), transparent 100%),
+                radial-gradient(circle 1px at 15% 18%, rgba(255, 255, 255, .8), transparent 100%),
                 radial-gradient(circle 1.5px at 48% 25%, rgba(255, 255, 255, .7), transparent 100%),
-                radial-gradient(circle 1px at 66% 12%, rgba(255, 255, 255, .55), transparent 100%),
                 radial-gradient(circle 1px at 78% 30%, rgba(255, 255, 255, .65), transparent 100%),
                 radial-gradient(circle 1.5px at 90% 15%, rgba(255, 255, 255, .5), transparent 100%),
-                radial-gradient(circle 1px at 20% 45%, rgba(255, 255, 255, .4), transparent 100%),
                 radial-gradient(circle 1px at 58% 50%, rgba(255, 255, 255, .45), transparent 100%);
-            animation: auroraTwinkle 5s ease-in-out infinite alternate;
+            animation: auroraTwinkle 6s ease-in-out infinite alternate;
         }
         @keyframes auroraTwinkle {
             0%   { opacity: .5; }
@@ -402,20 +462,24 @@
         body.theme-phantom::before {
             content: "";
             position: fixed;
-            top: -25%; left: -25%; right: -25%; bottom: -25%;
+            top: -8%; left: -8%; right: -8%; bottom: -8%;
             background:
                 radial-gradient(ellipse 50% 30% at 20% 25%, rgba(168, 85, 247, .16) 0%, transparent 62%),
                 radial-gradient(ellipse 45% 28% at 80% 65%, rgba(59, 130, 246, .12) 0%, transparent 62%),
                 radial-gradient(ellipse 55% 32% at 55% 90%, rgba(139, 92, 246, .1) 0%, transparent 65%);
-            filter: blur(10px);
+            filter: blur(6px);
             pointer-events: none;
             z-index: -1;
+            contain: paint;
             animation: phantomDrift 22s ease-in-out infinite alternate;
         }
+        /* Trimmed to translate + opacity only — see the oceanCaustics comment
+           above; dropping scale from a blurred layer's animation is what
+           avoids re-rasterizing it mid-drift. */
         @keyframes phantomDrift {
-            0%   { transform: translate3d(0, 0, 0) scale(1); opacity: .75; }
-            50%  { transform: translate3d(-3%, -2%, 0) scale(1.08); opacity: 1; }
-            100% { transform: translate3d(3%, 2%, 0) scale(1.03); opacity: .85; }
+            0%   { transform: translate3d(0, 0, 0); opacity: .78; }
+            50%  { transform: translate3d(-2.5%, -2%, 0); opacity: 1; }
+            100% { transform: translate3d(2.5%, 2%, 0); opacity: .88; }
         }
         body.theme-phantom::after {
             content: "";
@@ -423,12 +487,64 @@
             inset: 0;
             pointer-events: none;
             z-index: -1;
+            contain: paint;
             background: radial-gradient(circle 220px at 50% 35%, rgba(216, 180, 254, .18), transparent 70%);
-            animation: phantomPulse 6s ease-in-out infinite;
+            animation: phantomPulse 7s ease-in-out infinite;
         }
         @keyframes phantomPulse {
             0%, 100% { opacity: .35; transform: scale(1); }
             50%      { opacity: .75; transform: scale(1.15); }
+        }
+
+        /* Aurora Phantom — a hybrid of the two: a violet "watching" glow (from
+           Phantom) sitting over a deep aurora night sky, with drifting mist
+           ribbons that blend both themes' color palettes and a faint twinkle
+           of stars (from Aurora). Kept to the same two animated layers as
+           every other theme above — the extra "watching eye" glow is folded
+           into the static --bg-gradient instead of its own animated layer, so
+           this doesn't cost any more GPU than either theme did alone. */
+        body.theme-aurora-phantom {
+            --bg-gradient: radial-gradient(circle at 50% 8%, rgba(123, 74, 226, 0.55) 0%, transparent 32%),
+                           radial-gradient(circle at 50% 10%, #24123f 0%, #0d1f2e 40%, #030c14 72%, #000 100%) !important;
+            --panel-bg: rgba(131, 170, 223, 0.045) !important;
+            --panel-border: rgba(156, 193, 233, 0.24) !important;
+            --card-bg: rgba(8, 12, 23, 0.88) !important;
+            --text-color: #bad2ef !important;
+            text-shadow: 0 1px 4px rgba(10, 5, 20, 0.6) !important;
+        }
+        body.theme-aurora-phantom::before {
+            content: "";
+            position: fixed;
+            top: -8%; left: -8%; right: -8%; bottom: -8%;
+            background:
+                radial-gradient(ellipse 55% 20% at 20% 15%, rgba(125, 255, 208, 0.16) 0%, transparent 62%),
+                radial-gradient(ellipse 50% 26% at 78% 60%, rgba(168, 85, 247, 0.14) 0%, transparent 62%),
+                radial-gradient(ellipse 55% 22% at 50% 90%, rgba(80, 200, 255, 0.1) 0%, transparent 65%);
+            filter: blur(5px);
+            pointer-events: none;
+            z-index: -1;
+            contain: paint;
+            animation: auroraPhantomDrift 20s ease-in-out infinite alternate;
+        }
+        @keyframes auroraPhantomDrift {
+            0%   { transform: translate3d(0, 0, 0); opacity: .8; }
+            50%  { transform: translate3d(-2.5%, -2.5%, 0); opacity: 1; }
+            100% { transform: translate3d(2.5%, 2%, 0); opacity: .88; }
+        }
+        body.theme-aurora-phantom::after {
+            content: "";
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: -1;
+            contain: paint;
+            background-image:
+                radial-gradient(circle 1px at 18% 20%, rgba(255, 255, 255, .75), transparent 100%),
+                radial-gradient(circle 1.5px at 50% 15%, rgba(216, 180, 254, .7), transparent 100%),
+                radial-gradient(circle 1px at 80% 28%, rgba(255, 255, 255, .6), transparent 100%),
+                radial-gradient(circle 1.5px at 88% 55%, rgba(141, 255, 216, .55), transparent 100%),
+                radial-gradient(circle 1px at 58% 48%, rgba(255, 255, 255, .45), transparent 100%);
+            animation: auroraTwinkle 6s ease-in-out infinite alternate;
         }
 
         /* Static dark fallback so the very first paint (before any JS runs)
@@ -441,6 +557,17 @@
         }
 
         html, body {
+            /* Scroll-anchoring off: this page's DOM changes constantly (notes/
+               folders re-rendered, tool rows inserted, feature panels added a
+               tick after open) while the person may already be scrolled deep
+               into the page. The browser's scroll-anchoring heuristic reacts to
+               those changes by picking an element to "anchor" the viewport to
+               and silently adjusting scrollTop to keep it in place — but with
+               this much going on, it regularly guesses wrong, which shows up as
+               the page visibly jumping right after a scroll settles. Turning
+               it off makes scroll position purely a function of what the user
+               did, never something the browser corrects on our behalf. */
+            overflow-anchor: none;
             /* Without this, a mobile rubber-band overscroll bounce at the
                top/bottom of the page reveals whatever is behind the
                document — here, <html>'s background — for the duration of
@@ -513,8 +640,8 @@
             background: var(--panel-bg);
             border-radius: var(--border-radius-main);
             border: 1px solid var(--panel-border);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
+            backdrop-filter: blur(7px);
+            -webkit-backdrop-filter: blur(7px);
             box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
         }
 
@@ -600,7 +727,7 @@
             align-items: center;
             gap: 5px;
             transition: var(--transition-smooth);
-            backdrop-filter: blur(4px);
+            backdrop-filter: blur(3px);
         }
 
         .arcade-trigger-btn:hover {
@@ -627,8 +754,8 @@
             border: 1px solid var(--panel-border);
             border-radius: 11px;
             background: rgba(0, 0, 0, 0.28);
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
+            backdrop-filter: blur(6px);
+            -webkit-backdrop-filter: blur(6px);
             box-shadow: 0 5px 18px rgba(0,0,0,.18);
         }
 
@@ -640,7 +767,7 @@
             cursor: pointer;
             font-size: 11px;
             font-weight: bold;
-            backdrop-filter: blur(4px);
+            backdrop-filter: blur(3px);
             transition: var(--transition-smooth);
             display: flex;
             align-items: center;
@@ -669,8 +796,8 @@
 
         .control-panel {
             background: var(--panel-bg);
-            backdrop-filter: blur(14px);
-            -webkit-backdrop-filter: blur(14px);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
             padding: var(--spacing-md);
             border-radius: var(--border-radius-main);
             box-shadow: 0 8px 30px rgba(0, 0, 0, 0.18);
@@ -817,7 +944,7 @@
             box-sizing: border-box;
             word-break: break-word;
             animation: slideDown 0.28s ease-out;
-            backdrop-filter: blur(5px);
+            backdrop-filter: blur(3px);
         }
         
         @keyframes slideDown { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
@@ -1182,7 +1309,7 @@
                for most of the time someone actually has a note open (not just a
                brief modal), so its cost was a constant, not occasional, drag on
                scroll smoothness. 10px keeps the same frosted-glass look. */
-            backdrop-filter: blur(10px);
+            backdrop-filter: blur(6px);
             position: relative;
             z-index: 1;
             box-sizing: border-box;
@@ -1259,7 +1386,7 @@
             background: rgba(0,0,0,0.55);
             padding: 5px;
             border-radius: var(--border-radius-sm);
-            backdrop-filter: blur(6px);
+            backdrop-filter: blur(4px);
         }
 
         .img-toolbar.show-toolbar { display: flex !important; animation: slideDown 0.2s ease-out; }
@@ -1326,7 +1453,7 @@
             font-family: inherit;
             background: rgba(0, 0, 0, 0.28);
             transition: var(--transition-smooth);
-            backdrop-filter: blur(5px);
+            backdrop-filter: blur(3px);
         }
 
         .action-bar button:hover { 
@@ -1471,7 +1598,7 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            backdrop-filter: blur(12px);
+            backdrop-filter: blur(7px);
             /* Telegram's in-app WebView otherwise shows a text-selection/
                "save image" callout on long-press over the canvas, and lets a
                stray drag bleed through as a rubber-band scroll of the page
@@ -1574,7 +1701,7 @@
             align-items: center;
             justify-content: center;
             background: rgba(0,0,0,0.6);
-            backdrop-filter: blur(4px);
+            backdrop-filter: blur(3px);
             z-index: 2;
         }
         .game-overlay-panel.show { display: flex; }
@@ -1613,7 +1740,7 @@
         body.glitching::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:9998;background:repeating-linear-gradient(0deg,transparent 0 3px,rgba(255,255,255,.035) 4px 5px);animation:glitchScan .38s linear}
         @keyframes glitchFlash{0%{filter:none;transform:none}15%{filter:hue-rotate(65deg) contrast(1.15);transform:translateX(2px)}30%{filter:none;transform:translateX(-2px)}45%{filter:hue-rotate(-55deg);transform:none}70%{filter:none;transform:translateX(1px)}100%{filter:none;transform:none}}
         @keyframes glitchScan{from{opacity:.1;transform:translateY(-10%)}to{opacity:.5;transform:translateY(10%)}}
-        .advanced-modal{display:none;position:fixed;inset:0;z-index:10050;background:rgba(0,0,0,.82);backdrop-filter:blur(12px);align-items:center;justify-content:center;padding:16px;box-sizing:border-box}
+        .advanced-modal{display:none;position:fixed;inset:0;z-index:10050;background:rgba(0,0,0,.82);backdrop-filter:blur(7px);align-items:center;justify-content:center;padding:16px;box-sizing:border-box}
         
         .image-export-picker-head{margin-bottom:14px}
         .image-export-picker-actions{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px;flex-wrap:wrap}
@@ -1711,7 +1838,7 @@
             z-index: 10001; opacity: 0; pointer-events: none;
             padding: 10px 16px; border-radius: 999px;
             background: rgba(8,8,8,.9); border: 1px solid var(--panel-border);
-            color: var(--text-color); backdrop-filter: blur(12px);
+            color: var(--text-color); backdrop-filter: blur(7px);
             box-shadow: 0 10px 30px rgba(0,0,0,.35);
             transition: opacity .22s ease, transform .22s ease; font-size: 12px;
         }
@@ -1726,18 +1853,26 @@
 #btnSmartSearch{position:relative !important;top:-10px !important;z-index:5 !important;margin-bottom:-10px !important;}
 
 /* Smoothness pass: reduce layout thrashing while keeping the existing visual design. */
-.note-card,.category-card,.btn-main,.custom-btn,.image-export-choice,.advanced-modal,.modal-content{transform:translateZ(0);backface-visibility:hidden;}
-/* contain:layout paint is cheap (no extra GPU layer) and stays on always — it
-   stops each card's internal layout/paint from spilling into its neighbors.
-   will-change:transform,opacity used to sit here permanently too, but that
-   promotes EVERY note/category button into its own composited GPU layer for
-   as long as it exists — with dozens of notes that's dozens of always-on
-   layers, which is exactly the kind of GPU memory pressure that makes mobile
-   WebViews (Telegram's in-app browser especially) drop a frame and show a
-   flash of unpainted black during a scroll. The hover/press transitions on
-   these are short (0.15–0.35s) and don't need a pre-promoted layer, so
-   will-change is dropped entirely rather than left on permanently. */
-.note-card,.category-card,.custom-btn,.image-export-choice{contain:layout paint;}
+/* NOTE: this rule used to also force transform:translateZ(0);backface-visibility:hidden
+   on every one of these selectors, to pre-promote them to their own GPU
+   compositing layer. On Telegram's in-app Android WebView that backfired badly:
+   promoting a text-containing element to its own layer can leave that layer's
+   text unrasterized on first paint, so the button/card shows as an empty box
+   with no label — the "options render blank, then appear once I tap/scroll"
+   bug, because tapping/scrolling triggers a state change that forces the
+   layer to repaint and only then draws the text. Dropping the forced layer
+   promotion helped but didn't fully fix it: contain:layout paint below has
+   the same failure mode on the same WebView builds — the "paint" part of
+   that containment also isolates the element into its own paint-invalidation
+   boundary, and on the affected builds that boundary can be left unpainted
+   (buttons rendering blank/missing) until something else forces a repaint —
+   which is exactly the still-reported bug, now on the export buttons
+   specifically (they're the ones furthest down the paint order, so most
+   likely to be mid-render when this happens). contain:layout alone still
+   gets the "don't let this element's layout affect its siblings" win (the
+   actual goal of this smoothness pass) without the paint-containment
+   boundary that's causing the blank/missing-until-interaction bug. */
+.note-card,.category-card,.btn-main,.custom-btn,.image-export-choice,.advanced-modal,.modal-content{contain:layout;}
 .note-card:active,.category-card:active,.image-export-choice:active{transform:translate3d(0,1px,0) scale(.992);}
 @media (prefers-reduced-motion:no-preference){
   .note-card,.category-card,.image-export-choice,.btn-main{transition:transform .18s cubic-bezier(.2,.8,.2,1),opacity .18s ease,box-shadow .18s ease,background-color .18s ease,border-color .18s ease,color .18s ease;}
@@ -1958,8 +2093,8 @@ html, body, button, input, textarea, select, [contenteditable="true"] {
   padding: calc(env(safe-area-inset-top, 0px) + 12px) 14px 12px 14px;
   background: color-mix(in srgb, var(--card-bg) 88%, transparent);
   border-bottom: 1px solid var(--panel-border);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   box-shadow: 0 4px 20px rgba(0,0,0,.2);
 }
 .mAi-header-title { display: flex; align-items: center; gap: 10px; min-width: 0; }
@@ -2091,8 +2226,8 @@ html, body, button, input, textarea, select, [contenteditable="true"] {
   padding: 10px 12px calc(env(safe-area-inset-bottom, 0px) + 10px) 12px;
   background: color-mix(in srgb, var(--card-bg) 88%, transparent);
   border-top: 1px solid var(--panel-border);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 .mAi-input {
   flex: 1 1 auto;
@@ -2179,7 +2314,7 @@ window.mu_syncHtmlBg = function(){
         if (saved === null) return;
         var idx = parseInt(saved, 10);
         if (!Number.isFinite(idx) || idx < 0) return;
-        var classes = ['theme-oceanic','theme-phantom','theme-aurora','theme-spider','theme-galaxy','theme-cloudy','theme-dreamy','theme-cyberpunk','theme-love','theme-snowy','theme-rainy','theme-autumn','theme-anonymous','theme-terminal','theme-darkweb','theme-acid'];
+        var classes = ['theme-oceanic','theme-phantom','theme-aurora','theme-aurora-phantom','theme-spider','theme-galaxy','theme-cloudy','theme-dreamy','theme-cyberpunk','theme-love','theme-snowy','theme-rainy','theme-autumn','theme-anonymous','theme-terminal','theme-darkweb','theme-acid'];
         var cls = classes[idx];
         if (cls && cls !== 'theme-oceanic') {
             document.body.classList.remove('theme-oceanic');
@@ -2244,11 +2379,21 @@ window.mu_syncHtmlBg = function(){
         </div>
 
         <div class="toolbar-section-box">
-            <span class="toolbar-section-title" id="secTitleAi">هوش مصنوعی / پرسش</span>
+            <span class="toolbar-section-title" id="secTitleAi">جستجو با هوش مصنوعی در یادداشت‌ها</span>
             <div class="qa-box">
                 <input type="text" id="qaInput" class="qa-input" placeholder="سوال خود را بپرسید" onkeydown="if(event.key === 'Enter') askQuestion()">
                 <button class="qa-lock-btn" id="qaLockBtn" title="مدیریت قفل یادداشت‌ها برای پرسش" onclick="promptUnlockQa()">🔒</button>
                 <button class="btn-main" id="btnAskQA" onclick="askQuestion()">پرسش</button>
+                <!-- Bug fix ("options jump"): this button used to only be created and
+                     appended by mu_injectUiControls() in JS, after first paint — which
+                     meant the qa-box row resized a moment after the page had already
+                     rendered, nudging everything below it down. Same button, same id,
+                     same click handler, but now static from the very first paint like
+                     its siblings above, so there is nothing left for JS to insert here
+                     later. mu_injectUiControls() still runs (see startup handler and
+                     the fallback DOMContentLoaded listener further down) but is a
+                     no-op now that #muAiSettingsBtn already exists. -->
+                <button type="button" class="qa-lock-btn" id="muAiSettingsBtn" title="تنظیمات هوش مصنوعی" onclick="mu_openAiSettingsModal()">⚙️</button>
             </div>
             <div id="qaResponse" class="qa-response-box"></div>
         </div>
@@ -2622,7 +2767,7 @@ window.mu_syncHtmlBg = function(){
                 btnAsk: "پرسش",
                 secStructure: "مدیریت ساختار",
                 secAdvancedTools: "ابزارهای ویژه",
-                secAi: "هوش مصنوعی / پرسش",
+                secAi: "جستجو با هوش مصنوعی در یادداشت‌ها",
                 secInput: "ورودی‌ها",
                 secGeneralExport: "خروجی‌های کلی",
                 gameMenuH: "منطقه بازی (Game Zone)",
@@ -2810,6 +2955,7 @@ window.mu_syncHtmlBg = function(){
             { id: 'oceanic', emoji: '🌊', nameFa: 'تم اقیانوسی', nameEn: 'Oceanic', class: 'theme-oceanic' },
             { id: 'phantom', emoji: '👁️', nameFa: 'تم فانتوم', nameEn: 'Phantom', class: 'theme-phantom' },
             { id: 'aurora', emoji: '🌈', nameFa: 'تم شفق قطبی', nameEn: 'Aurora', class: 'theme-aurora' },
+            { id: 'aurora-phantom', emoji: '🔮', nameFa: 'تم شفق فانتومی', nameEn: 'Aurora Phantom', class: 'theme-aurora-phantom' },
             { id: 'spider', emoji: '🕷️', nameFa: 'تم عنکبوتی', nameEn: 'Spider', class: 'theme-spider' },
             { id: 'galaxy', emoji: '🌌', nameFa: 'تم کهکشانی', nameEn: 'Galaxy', class: 'theme-galaxy' },
             { id: 'cloudy', emoji: '☁️', nameFa: 'تم ابری', nameEn: 'Cloudy', class: 'theme-cloudy' },
@@ -3074,6 +3220,26 @@ window.mu_syncHtmlBg = function(){
         // touches (localStorage, page elements) is ready by then — so the app
         // starts noticeably faster, especially on a slow connection.
         document.addEventListener('DOMContentLoaded', async function() {
+            /* Bug fix ("options jump" / "page jump" while the app is still
+               starting up): this handler is async and yields at the
+               "await migrateLegacyPasswordNotes()" below. A person can
+               already be scrolling during that gap (they just opened the
+               app — scrolling immediately is normal), and everything this
+               handler renders afterwards (folders, notes, the AI-settings
+               gear button — see mu_injectUiControls() near the bottom of
+               this function) used to land on the page piecemeal, at
+               whatever scroll position the person had reached by then.
+               Capturing scrollY here, before any of that runs, and
+               restoring it once everything has been rendered (see
+               restoreStartupScroll() below) keeps the person's scroll
+               position stable through the whole startup sequence instead
+               of letting it drift as content is added. */
+            const startupScrollY = window.scrollY || window.pageYOffset || 0;
+            const restoreStartupScroll = () => {
+                window.scrollTo(0, startupScrollY);
+                requestAnimationFrame(() => window.scrollTo(0, startupScrollY));
+            };
+
             const savedLang = localStorage.getItem('app_lang_v15');
             if (savedLang === 'fa' || savedLang === 'en') currentLang = savedLang;
 
@@ -3137,7 +3303,22 @@ window.mu_syncHtmlBg = function(){
                everything else; the later 'load' call becomes a harmless
                no-op. */
             addTopControls();
+            /* AI-settings gear button: this used to only be added by a
+               separate, independently-timed DOMContentLoaded listener
+               (mu_injectUiControls, defined further down). Because that was
+               a second, unrelated listener rather than part of this
+               function's single render pass, its gear button could pop into
+               the "هوش مصنوعی / پرسش" row a moment after this handler had
+               already rendered everything else — nudging that row and the
+               "ورودی‌ها"/"خروجی‌ها" boxes below it down by its width right
+               after the person had already started scrolling. That
+               separate listener is still registered (harmless no-op, same
+               idempotent guard) as a fallback, but calling it here means it
+               normally runs as part of this one startup render instead of
+               as a visible extra step afterwards. */
+            if (typeof mu_injectUiControls === 'function') mu_injectUiControls();
             updateLockBtnState();
+            restoreStartupScroll();
         });
 
         function debounceSearch() {
@@ -3160,8 +3341,25 @@ window.mu_syncHtmlBg = function(){
 
         async function promptUnlockQa() {
             const lockedItems = categories.filter(isNoteLocked);
+            const fa = currentLang === 'fa';
             if (lockedItems.length === 0) {
-                alert("هیچ یادداشت رمزگذاری‌شده‌ای وجود ندارد.");
+                /* Bug fix: this used to be alert('هیچ یادداشت رمزگذاری‌شده‌ای
+                   وجود ندارد.') — just saying "no locked notes exist" without
+                   explaining what the button is even for, and plain alert()
+                   can be unreliable/silent inside some in-app WebViews (this
+                   app already avoids native prompt() for the same reason —
+                   see promptStyledText). Using the app's own themed modal
+                   here both fixes the "nothing happens" symptom and actually
+                   explains the button's purpose. */
+                showAdvanced(`
+                    <div class="advanced-head">
+                        <h3>🔒 ${fa ? 'قفل یادداشت‌ها برای پرسش' : 'Note lock for Ask'}</h3>
+                        <button class="btn-main" type="button" onclick="closeAdvancedModal()">✕</button>
+                    </div>
+                    <p style="line-height:2">${fa
+                        ? 'این دکمه برای مدیریت دسترسی هوش مصنوعی به یادداشت‌های قفل‌شده هنگام «پرسش» است. یادداشت‌هایی که با رمز محافظت شده‌اند، به‌طور پیش‌فرض در پاسخ AI به سوالاتت لحاظ نمی‌شوند تا محتوایشان بدون اجازه دیده نشود. وقتی یادداشتی را قفل کنی، از همین‌جا می‌توانی با وارد کردن رمزش، اجازه‌ی موقت بدهی تا در جستجوی پرسش هم لحاظ شود.<br><br>در حال حاضر هیچ یادداشت قفلی نداری، برای همین چیزی برای مدیریت وجود ندارد.'
+                        : 'This button manages which locked notes the AI is allowed to use when you use "Ask". Password-protected notes are excluded from AI answers by default, so their content isn\'t read without permission. Once you lock a note, you can come back here, enter its password, and temporarily allow it to be included in Ask searches too.<br><br>There are currently no locked notes, so there is nothing to manage yet.'}</p>
+                `);
                 return;
             }
 
@@ -3210,82 +3408,21 @@ window.mu_syncHtmlBg = function(){
             updateLockBtnState();
         }
 
+        /* Bug fix / feature change (removed per request): this function used to
+           run an entirely local, non-AI keyword/synonym search over the notes
+           (stopword filtering, synonym expansion, sentence scoring) and would
+           answer with that even when no AI was connected. That whole local
+           "smart search" answer path has been removed — Ask now only ever
+           answers through the AI (see mu_askAI() / window.askQuestion further
+           down this file, which fully replaces this function once that script
+           block runs). This early definition is kept only as a safe no-op
+           placeholder in case anything calls askQuestion() before that point;
+           it just clears the response box for an empty query. */
         function askQuestion() {
-            const query = normalizeText(document.getElementById('qaInput').value);
             const resBox = document.getElementById('qaResponse');
-            const t = i18n[currentLang];
-
-            if (!query) {
+            const query = normalizeText(document.getElementById('qaInput').value);
+            if (!query && resBox) {
                 resBox.style.display = 'none';
-                return;
-            }
-
-            const stopWords = ["من", "چند", "سالمه", "چیست", "کجا", "کی", "است", "چه", "را", "در", "و", "از", "با", "آن", "این", "how", "what", "where", "who", "is", "am", "are", "my", "old", "the", "a", "an", "in", "on", "at", "to", "for"];
-            const rawKeywords = query.split(/\s+/).filter(w => w.length > 1 && !stopWords.includes(w));
-
-            const synonymMap = {
-                "password": ["رمز", "پسورد", "کلمه عبور", "pass"],
-                "رمز": ["password", "pass", "code"],
-                "email": ["ایمیل", "پست الکترونیکی", "mail"],
-                "ایمیل": ["email", "mail"],
-                "phone": ["تلفن", "شماره", "موبایل", "call"],
-                "تلفن": ["phone", "mobile", "number"],
-                "name": ["نام", "اسم"],
-                "نام": ["name"],
-                "address": ["آدرس", "نشانی"],
-                "آدرس": ["address"]
-            };
-
-            let expandedKeywords = [...rawKeywords];
-            rawKeywords.forEach(kw => {
-                if (synonymMap[kw]) {
-                    expandedKeywords.push(...synonymMap[kw]);
-                }
-            });
-
-            let bestMatch = null;
-            let highestScore = 0;
-            let matchingSentence = "";
-
-            categories.forEach(item => {
-                if (isNoteLocked(item) && !unlockedQaIds.includes(item.id)) return;
-                if (item.isDecoy) return;
-
-                const textContent = normalizeText(item.text || '');
-                const nameContent = normalizeText(item.name);
-                const sentences = textContent.split(/[.\n!؟?]+/);
-
-                sentences.forEach(sentence => {
-                    let score = 0;
-                    expandedKeywords.forEach(kw => {
-                        const normalizedKw = normalizeText(kw);
-                        if (normalizedKw && sentence.includes(normalizedKw)) {
-                            score += normalizedKw === query ? 3 : 1;
-                        }
-                    });
-
-                    if (nameContent.includes(query)) score += 3;
-
-                    if (score > highestScore) {
-                        highestScore = score;
-                        bestMatch = item;
-                        matchingSentence = sentence.trim();
-                    }
-                });
-            });
-
-            if (bestMatch && highestScore > 0 && matchingSentence) {
-                resBox.innerHTML = `💡 <b>پاسخ:</b> با توجه به یادداشت «<b>${escapeHtml(bestMatch.name)}</b>»:\n"${escapeHtml(matchingSentence)}"`;
-                resBox.style.display = 'block';
-            } else {
-                let foundItem = categories.find(c => (!isNoteLocked(c) || unlockedQaIds.includes(c.id)) && !c.isDecoy && (c.text || "").toLowerCase().includes(query));
-                if (foundItem) {
-                    resBox.innerHTML = `💡 <b>پاسخ:</b> با توجه به یادداشت «<b>${escapeHtml(foundItem.name)}</b>»:\n"${escapeHtml(foundItem.text)}"`;
-                    resBox.style.display = 'block';
-                } else {
-                    resBox.innerHTML = `❓ ${t.noQaAnswer}`;
-                    resBox.style.display = 'block';
-                }
             }
         }
 
@@ -7830,7 +7967,7 @@ window.mu_syncHtmlBg = function(){
 .markhin-tag-field{display:flex;align-items:stretch;gap:6px}.markhin-tag-field .markhin-tag-input{flex:1;min-width:0}
 .markhin-tag-help{position:relative;flex:0 0 auto;width:28px;height:28px;border-radius:50%;border:1px solid var(--panel-border);background:rgba(0,0,0,.25);color:var(--text-color);cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;line-height:1;transition:var(--transition-smooth)}
 .markhin-tag-help:hover,.markhin-tag-help.show{background:rgba(72,202,228,.18);border-color:#48cae4}
-.markhin-tag-tooltip{position:absolute;bottom:calc(100% + 8px);inset-inline-end:0;width:230px;max-width:70vw;padding:9px 11px;border-radius:10px;border:1px solid var(--panel-border);background:var(--card-bg);backdrop-filter:blur(10px);color:var(--text-color);font-size:11px;line-height:1.9;text-align:start;white-space:normal;box-shadow:0 6px 20px rgba(0,0,0,.35);opacity:0;visibility:hidden;transform:translateY(4px);transition:opacity .16s ease,transform .16s ease;z-index:30;pointer-events:none}
+.markhin-tag-tooltip{position:absolute;bottom:calc(100% + 8px);inset-inline-end:0;width:230px;max-width:70vw;padding:9px 11px;border-radius:10px;border:1px solid var(--panel-border);background:var(--card-bg);backdrop-filter:blur(6px);color:var(--text-color);font-size:11px;line-height:1.9;text-align:start;white-space:normal;box-shadow:0 6px 20px rgba(0,0,0,.35);opacity:0;visibility:hidden;transform:translateY(4px);transition:opacity .16s ease,transform .16s ease;z-index:30;pointer-events:none}
 .markhin-tag-help.show .markhin-tag-tooltip{opacity:1;visibility:visible;transform:translateY(0)}
 @media(max-width:600px){.markhin-tag-tooltip{width:200px}}
 .markhin-editor-tools{display:flex;flex-wrap:wrap;gap:5px;align-items:center;margin-bottom:7px}
@@ -7843,7 +7980,7 @@ window.mu_syncHtmlBg = function(){
 .mu-undo-redo-btn{font-weight:700}
 .mu-undo-redo-btn:disabled{opacity:.35;cursor:not-allowed;transform:none!important;background:rgba(0,0,0,.28)!important}
 .markhin-md-source{width:100%;min-height:260px;box-sizing:border-box;resize:vertical;padding:14px;border-radius:9px;border:1px solid var(--panel-border);background:rgba(0,0,0,.3);color:var(--text-color);font-family:'Share Tech Mono',monospace;line-height:1.8;direction:auto;outline:none}
-.markhin-drop-zone{position:fixed;inset:12px;z-index:10050;display:none;place-items:center;border:2px dashed var(--text-color);border-radius:18px;background:rgba(0,0,0,.72);backdrop-filter:blur(10px);font-size:18px;font-weight:800;pointer-events:none}
+.markhin-drop-zone{position:fixed;inset:12px;z-index:10050;display:none;place-items:center;border:2px dashed var(--text-color);border-radius:18px;background:rgba(0,0,0,.72);backdrop-filter:blur(6px);font-size:18px;font-weight:800;pointer-events:none}
 .markhin-drop-zone.show{display:grid}
 
 .markhin-dashboard-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:9px;margin-top:10px}
@@ -8579,7 +8716,7 @@ body.markhin-dragging-active{-webkit-user-select:none;user-select:none}
 .note-del-x:hover{transform:scale(1.18)}
 /* Long-press move menu: the small floating popup with the ◀ ▶ buttons that
    appears next to a note or folder after holding a finger on it. */
-.markhin-move-menu{position:fixed;z-index:10060;display:flex;gap:6px;padding:6px;border-radius:14px;background:var(--card-bg);border:1px solid var(--panel-border);box-shadow:0 10px 26px rgba(0,0,0,.5);backdrop-filter:blur(8px);animation:markhinMoveMenuIn .12s ease}
+.markhin-move-menu{position:fixed;z-index:10060;display:flex;gap:6px;padding:6px;border-radius:14px;background:var(--card-bg);border:1px solid var(--panel-border);box-shadow:0 10px 26px rgba(0,0,0,.5);backdrop-filter:blur(5px);animation:markhinMoveMenuIn .12s ease}
 @keyframes markhinMoveMenuIn{from{opacity:0;transform:translateY(4px) scale(.92)}to{opacity:1;transform:translateY(0) scale(1)}}
 .markhin-move-menu-btn{background:rgba(255,255,255,.08);color:var(--text-color)!important;border:1px solid var(--panel-border);border-radius:50%;width:38px;height:38px;min-width:38px;min-height:38px;padding:0!important;font-size:15px;display:flex;align-items:center;justify-content:center;flex:none;line-height:1;cursor:pointer;transition:var(--transition-smooth)}
 .markhin-move-menu-btn:hover{background:rgba(255,255,255,.18);transform:scale(1.08)}
@@ -8601,9 +8738,10 @@ mark.markhin-hit{background:rgba(255,209,102,.6);color:#111;padding:0 2px;border
 .markhin-ai-settings-row input:focus,.markhin-ai-settings-row select:focus{border-color:var(--text-color);background:rgba(0,0,0,.45)}
 .markhin-ai-loading{opacity:.75;font-size:11.5px;padding:8px 2px;display:flex;align-items:center;gap:7px}
 .markhin-ai-loading::after{content:'';width:12px;height:12px;border-radius:50%;border:2px solid currentColor;border-top-color:transparent;flex:0 0 auto;animation:markhinSpin .8s linear infinite}
+.markhin-ai-lock-notice{opacity:.65;font-size:10.5px;line-height:1.7;padding:0 2px 8px;border-bottom:1px solid var(--panel-border);margin-bottom:8px}
 @keyframes markhinSpin{to{transform:rotate(360deg)}}
 .markhin-ai-tools-row{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 10px}
-#muAiAnswerBox{background:rgba(0,0,0,.35);border:1px solid var(--panel-border);border-radius:var(--border-radius-sm);padding:12px 14px;font-size:12px;line-height:1.8;box-sizing:border-box;word-break:break-word;animation:slideDown .28s ease-out;backdrop-filter:blur(5px)}
+#muAiAnswerBox{background:rgba(0,0,0,.35);border:1px solid var(--panel-border);border-radius:var(--border-radius-sm);padding:12px 14px;font-size:12px;line-height:1.8;box-sizing:border-box;word-break:break-word;animation:slideDown .28s ease-out;backdrop-filter:blur(3px)}
 #muAiSettingsBtn{font-size:15px}
 @media(max-width:600px){.markhin-smart-item .snippet{font-size:10.5px}}
 </style>
@@ -9543,33 +9681,52 @@ window.mu_testAiSettings = async function(){
     }
 };
 
-/* ---------- Ask (Q&A) section: augment with a real AI answer ---------- */
-const mu_baseAskQuestion = window.askQuestion;
+/* ---------- Ask (Q&A) section: AI-only ----------
+   Pressing "پرسش" now always asks the AI directly — the local, non-AI
+   keyword/synonym matching that used to answer here (with or without an
+   AI connected) has been removed completely per request. If no AI
+   provider is configured yet, this opens AI settings instead of silently
+   doing nothing or falling back to keyword matching. */
 window.askQuestion = function(){
-    mu_baseAskQuestion();
     mu_askAI();
 };
 async function mu_askAI(){
     const qEl = document.getElementById('qaInput');
     const query = qEl ? qEl.value.trim() : '';
-    if(!query || !MarkhinAI.isConfigured()) return;
     const resBox = document.getElementById('qaResponse');
     if(!resBox) return;
-    let aiBox = document.getElementById('muAiAnswerBox');
-    if(!aiBox){ aiBox = document.createElement('div'); aiBox.id='muAiAnswerBox'; aiBox.style.marginBottom='10px'; resBox.parentNode.insertBefore(aiBox, resBox); }
-    aiBox.style.display='block';
+    if(!query){
+        resBox.style.display = 'none';
+        return;
+    }
+    if(!MarkhinAI.isConfigured()){
+        mu_openAiSettingsModal();
+        return;
+    }
     const fa = currentLang==='fa';
-    aiBox.innerHTML = `<div class="markhin-ai-loading">🤖 ${fa?'در حال پرسیدن از AI...':'Asking AI...'}</div>`;
     const notes = categories.filter(c=>!c.isDecoy && (!isNoteLocked(c) || unlockedQaIds.includes(c.id)));
+    /* Locked notes are excluded from the AI's context unless unlocked via the
+       🔒 button next to Ask. That used to happen silently — the person had no
+       way to tell a locked note was left out of the answer. Now, whenever at
+       least one locked note is being skipped, a small notice is shown above
+       the answer saying so and pointing at the 🔒 button. */
+    const excludedLockedCount = categories.filter(c=>!c.isDecoy && isNoteLocked(c) && !unlockedQaIds.includes(c.id)).length;
+    const lockNotice = excludedLockedCount > 0
+        ? `<div class="markhin-ai-lock-notice">🔒 ${fa
+            ? `${excludedLockedCount} یادداشت قفل در این جستجو لحاظ نشد — فقط بین یادداشت‌های بدون رمز جستجو شد. برای اینکه یک یادداشت قفل هم در پاسخ AI لحاظ بشه، از دکمه 🔒 کنار «پرسش» بازش کن.`
+            : `${excludedLockedCount} locked note(s) were skipped — only unlocked notes were searched. To include a locked note in AI answers, unlock it with the 🔒 button next to Ask.`}</div>`
+        : '';
+    resBox.style.display = 'block';
+    resBox.innerHTML = lockNotice + `<div class="markhin-ai-loading">🤖 ${fa?'در حال پرسیدن از AI...':'Asking AI...'}</div>`;
     const context = notes.map(n=>'### '+n.name+'\n'+(n.text||'').slice(0,800)).join('\n\n').slice(0,9000);
     const sys = fa
         ? 'فقط بر اساس یادداشت‌های زیر به سوال کاربر پاسخ بده. اگر پاسخ در یادداشت‌ها نبود، بگو اطلاعات کافی در یادداشت‌ها پیدا نشد. از دانش عمومی خودت استفاده نکن و مختصر پاسخ بده.'
         : 'Answer the user only using the notes below. If the answer is not present, say the notes do not contain enough information. Do not use outside knowledge; answer concisely.';
     try{
         const reply = await MarkhinAI.chat([{role:'system',content:sys},{role:'user',content:'Notes:\n'+context+'\n\nQuestion: '+query}], {maxTokens:400});
-        aiBox.innerHTML = `🤖 <b>${fa?'پاسخ AI':'AI answer'}:</b> ${escapeHtml(reply)}`;
+        resBox.innerHTML = lockNotice + `🤖 <b>${fa?'پاسخ AI':'AI answer'}:</b> ${escapeHtml(reply)}`;
     }catch(err){
-        aiBox.innerHTML = `⚠️ ${fa?'خطا در دریافت پاسخ AI: ':'AI error: '}${escapeHtml(err.message||String(err))}`;
+        resBox.innerHTML = lockNotice + `⚠️ ${fa?'خطا در دریافت پاسخ AI: ':'AI error: '}${escapeHtml(err.message||String(err))}`;
     }
 }
 
@@ -9759,6 +9916,13 @@ window.applyLanguageUI = function(){
     if(gear) gear.title = fa ? 'تنظیمات هوش مصنوعی' : 'AI settings';
 };
 
+/* Fallback only: the main startup handler (earlier in the file) now calls
+   mu_injectUiControls() itself as part of its single consolidated render,
+   right after addTopControls(). This listener stays registered purely as
+   a safety net for the (normally impossible) case where DOMContentLoaded
+   already fired before this script block ran; mu_injectUiControls() is
+   idempotent (it checks for #muAiSettingsBtn before adding it), so this
+   never double-inserts the gear button. */
 document.addEventListener('DOMContentLoaded', mu_injectUiControls);
 document.addEventListener('keydown', e=>{ if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='k'){ e.preventDefault(); mu_openSmartSearchModal(); } });
 
