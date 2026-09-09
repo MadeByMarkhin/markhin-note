@@ -20,7 +20,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.cdnfonts.com/css/cyberpunk" media="print" onload="this.media='all';window.__muFontSwapRestore&&window.__muFontSwapRestore();">
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=VT323&family=Orbitron:wght@700&family=Cinzel:wght@700&family=Share+Tech+Mono&family=Creepster&family=Poller+One&family=Dancing+Script:wght@700&family=Quicksand:wght@500;700&family=Pacifico&family=Zen+Kaku+Gothic+New:wght@400;500;700&family=Dela+Gothic+One&family=Ma+Shan+Zheng&family=Long+Cang&display=swap" media="print" onload="this.media='all';window.__muFontSwapRestore&&window.__muFontSwapRestore();">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=VT323&family=Orbitron:wght@700&family=Cinzel:wght@700&family=Share+Tech+Mono&family=Creepster&family=Poller+One&family=Dancing+Script:wght@700&family=Quicksand:wght@500;700&family=Pacifico&display=swap" media="print" onload="this.media='all';window.__muFontSwapRestore&&window.__muFontSwapRestore();">
     <script>
         /* Bug fix (page/options "jump" once a web font finishes loading):
            the two <link> tags above intentionally load fonts non-blocking
@@ -50,7 +50,7 @@
     </script>
     <noscript>
         <link rel="stylesheet" href="https://fonts.cdnfonts.com/css/cyberpunk">
-        <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=VT323&family=Orbitron:wght@700&family=Cinzel:wght@700&family=Share+Tech+Mono&family=Creepster&family=Poller+One&family=Dancing+Script:wght@700&family=Quicksand:wght@500;700&family=Pacifico&family=Zen+Kaku+Gothic+New:wght@400;500;700&family=Dela+Gothic+One&family=Ma+Shan+Zheng&family=Long+Cang&display=swap">
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=VT323&family=Orbitron:wght@700&family=Cinzel:wght@700&family=Share+Tech+Mono&family=Creepster&family=Poller+One&family=Dancing+Script:wght@700&family=Quicksand:wght@500;700&family=Pacifico&display=swap">
     </noscript>
     <style>
 
@@ -386,67 +386,6 @@
             --card-bg: rgba(3, 15, 3, 0.85) !important;
             --text-color: #d9ff5c !important;
             text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6) !important;
-        }
-
-        /* Tokyo — a Shibuya-crossing-at-night palette: deep indigo sky with
-           neon pink/cyan signage glow and a torii-red accent on the border.
-           Static color palette only (no ::before/::after layer), same as
-           the other non-animated themes above, to stay clear of the
-           fixed-layer scroll-jump/GPU issues documented near the top of
-           this file. The one thing this theme changes beyond every other
-           theme is the font: Zen Kaku Gothic New is a real Japanese UI
-           typeface (the geometric sans used across a lot of Tokyo tech/
-           signage design), and Dela Gothic One is a bold Japanese poster/
-           manga-lettering face — both are used here purely for their Latin
-           and Persian glyphs, never to render actual Japanese script, so
-           the "Tokyo" feeling comes from the letterform style, not the
-           language. Falls back per-glyph to Vazirmatn/sans-serif for any
-           character either font doesn't cover. */
-        body.theme-tokyo {
-            --bg-gradient: linear-gradient(165deg, #1a0b2e 0%, #12081f 35%, #1f0a1f 70%, #05010a 100%) !important;
-            --panel-bg: rgba(255, 45, 149, 0.045) !important;
-            --panel-border: rgba(0, 229, 255, 0.22) !important;
-            --card-bg: rgba(17, 6, 26, 0.85) !important;
-            --text-color: #ffd6ec !important;
-            font-family: 'Zen Kaku Gothic New', 'Vazirmatn', 'Tahoma', sans-serif !important;
-            text-shadow: 0 0 8px rgba(255, 45, 149, 0.35), 0 1px 3px rgba(0, 0, 0, 0.6) !important;
-        }
-        body.theme-tokyo .brand-logo {
-            font-family: 'Dela Gothic One', 'Zen Kaku Gothic New', sans-serif !important;
-            text-shadow: 0 0 8px #ff2d95, 0 0 16px #00e5ff !important;
-        }
-        body.theme-tokyo .brand-logo:hover {
-            text-shadow: 0 0 10px #ff2d95, 0 0 22px #00e5ff !important;
-        }
-
-        /* China — a red-lantern / imperial-seal palette: deep lacquer red
-           fading to near-black, with warm gold trim standing in for gilded
-           temple accents. Static color palette only (no ::before/::after
-           layer), same reasoning as Tokyo above: avoids the fixed-layer
-           scroll-jump/GPU issues documented near the top of this file.
-           Like Tokyo, the "vibe" comes entirely from a distinctive
-           typeface — Ma Shan Zheng and Long Cang are real Chinese
-           brush-calligraphy faces — used purely for their Latin/Persian
-           glyph coverage, never to render actual Chinese script. The app's
-           language is untouched; only the letterforms and color palette
-           change. Falls back per-glyph to Vazirmatn/sans-serif for any
-           character the calligraphy fonts don't cover. */
-        body.theme-china {
-            --bg-gradient: linear-gradient(165deg, #3d0000 0%, #200000 45%, #0a0000 100%) !important;
-            --panel-bg: rgba(255, 200, 87, 0.045) !important;
-            --panel-border: rgba(255, 200, 87, 0.25) !important;
-            --card-bg: rgba(35, 2, 2, 0.85) !important;
-            --text-color: #ffcf5c !important;
-            font-family: 'Ma Shan Zheng', 'Vazirmatn', 'Tahoma', sans-serif !important;
-            text-shadow: 0 0 8px rgba(214, 42, 42, 0.4), 0 1px 3px rgba(0, 0, 0, 0.65) !important;
-        }
-        body.theme-china .brand-logo {
-            font-family: 'Long Cang', 'Ma Shan Zheng', sans-serif !important;
-            color: #ffd700 !important;
-            text-shadow: 0 0 8px #d62a2a, 0 0 16px #ffd700 !important;
-        }
-        body.theme-china .brand-logo:hover {
-            text-shadow: 0 0 10px #ff3b3b, 0 0 22px #ffd700 !important;
         }
 
         /* Aurora — layered ribbons of northern-lights color drifting across a
@@ -1405,21 +1344,6 @@
         .text-box:focus { background-color: rgba(0, 0, 0, 0.45); border-color: var(--text-color); box-shadow: 0 0 0 3px rgba(255,255,255,0.05), 0 0 18px -6px var(--text-color); }
         .text-box::selection { background: var(--text-color); color: #001018; }
         .text-box:empty:before { content: "✎ " attr(data-placeholder); opacity: .4; font-style: italic; pointer-events: none; user-select: none; }
-
-        /* Pixel font for English/Latin text inside notes. VT323 is a retro
-           8-bit/pixel-style typeface (already loaded via the Google Fonts
-           link above) that has no Persian glyph coverage, so it only ever
-           renders Latin letters and digits typed into a note — any Persian
-           text keeps falling through the same chain as before (Arial ->
-           Helvetica -> the browser's own Persian system font), completely
-           unaffected, exactly like the per-glyph fallback already used by
-           the Tokyo/China themes above. This needs both the class AND an
-           attribute selector (".text-box[contenteditable]") to out-rank
-           the blanket "html, body, ..., [contenteditable=\"true\"]" rule
-           further down this file, which also carries !important. */
-        .text-box[contenteditable] {
-            font-family: 'VT323', Arial, Helvetica, sans-serif !important;
-        }
 
         html[dir="rtl"] .text-box { text-align: right; direction: rtl; }
         html[dir="ltr"] .text-box { text-align: left; direction: ltr; }
@@ -2427,7 +2351,7 @@ window.mu_syncHtmlBg = function(){
         if (saved === null) return;
         var idx = parseInt(saved, 10);
         if (!Number.isFinite(idx) || idx < 0) return;
-        var classes = ['theme-oceanic','theme-phantom','theme-aurora','theme-aurora-phantom','theme-spider','theme-tokyo','theme-galaxy','theme-dreamy','theme-cloudy','theme-cyberpunk','theme-love','theme-snowy','theme-rainy','theme-autumn','theme-anonymous','theme-terminal','theme-darkweb','theme-acid','theme-china'];
+        var classes = ['theme-oceanic','theme-phantom','theme-aurora','theme-aurora-phantom','theme-spider','theme-galaxy','theme-cloudy','theme-dreamy','theme-cyberpunk','theme-love','theme-snowy','theme-rainy','theme-autumn','theme-anonymous','theme-terminal','theme-darkweb','theme-acid'];
         var cls = classes[idx];
         if (cls && cls !== 'theme-oceanic') {
             document.body.classList.remove('theme-oceanic');
@@ -3070,11 +2994,9 @@ window.mu_syncHtmlBg = function(){
             { id: 'aurora', emoji: '🌈', nameFa: 'تم شفق قطبی', nameEn: 'Aurora', class: 'theme-aurora' },
             { id: 'aurora-phantom', emoji: '🔮', nameFa: 'تم شفق فانتومی', nameEn: 'Aurora Phantom', class: 'theme-aurora-phantom' },
             { id: 'spider', emoji: '🕷️', nameFa: 'تم عنکبوتی', nameEn: 'Spider', class: 'theme-spider' },
-            { id: 'tokyo', emoji: '🗼', nameFa: 'تم توکیو', nameEn: 'Tokyo', class: 'theme-tokyo' },
-            { id: 'china', emoji: '🏮', nameFa: 'تم چینی', nameEn: 'Chinese', class: 'theme-china' },
             { id: 'galaxy', emoji: '🌌', nameFa: 'تم کهکشانی', nameEn: 'Galaxy', class: 'theme-galaxy' },
-            { id: 'dreamy', emoji: '✨', nameFa: 'تم رویایی', nameEn: 'Dreamy', class: 'theme-dreamy' },
             { id: 'cloudy', emoji: '☁️', nameFa: 'تم ابری', nameEn: 'Cloudy', class: 'theme-cloudy' },
+            { id: 'dreamy', emoji: '✨', nameFa: 'تم رویایی', nameEn: 'Dreamy', class: 'theme-dreamy' },
             { id: 'cyberpunk', emoji: '⚡', nameFa: 'تم سایبرپانک', nameEn: 'Cyberpunk', class: 'theme-cyberpunk' },
             { id: 'love', emoji: '❤️', nameFa: 'تم لاو', nameEn: 'Love', class: 'theme-love' },
             { id: 'snowy', emoji: '❄️', nameFa: 'تم برفی', nameEn: 'Snowy', class: 'theme-snowy' },
@@ -8202,7 +8124,7 @@ function addFeatureTools(item,box){
  // captured once per note-open before any edits happen this session.
  mu_historyInit(item.id, text.innerHTML);
  const fa=currentLang==='fa';
- const row=document.createElement('div');row.className='markhin-editor-tools';row.innerHTML=`<button type="button" title="Bold"><b>B</b></button><button type="button" title="Italic"><i>I</i></button><button type="button" title="Underline"><u>U</u></button><button type="button" title="Quote">❝</button><button type="button" title="List">☷</button><button type="button" title="Table">▦</button><button type="button" title="Link">🔗</button><select title="Size"><option value="12">12</option><option value="13">13</option><option value="15">15</option><option value="18">18</option><option value="22">22</option><option value="28">28</option></select>`;
+ const row=document.createElement('div');row.className='markhin-editor-tools';row.innerHTML=`<button type="button" title="Bold"><b>B</b></button><button type="button" title="Italic"><i>I</i></button><button type="button" title="Underline"><u>U</u></button><button type="button" title="Quote">❝</button><button type="button" title="List">☷</button><button type="button" title="Table">▦</button><button type="button" title="Link">🔗</button><select title="Font"><option value="">فارسی — پیش‌فرض</option><option value="Arial">English — Arial</option><option value="Share Tech Mono">English — Share Tech Mono</option><option value="Orbitron">English — Orbitron</option><option value="Quicksand">Mixed — Quicksand</option></select><select title="Size"><option value="12">12</option><option value="13">13</option><option value="15">15</option><option value="18">18</option><option value="22">22</option><option value="28">28</option></select>`;
  const btns=row.querySelectorAll('button'); const cmd=(c,v=null)=>{text.focus();document.execCommand(c,false,v);autosaveCategory(item.id)};
  btns[0].onclick=()=>cmd('bold');btns[1].onclick=()=>cmd('italic');btns[2].onclick=()=>cmd('underline');btns[3].onclick=()=>cmd('formatBlock','blockquote');btns[4].onclick=()=>cmd('insertUnorderedList');btns[5].onclick=()=>{const table='<table><tbody><tr><td>سلول ۱</td><td>سلول ۲</td></tr><tr><td>سلول ۳</td><td>سلول ۴</td></tr></tbody></table>';text.focus();
   // Inserting via execCommand('insertHTML') while the caret sits inside a
@@ -8224,8 +8146,8 @@ function addFeatureTools(item,box){
     document.execCommand('insertHTML',false,table);
   }
   autosaveCategory(item.id)};btns[6].onclick=async()=>{const u=await promptStyledText({title:currentLang==='fa'?'🔗 افزودن لینک':'🔗 Add link',placeholder:currentLang==='fa'?'آدرس لینک:':'Link URL:',defaultValue:'https://',type:'url',okText:currentLang==='fa'?'✔️ افزودن':'✔️ Add'});if(u)cmd('createLink',u)};
- const selects=row.querySelectorAll('select');selects[0].value=String(item.fontSize||13);selects[0].onchange=()=>{item.fontSize=Number(selects[0].value)||13;text.style.fontSize=item.fontSize+'px';saveToLocalStorage()};
- tools.parentNode.insertBefore(row,tools.nextSibling); text.style.fontSize=(item.fontSize||13)+'px';
+ const selects=row.querySelectorAll('select');selects[0].value=item.fontFamily||'';selects[1].value=String(item.fontSize||13);selects[0].onchange=()=>{item.fontFamily=selects[0].value;text.style.fontFamily=selects[0].value;saveToLocalStorage()};selects[1].onchange=()=>{item.fontSize=Number(selects[1].value)||13;text.style.fontSize=item.fontSize+'px';saveToLocalStorage()};
+ tools.parentNode.insertBefore(row,tools.nextSibling); text.style.fontFamily=item.fontFamily||'';text.style.fontSize=(item.fontSize||13)+'px';
  const meta=document.createElement('div');meta.className='markhin-feature-row';meta.innerHTML=`<button type="button" class="img-btn note-pin-action" title="${item.pinned?(currentLang==='fa'?'برداشتن پین':'Unpin'):(currentLang==='fa'?'پین کردن یادداشت':'Pin note')}">📌 ${item.pinned?'لغو پین':'پین کردن'}</button><button type="button" class="img-btn note-fav-action" title="${item.favorite?(currentLang==='fa'?'حذف از فیوریت':'Remove from Favorites'):(currentLang==='fa'?'افزودن به فیوریت':'Add to Favorites')}">⭐ ${item.favorite?'حذف از فیوریت':'افزودن به فیوریت'}</button><button type="button" class="img-btn note-archive-action" title="${currentLang==='fa'?'انتقال به بایگانی':'Move to archive'}">📦 ${currentLang==='fa'?'بایگانی':'Archive'}</button><button type="button" class="img-btn">⧉ Duplicate</button><button type="button" class="img-btn">🎭 ${item.fakeContent?'ویرایش Fake':'Fake Note'}</button><button type="button" class="img-btn">📄 PDF</button><button type="button" class="img-btn">📝 DOCX</button><button type="button" class="img-btn">🌐 HTML</button><button type="button" class="img-btn">TXT</button><button type="button" class="img-btn">M↓ MD</button><button type="button" class="img-btn">🖼️ PNG</button><button type="button" class="img-btn">📤 Share</button>`;
  const ms=meta.querySelectorAll('button');ms[0].onclick=()=>toggleFlag(item,'pinned');ms[1].onclick=()=>toggleFlag(item,'favorite');ms[2].onclick=()=>toggleArchiveNote(item.id);ms[3].onclick=()=>duplicateNote(item.id);ms[4].onclick=()=>editFake(item.id);ms[5].onclick=()=>downloadSelectedPDF(item.id);ms[6].onclick=()=>downloadSelectedDOCX(item.id);ms[7].onclick=()=>exportSingleHTML(item.id);ms[8].onclick=()=>downloadAsTxt(item.id);ms[9].onclick=()=>downloadStructuredSingle(item.id,'md');ms[10].onclick=()=>downloadSelectedImage(item.id,'png');ms[11].onclick=()=>shareNote(item.id);text.parentNode.insertBefore(meta,text);
  // Undo/Redo — its own clearly-visible row, placed directly above the text
@@ -8337,7 +8259,7 @@ function mkScrollToUnlockedNoteText(id){
         if(textEl) textEl.scrollIntoView({behavior:'smooth',block:'start'});
     },80)));
 }
-window.handleCategoryClick=async function(id){const item=categories.find(c=>c.id===id);if(!item)return;const wasOpen=(activeOpenId===id);if(isNoteLocked(item)){const pass=await promptNotePassword(item);if(pass===null)return;if(!await unlockNote(item,pass.trim())){item.isDecoy=true;activeOpenId=(activeOpenId===id)?null:id;renderApp(activeOpenId);alert(i18n[currentLang].wrongPass);return;}item.isDecoy=false;activeOpenId=(activeOpenId===id)?null:id;renderApp(activeOpenId);if(!wasOpen)mkScrollToUnlockedNoteText(id);return;}else item.isDecoy=false;activeOpenId=(activeOpenId===id)?null:id;renderApp(activeOpenId);if(!wasOpen&&activeOpenId===id)mkScrollToUnlockedNoteText(id);};
+window.handleCategoryClick=async function(id){const item=categories.find(c=>c.id===id);if(!item)return;const wasOpen=(activeOpenId===id);if(isNoteLocked(item)){const pass=await promptNotePassword(item);if(pass===null)return;if(!await unlockNote(item,pass.trim())){item.isDecoy=true;activeOpenId=(activeOpenId===id)?null:id;renderApp(activeOpenId);alert(i18n[currentLang].wrongPass);return;}item.isDecoy=false;activeOpenId=(activeOpenId===id)?null:id;renderApp(activeOpenId);if(!wasOpen)mkScrollToUnlockedNoteText(id);return;}else item.isDecoy=false;activeOpenId=(activeOpenId===id)?null:id;renderApp(activeOpenId);};
 const oldRender=window.renderContents;window.renderContents=function(filtered){oldRender(filtered);const open=categories.find(x=>x.id===activeOpenId);if(open&&!open.isDecoy){const box=document.getElementById('container-'+open.id);if(box)setTimeout(()=>addFeatureTools(open,box),0)}};
 window.renderApp=function(openId=activeOpenId){baseRenderApp(openId);const open=categories.find(x=>x.id===activeOpenId);if(open&&!open.isDecoy){const box=document.getElementById('container-'+open.id);if(box)setTimeout(()=>addFeatureTools(open,box),0)}};
 
