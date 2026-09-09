@@ -2265,6 +2265,43 @@ html, body, button, input, textarea, select, [contenteditable="true"] {
 .mAi-send-btn:hover { transform: scale(1.07); }
 .mAi-send-btn:active { transform: scale(.92); }
 .mAi-send-btn:disabled { opacity: .45; cursor: default; transform: none; box-shadow: none; }
+
+/* =========================================================================
+   Sticky header nav: pins the top bar (logo, arcade button, MARKHIN AI
+   button, theme/language controls) to the top of the screen while
+   scrolling, turning it into a real navigation bar.
+
+   position: sticky (not fixed) on purpose: fixed pulls the element out of
+   the document flow, collapsing the space it used to take up and forcing
+   the next element up to fill the gap — that's the classic way this kind
+   of change introduces a jump or overlap bug. sticky leaves the header
+   exactly where it already is until scrolling would carry it off-screen,
+   then locks it there — no other element needs to move, so there is
+   nothing left that can shift or overlap.
+
+   `top` is set to the exact same offset as the body's own top padding
+   (spacing-sm + the safe-area inset used everywhere else in this file),
+   so the header locks in at the identical spot it already occupies on
+   load. That means zero visual jump the moment it "sticks" — it just
+   stops scrolling away.
+
+   z-index 100 sits above ordinary scrolling content (folders/notes/tags
+   in this file top out around z-index 20-30) but well below every modal
+   and overlay (settings/advanced modals, the MARKHIN AI chat, drop zone,
+   move menu, etc. all use 9998+), so opening any of those still correctly
+   covers the header as before.
+
+   position: sticky still works as the containing block for the
+   absolutely-positioned MARKHIN AI button inside this bar
+   (.markhin-ai-header-btn), exactly like the position: relative it
+   replaces just above — that button keeps centering correctly whether
+   the header is currently stuck or not. */
+.header-nav {
+  position: -webkit-sticky !important;
+  position: sticky !important;
+  top: calc(var(--spacing-sm) + env(safe-area-inset-top, 0px)) !important;
+  z-index: 100 !important;
+}
 </style>
 </head>
 <body class="theme-oceanic">
