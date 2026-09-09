@@ -210,9 +210,9 @@
            re-rasterize the layer at points during the animation, which is
            the actual expensive part. Visually near-identical drift. */
         @keyframes oceanCaustics {
-            0%   { transform: translate3d(0, 0, 0); opacity: .85; }
-            50%  { transform: translate3d(-2%, 2%, 0); opacity: 1; }
-            100% { transform: translate3d(2%, -1.5%, 0); opacity: .9; }
+            0%   { transform: translate3d(0, 0, 0); }
+            50%  { transform: translate3d(-2%, 2%, 0); }
+            100% { transform: translate3d(2%, -1.5%, 0); }
         }
         body.theme-oceanic::after {
             /* A gentle stream of bubbles rising from the bottom of the screen. */
@@ -421,9 +421,9 @@
            above for why dropping rotate/scaleY from a blurred layer's
            animation is the actual GPU win, not just the blur radius. */
         @keyframes auroraDrift {
-            0%   { transform: translate3d(0, 0, 0); opacity: 0.82; }
-            50%  { transform: translate3d(2.5%, -3%, 0); opacity: 1; }
-            100% { transform: translate3d(-2.5%, 2.5%, 0); opacity: 0.9; }
+            0%   { transform: translate3d(0, 0, 0); }
+            50%  { transform: translate3d(2.5%, -3%, 0); }
+            100% { transform: translate3d(-2.5%, 2.5%, 0); }
         }
         body.theme-aurora::after {
             content: "";
@@ -477,9 +477,9 @@
            above; dropping scale from a blurred layer's animation is what
            avoids re-rasterizing it mid-drift. */
         @keyframes phantomDrift {
-            0%   { transform: translate3d(0, 0, 0); opacity: .78; }
-            50%  { transform: translate3d(-2.5%, -2%, 0); opacity: 1; }
-            100% { transform: translate3d(2.5%, 2%, 0); opacity: .88; }
+            0%   { transform: translate3d(0, 0, 0); }
+            50%  { transform: translate3d(-2.5%, -2%, 0); }
+            100% { transform: translate3d(2.5%, 2%, 0); }
         }
         body.theme-phantom::after {
             content: "";
@@ -492,8 +492,8 @@
             animation: phantomPulse 7s ease-in-out infinite;
         }
         @keyframes phantomPulse {
-            0%, 100% { opacity: .35; transform: scale(1); }
-            50%      { opacity: .75; transform: scale(1.15); }
+            0%, 100% { opacity: .5; transform: scale(1); }
+            50%      { opacity: .6; transform: scale(1.15); }
         }
 
         /* Aurora Phantom — a hybrid of the two: a violet "watching" glow (from
@@ -527,9 +527,9 @@
             animation: auroraPhantomDrift 20s ease-in-out infinite alternate;
         }
         @keyframes auroraPhantomDrift {
-            0%   { transform: translate3d(0, 0, 0); opacity: .8; }
-            50%  { transform: translate3d(-2.5%, -2.5%, 0); opacity: 1; }
-            100% { transform: translate3d(2.5%, 2%, 0); opacity: .88; }
+            0%   { transform: translate3d(0, 0, 0); }
+            50%  { transform: translate3d(-2.5%, -2.5%, 0); }
+            100% { transform: translate3d(2.5%, 2%, 0); }
         }
         body.theme-aurora-phantom::after {
             content: "";
@@ -1773,7 +1773,7 @@
         .image-export-choice-folder{font-size:9px;opacity:.5;margin-top:3px;word-break:break-word}
         .image-export-choice-action{font-size:9px;opacity:.45;margin-top:auto;padding-top:8px}
         .markhin-filename-row{display:flex;gap:8px;align-items:center;margin:14px 0;flex-wrap:wrap}
-        .markhin-filename-input{flex:1;min-width:160px;padding:11px 13px;border-radius:12px;border:1px solid var(--panel-border);background:rgba(0,0,0,.28);color:var(--text-color);font-size:14px;font-family:inherit;outline:none;transition:border-color .16s ease,box-shadow .16s ease}
+        .markhin-filename-input{flex:1;min-width:160px;padding:11px 13px;border-radius:12px;border:1px solid var(--panel-border);background:rgba(0,0,0,.28);color:var(--text-color);font-size:14px;font-family:inherit;outline:none;text-align:center;transition:border-color .16s ease,box-shadow .16s ease}
         .markhin-filename-input:focus{border-color:rgba(120,170,255,.65);box-shadow:0 0 0 3px rgba(120,170,255,.15)}
         .markhin-filename-ext{opacity:.55;font-size:13px;white-space:nowrap;font-weight:700}
         .markhin-filename-actions{text-align:center;display:flex;gap:8px;justify-content:center;margin-top:12px;flex-wrap:wrap}
@@ -8273,11 +8273,11 @@ const baseHandle=window.handleCategoryClick;
    scroll position inside the Telegram mini app. */
 function mkScrollToUnlockedNoteText(id){
     requestAnimationFrame(()=>requestAnimationFrame(()=>setTimeout(()=>{
-        const textEl=document.getElementById(`text-${id}`);
-        if(textEl) textEl.scrollIntoView({behavior:'smooth',block:'start'});
+        const boxEl=document.getElementById(`container-${id}`);
+        if(boxEl) boxEl.scrollIntoView({behavior:'smooth',block:'start'});
     },80)));
 }
-window.handleCategoryClick=async function(id){const item=categories.find(c=>c.id===id);if(!item)return;const wasOpen=(activeOpenId===id);if(isNoteLocked(item)){const pass=await promptNotePassword(item);if(pass===null)return;if(!await unlockNote(item,pass.trim())){item.isDecoy=true;activeOpenId=(activeOpenId===id)?null:id;renderApp(activeOpenId);alert(i18n[currentLang].wrongPass);return;}item.isDecoy=false;activeOpenId=(activeOpenId===id)?null:id;renderApp(activeOpenId);if(!wasOpen)mkScrollToUnlockedNoteText(id);return;}else item.isDecoy=false;activeOpenId=(activeOpenId===id)?null:id;renderApp(activeOpenId);};
+window.handleCategoryClick=async function(id){const item=categories.find(c=>c.id===id);if(!item)return;const wasOpen=(activeOpenId===id);if(isNoteLocked(item)){const pass=await promptNotePassword(item);if(pass===null)return;if(!await unlockNote(item,pass.trim())){item.isDecoy=true;activeOpenId=(activeOpenId===id)?null:id;renderApp(activeOpenId);alert(i18n[currentLang].wrongPass);return;}item.isDecoy=false;activeOpenId=(activeOpenId===id)?null:id;renderApp(activeOpenId);if(!wasOpen)mkScrollToUnlockedNoteText(id);return;}else item.isDecoy=false;activeOpenId=(activeOpenId===id)?null:id;renderApp(activeOpenId);if(!wasOpen&&activeOpenId===id)mkScrollToUnlockedNoteText(id);};
 const oldRender=window.renderContents;window.renderContents=function(filtered){oldRender(filtered);const open=categories.find(x=>x.id===activeOpenId);if(open&&!open.isDecoy){const box=document.getElementById('container-'+open.id);if(box)setTimeout(()=>addFeatureTools(open,box),0)}};
 window.renderApp=function(openId=activeOpenId){baseRenderApp(openId);const open=categories.find(x=>x.id===activeOpenId);if(open&&!open.isDecoy){const box=document.getElementById('container-'+open.id);if(box)setTimeout(()=>addFeatureTools(open,box),0)}};
 
@@ -8760,7 +8760,7 @@ const oldToggle=window.toggleCategory;window.toggleCategory=function(id){const i
 /* Notes render as long horizontal bars (one per row) rather than
    content-sized chips: full width, text pinned to the start side, with
    enough height to read as a proper list row. */
-.note-btn-wrap .custom-btn{flex:1;width:100%;max-width:100%;justify-content:flex-start;text-align:start;padding:13px 16px;font-size:13px;min-height:46px;box-sizing:border-box}
+.note-btn-wrap .custom-btn{flex:1;width:100%;max-width:100%;justify-content:center;text-align:center;padding:13px 16px;font-size:13px;min-height:46px;box-sizing:border-box}
 /* Dragging item: left behind in the flow as a dimmed "hole" placeholder —
    the actual floating visual is the .markhin-float-ghost clone below,
    which is what makes the item feel picked-up and carried, not just
