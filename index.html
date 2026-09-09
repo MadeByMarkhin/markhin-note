@@ -1063,6 +1063,9 @@
             white-space:nowrap;
         }
         .advanced-tools-row > .btn-main, .advanced-tools-row .cemetery-tool-wrap, .advanced-tools-row .portal-tool-wrap{align-self:center;}
+        html[dir="ltr"] .advanced-tools-row{gap:5px;}
+        html[dir="ltr"] .advanced-tools-row .btn-main{padding:7px 9px;font-size:10px;min-width:0;}
+        html[dir="ltr"] .advanced-tools-row #btnKnowledgeGraph{padding:7px 10px;}
         #btnKnowledgeGraph{box-sizing:border-box;}
         #btnKnowledgeGraph .kg-label-fa,#btnKnowledgeGraph .kg-label-en{display:inline-block;}
         #btnKnowledgeGraph .kg-label-en{display:none;line-height:1.05;text-align:center;white-space:normal;}
@@ -1091,6 +1094,10 @@
         .portal-tool-wrap #btnRandomPortal {
             width: auto;
             min-width: 100px;
+        }
+
+        html[dir="ltr"] .portal-tool-wrap #btnRandomPortal {
+            min-width: 0;
         }
 
         .portal-help-btn{
@@ -1289,9 +1296,12 @@
             max-width: 720px;
             margin-left: auto;
             margin-right: auto;
+            padding: 0 8px;
+            box-sizing: border-box;
             position: relative;
             z-index: 1;
         }
+        .btn-container .note-btn-wrap { width: 100%; max-width: 100%; box-sizing: border-box; }
 
         .no-result-msg { color: rgba(255,255,255,0.4); font-size: 13px; margin: 12px 0; width: 100%; }
 
@@ -1299,20 +1309,28 @@
             display: none;
             max-width: 680px;
             margin: var(--spacing-sm) auto;
-            background: var(--card-bg);
+            /* Transparent instead of --card-bg: a solid/blurred fill here
+               reads as the whole page brightening the moment a note opens.
+               The border + shadow below stay as the only visual cue — the
+               page's own background shows straight through instead. */
+            background: transparent;
             border: 1px solid var(--panel-border);
             padding: var(--spacing-md);
             border-radius: var(--border-radius-main);
             box-shadow: 0 12px 35px rgba(0,0,0,0.25);
-            /* Trimmed from 18px — backdrop-filter is one of the most expensive CSS
-               effects a mobile GPU can be asked to do, and this panel is visible
-               for most of the time someone actually has a note open (not just a
-               brief modal), so its cost was a constant, not occasional, drag on
-               scroll smoothness. 10px keeps the same frosted-glass look. */
-            backdrop-filter: blur(6px);
             position: relative;
             z-index: 1;
             box-sizing: border-box;
+        }
+        /* When relocated under its own note row (see mu_positionOpenNoteContent),
+           the box sits inside the flex-wrapping #buttonsContainer as a flex item —
+           force it onto its own full-width line right below that note's button,
+           instead of the default content-sized/centered flex sizing. */
+        .btn-container > .content-container {
+            flex: 1 1 100%;
+            width: 100%;
+            max-width: 100%;
+            margin: 6px 0 4px;
         }
 
         .content-container.show { 
@@ -2832,7 +2850,7 @@ window.mu_syncHtmlBg = function(){
                 importJson: "ورودی JSON",
                 exportCsv: "خروجی CSV",
                 importCsv: "ورودی CSV",
-                allFolders: "همه",
+                allFolders: "همه یادداشت‌ها",
                 noFolder: "بدون پوشه",
                 noResult: "موردی یافت نشد.",
                 contentManagement: "مدیریت محتوا:",
@@ -2927,7 +2945,7 @@ window.mu_syncHtmlBg = function(){
                 importJson: "Import JSON",
                 exportCsv: "Export CSV",
                 importCsv: "Import CSV",
-                allFolders: "All",
+                allFolders: "All notes",
                 noFolder: "No Folder",
                 noResult: "No items found.",
                 contentManagement: "Content Management:",
@@ -8738,7 +8756,11 @@ const oldToggle=window.toggleCategory;window.toggleCategory=function(id){const i
 
 <style id="markhinUltraStyles">
 /* ===== MARKHIN NOTE — ULTRA SEARCH + AI + DELETE MODE ===== */
-.note-btn-wrap{display:inline-flex;align-items:center;gap:4px;touch-action:pan-y}
+.note-btn-wrap{display:flex;width:100%;align-items:center;gap:4px;touch-action:pan-y;max-width:100%;box-sizing:border-box}
+/* Notes render as long horizontal bars (one per row) rather than
+   content-sized chips: full width, text pinned to the start side, with
+   enough height to read as a proper list row. */
+.note-btn-wrap .custom-btn{flex:1;width:100%;max-width:100%;justify-content:flex-start;text-align:start;padding:13px 16px;font-size:13px;min-height:46px;box-sizing:border-box}
 /* Dragging item: left behind in the flow as a dimmed "hole" placeholder —
    the actual floating visual is the .markhin-float-ghost clone below,
    which is what makes the item feel picked-up and carried, not just
@@ -8753,7 +8775,7 @@ body.markhin-dragging-active{-webkit-user-select:none;user-select:none}
 .note-del-x:hover{transform:scale(1.18)}
 /* Long-press move menu: the small floating popup with the ◀ ▶ buttons that
    appears next to a note or folder after holding a finger on it. */
-.markhin-move-menu{position:fixed;z-index:10060;display:flex;gap:6px;padding:6px;border-radius:14px;background:var(--card-bg);border:1px solid var(--panel-border);box-shadow:0 10px 26px rgba(0,0,0,.5);backdrop-filter:blur(5px);animation:markhinMoveMenuIn .12s ease}
+.markhin-move-menu{position:fixed;z-index:10060;display:flex;flex-direction:column;gap:6px;padding:6px;border-radius:14px;background:var(--card-bg);border:1px solid var(--panel-border);box-shadow:0 10px 26px rgba(0,0,0,.5);backdrop-filter:blur(5px);animation:markhinMoveMenuIn .12s ease}
 @keyframes markhinMoveMenuIn{from{opacity:0;transform:translateY(4px) scale(.92)}to{opacity:1;transform:translateY(0) scale(1)}}
 .markhin-move-menu-btn{background:rgba(255,255,255,.08);color:var(--text-color)!important;border:1px solid var(--panel-border);border-radius:50%;width:38px;height:38px;min-width:38px;min-height:38px;padding:0!important;font-size:15px;display:flex;align-items:center;justify-content:center;flex:none;line-height:1;cursor:pointer;transition:var(--transition-smooth)}
 .markhin-move-menu-btn:hover{background:rgba(255,255,255,.18);transform:scale(1.08)}
@@ -9163,20 +9185,20 @@ window.moveFolderOrder = function(name, dir){
         document.body.appendChild(menu); // measure after mount so offsetWidth is real
         const above = r.top > 70;
 
-        const bR = document.createElement('button');
-        bR.type='button'; bR.className='markhin-move-menu-btn'; bR.textContent='▶';
-        bR.title = currentLang==='fa' ? 'جابجایی به راست' : 'Move right';
-        bR.onclick = (e)=>{ e.stopPropagation(); onMoveRight(); closeMenu(); };
+        const bUp = document.createElement('button');
+        bUp.type='button'; bUp.className='markhin-move-menu-btn'; bUp.textContent='▲';
+        bUp.title = currentLang==='fa' ? 'جابجایی به بالا' : 'Move up';
+        bUp.onclick = (e)=>{ e.stopPropagation(); onMoveRight(); closeMenu(); };
 
-        const bL = document.createElement('button');
-        bL.type='button'; bL.className='markhin-move-menu-btn'; bL.textContent='◀';
-        bL.title = currentLang==='fa' ? 'جابجایی به چپ' : 'Move left';
-        bL.onclick = (e)=>{ e.stopPropagation(); onMoveLeft(); closeMenu(); };
+        const bDown = document.createElement('button');
+        bDown.type='button'; bDown.className='markhin-move-menu-btn'; bDown.textContent='▼';
+        bDown.title = currentLang==='fa' ? 'جابجایی به پایین' : 'Move down';
+        bDown.onclick = (e)=>{ e.stopPropagation(); onMoveLeft(); closeMenu(); };
 
-        menu.appendChild(bR); menu.appendChild(bL);
-        const mw = menu.offsetWidth || 90;
+        menu.appendChild(bUp); menu.appendChild(bDown);
+        const mw = menu.offsetWidth || 44;
         menu.style.left = Math.max(8, Math.min(window.innerWidth - mw - 8, r.left + r.width/2 - mw/2)) + 'px';
-        menu.style.top = (above ? (r.top - 54) : (r.bottom + 6)) + 'px';
+        menu.style.top = (above ? (r.top - 94) : (r.bottom + 6)) + 'px';
         menuEl = menu;
 
         setTimeout(()=>{ document.addEventListener('pointerdown', onOutsidePointerDown, true); }, 0);
@@ -9288,6 +9310,21 @@ document.addEventListener('click', function(e){
     if(!e.target.closest('.markhin-tag-help')){
         document.querySelectorAll('.markhin-tag-help.show').forEach(b=>b.classList.remove('show'));
     }
+}, true);
+
+/* Tapping anywhere empty on the page closes the currently open note.
+   Excluded: the open note's own content area (so interacting with the
+   note doesn't close it), its note button (which already toggles it
+   itself), and any open modal overlay (so using a modal doesn't yank
+   the note closed underneath it). */
+document.addEventListener('click', function(e){
+    if(!activeOpenId) return;
+    if(e.target.closest('.content-container')) return;
+    if(e.target.closest('.note-btn-wrap')) return;
+    if(e.target.closest('.advanced-modal')) return;
+    if(e.target.closest('.markhin-move-menu')) return;
+    activeOpenId = null;
+    renderApp(null);
 }, true);
 
 /* ---------- main search bar: just filter/sort the list in place while typing.
@@ -9776,7 +9813,20 @@ window.renderContents = function(filtered){
         const box = document.getElementById('container-'+open.id);
         if(box) setTimeout(()=>mu_addAiToolsToNote(open, box), 0);
     }
+    mu_positionOpenNoteContent();
 };
+/* The open note's content box is built into #contentsContainer (after ALL
+   note buttons) by mu_baseRenderContents — left there, it always lands at
+   the bottom of the whole list instead of under the note you tapped. Move
+   just the open box to sit directly after its own note row instead. */
+function mu_positionOpenNoteContent(){
+    if(!activeOpenId) return;
+    const wrap = document.querySelector('#buttonsContainer .note-btn-wrap[data-id="'+CSS.escape(String(activeOpenId))+'"]');
+    const box = document.getElementById('container-'+activeOpenId);
+    if(wrap && box && wrap.nextElementSibling !== box){
+        wrap.insertAdjacentElement('afterend', box);
+    }
+}
 function mu_addAiToolsToNote(item, box){
     if(!box || box.querySelector('.markhin-ai-tools-row')) return;
     const text = document.getElementById('text-'+item.id);
