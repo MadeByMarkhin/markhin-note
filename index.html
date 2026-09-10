@@ -10117,17 +10117,6 @@ const MU_AI_BUILTINS = {
     openai:     { label:'OpenAI',        format:'openai',    defaultBaseUrl:'https://api.openai.com/v1',                                  defaultModel:'gpt-6-astra' },
     anthropic:  { label:'Anthropic',     format:'anthropic', defaultBaseUrl:'https://api.anthropic.com',                                   defaultModel:'claude-opus-5' },
     openrouter: { label:'OpenRouter',    format:'openai',    defaultBaseUrl:'https://openrouter.ai/api/v1',                                defaultModel:'anthropic/claude-opus-5' },
-    // A second, separate OpenRouter entry that is locked to a single
-    // built-in API key (never shown/editable/removable in the UI — see
-    // the `locked` flag below) and restricted to OpenRouter's free-tier
-    // models only (ids ending in ":free", filtered in fetchModels() via
-    // the `freeOnly` flag). This is what a person switches to when they
-    // just want free inference with zero setup; the model itself is
-    // still freely switchable among the fetched free models. It's kept as
-    // a fully distinct builtin id from `openrouter` above, so the two
-    // never share stored settings and a person can still add/use their
-    // own regular OpenRouter key side-by-side with this one.
-    openrouter_free: { label:'OpenRouter (Free Models)', format:'openai', defaultBaseUrl:'https://openrouter.ai/api/v1', defaultModel:'openrouter/free', locked:true, freeOnly:true, fixedApiKey:'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' },
     google:     { label:'Google Gemini', format:'openai',    defaultBaseUrl:'https://generativelanguage.googleapis.com/v1beta/openai',     defaultModel:'gemini-3.1-pro-preview' },
     groq:       { label:'Groq',          format:'openai',    defaultBaseUrl:'https://api.groq.com/openai/v1',                              defaultModel:'openai/gpt-oss-120b' },
     deepseek:   { label:'DeepSeek',      format:'openai',    defaultBaseUrl:'https://api.deepseek.com',                                    defaultModel:'deepseek-v4-pro' },
@@ -10392,15 +10381,10 @@ const MarkhinAI = window.MarkhinAI = {
 
     getSettings(){
         let s = safeParseJSON(localStorage.getItem(this.KEY)||'null', null);
-        // Brand-new installs (nothing saved yet, and no old single-provider
-        // setup to migrate) default to the built-in free OpenRouter
-        // provider so there's zero-setup AI access from the very first
-        // open — it stays active across reloads (persisted below) until
-        // the person explicitly switches/saves a different provider.
-        if(!s) s = this._migrateOld() || { activeId:'openrouter_free', builtins:{}, customProviders:[] };
+        if(!s) s = this._migrateOld() || { activeId:'openai', builtins:{}, customProviders:[] };
         if(!s.builtins) s.builtins = {};
         if(!Array.isArray(s.customProviders)) s.customProviders = [];
-        if(!s.activeId) s.activeId = 'openrouter_free';
+        if(!s.activeId) s.activeId = 'openai';
         return s;
     },
     saveSettings(s){ try{ localStorage.setItem(this.KEY, JSON.stringify(s)); }catch(e){} },
@@ -10420,15 +10404,7 @@ const MarkhinAI = window.MarkhinAI = {
 
     listProviders(){
         const s = this.getSettings();
-        const fa = (typeof currentLang !== 'undefined' && currentLang === 'fa');
-        const list = Object.keys(MU_AI_BUILTINS).map(id=>{
-            const b = MU_AI_BUILTINS[id];
-            // "OpenRouter (Free Models)" isn't a brand name like the others
-            // in this list, so it gets a real Persian translation instead
-            // of showing the English label unchanged in fa mode.
-            const name = (id === 'openrouter_free') ? (fa ? 'اوپن‌روتر (مدل‌های رایگان)' : b.label) : b.label;
-            return { id, name, builtin:true, locked: !!b.locked };
-        });
+        const list = Object.keys(MU_AI_BUILTINS).map(id=>({ id, name:MU_AI_BUILTINS[id].label, builtin:true }));
         s.customProviders.forEach(p=> list.push({ id:'custom:'+p.id, name:p.name||'Custom', builtin:false }));
         return list;
     },
@@ -10436,7 +10412,7 @@ const MarkhinAI = window.MarkhinAI = {
     // Resolves the currently-active provider into one flat, ready-to-use config.
     getActiveProvider(s){
         s = s || this.getSettings();
-        const id = s.activeId || 'openrouter_free';
+        const id = s.activeId || 'openai';
         if(id.indexOf('custom:') === 0){
             const cp = s.customProviders.find(p => 'custom:'+p.id === id);
             if(!cp) return null;
@@ -10444,21 +10420,6 @@ const MarkhinAI = window.MarkhinAI = {
         }
         const preset = MU_AI_BUILTINS[id] || MU_AI_BUILTINS.openai;
         const stored = s.builtins[id] || {};
-        // Locked builtins (currently just openrouter_free) always use their
-        // fixed baked-in key/Base URL, regardless of anything ever written
-        // to storage for this id — nothing in the settings UI can change or
-        // remove these two fields for a locked provider (see
-        // mu_openAiSettingsModal / saveProviderFields).
-        if(preset.locked){
-            return {
-                id,
-                name: preset.label,
-                format: preset.format,
-                baseUrl: preset.defaultBaseUrl,
-                apiKey: preset.fixedApiKey || '',
-                model: stored.model || preset.defaultModel || ''
-            };
-        }
         return {
             id,
             name: preset.label,
@@ -10497,14 +10458,7 @@ const MarkhinAI = window.MarkhinAI = {
                 cp.baseUrl = fields.baseUrl || '';
             }
         } else {
-            const preset = MU_AI_BUILTINS[id];
-            // Locked builtins never persist an apiKey/baseUrl — those are
-            // always resolved from the fixed preset (see
-            // getActiveProvider). Only the chosen model is savable, so
-            // switching between this provider's free models still works.
-            s.builtins[id] = (preset && preset.locked)
-                ? { apiKey:'', model:fields.model||'', baseUrl:'' }
-                : { apiKey:fields.apiKey||'', model:fields.model||'', baseUrl:fields.baseUrl||'' };
+            s.builtins[id] = { apiKey:fields.apiKey||'', model:fields.model||'', baseUrl:fields.baseUrl||'' };
         }
         s.activeId = id;
         this.saveSettings(s);
@@ -10532,55 +10486,8 @@ const MarkhinAI = window.MarkhinAI = {
         const s = this.getSettings();
         const cid = id.slice(7);
         s.customProviders = s.customProviders.filter(p => p.id !== cid);
-        if(s.activeId === id) s.activeId = 'openrouter_free';
+        if(s.activeId === id) s.activeId = 'openai';
         this.saveSettings(s);
-    },
-
-    // Makes `id` the active provider without touching any of its stored
-    // fields (key/model/Base URL stay exactly as saved). Used by the
-    // automatic rate-limit fallback below — a plain, silent switch,
-    // distinct from saveProviderFields which is what the settings form
-    // uses when the person explicitly picks+saves a provider. Returns
-    // false (and leaves activeId untouched) if `id` isn't a real,
-    // currently-existing provider.
-    setActiveProviderId(id){
-        const s = this.getSettings();
-        if(id.indexOf('custom:') === 0){
-            if(!s.customProviders.find(p => 'custom:'+p.id === id)) return false;
-        } else if(!MU_AI_BUILTINS[id]){
-            return false;
-        }
-        s.activeId = id;
-        this.saveSettings(s);
-        return true;
-    },
-
-    // Ordered list of *other* provider ids (excluding excludeId) that are
-    // actually usable right now — i.e. have an API key — so the
-    // rate-limit retry logic in the chat widget has somewhere real to
-    // fall back to. Providers the person actually configured with their
-    // own key come first (more headroom, since they aren't sharing the
-    // built-in free key's quota); the locked free-OpenRouter provider is
-    // always usable (its key is baked in) but is listed last, as a final
-    // fallback, since if *it* was the one that just hit its limit, another
-    // instance of the same shared key/quota won't help much either.
-    listFallbackCandidates(excludeId){
-        const s = this.getSettings();
-        const configured = [];
-        const lockedFallbacks = [];
-        Object.keys(MU_AI_BUILTINS).forEach(id=>{
-            if(id === excludeId) return;
-            const preset = MU_AI_BUILTINS[id];
-            if(preset.locked){ lockedFallbacks.push(id); return; }
-            const stored = s.builtins[id] || {};
-            if(stored.apiKey) configured.push(id);
-        });
-        s.customProviders.forEach(p=>{
-            const id = 'custom:'+p.id;
-            if(id === excludeId) return;
-            if(p.apiKey) configured.push(id);
-        });
-        return configured.concat(lockedFallbacks);
     },
 
     isConfigured(){ const p=this.getActiveProvider(); return !!(p && p.apiKey); },
@@ -11144,14 +11051,7 @@ const MarkhinAI = window.MarkhinAI = {
             if(!res.ok){ const tx = await res.text().catch(()=>''); throw new Error(mu_extractApiErrorMessage(res.status, tx)); }
             const data = await res.json().catch(()=>({}));
             const list = Array.isArray(data.data) ? data.data : (Array.isArray(data.models) ? data.models : []);
-            let ids = list.map(m=> (typeof m === 'string' ? m : (m.id || m.name || ''))).filter(Boolean);
-            // Used by the locked "OpenRouter (Free Models)" provider so its
-            // "Fetch models" button only ever lists OpenRouter's free-tier
-            // models — OpenRouter marks every one of those with a ":free"
-            // suffix on the model id, so filtering on that suffix is enough
-            // to keep every paid model out of the list.
-            if(fields.onlyFree) ids = ids.filter(id => /:free$/i.test(id));
-            return ids;
+            return list.map(m=> (typeof m === 'string' ? m : (m.id || m.name || ''))).filter(Boolean);
         } catch(err){
             if(err && err.name === 'AbortError') throw new Error(fa ? 'درخواست فهرست مدل‌ها بیش از حد طول کشید.' : 'Fetching the model list took too long.');
             if(/Failed to fetch|NetworkError|Load failed|ERR_/i.test(String((err&&err.message)||err))){
@@ -11232,23 +11132,13 @@ function mu_openSmartSearchModal(){
 window.runSmartSearch = mu_openSmartSearchModal;
 
 /* ---------- AI settings modal ---------- */
-// forcedActiveId lets mu_onProviderPick preview a different provider's
-// fields (locked or not) by fully re-rendering this modal, without
-// actually persisting that provider as active — persisting only happens
-// on Save/Test, exactly like the rest of this form already worked.
-function mu_openAiSettingsModal(forcedActiveId){
+function mu_openAiSettingsModal(){
     const fa = currentLang==='fa';
     const s = MarkhinAI.getSettings();
-    const activeId = forcedActiveId || s.activeId || 'openrouter_free';
+    const activeId = s.activeId || 'openai';
     const providers = MarkhinAI.listProviders();
     const fields = MarkhinAI.getProviderFields(activeId) || { name:'', format:'openai', apiKey:'', model:'', baseUrl:'' };
     const isCustom = activeId.indexOf('custom:') === 0;
-    // Locked builtin provider (currently just the free OpenRouter one): its
-    // API key/Base URL are fixed in code and never exposed for
-    // viewing/copying/editing/deleting in this UI — only its model field
-    // and the "Fetch models" list stay interactive, and switching to a
-    // different provider is always still available from the dropdown.
-    const lockedPreset = MU_AI_BUILTINS[activeId] && MU_AI_BUILTINS[activeId].locked;
     const builtinGroup = providers.filter(p=>p.builtin).map(p=>
         `<option value="${p.id}" ${p.id===activeId?'selected':''}>${p.name}</option>`
     ).join('');
@@ -11281,29 +11171,21 @@ function mu_openAiSettingsModal(forcedActiveId){
                 <button type="button" class="btn-main" onclick="mu_confirmNewProvider()">✅ ${fa?'ایجاد و انتخاب':'Create & select'}</button>
             </div>
 
-            ${lockedPreset ? `
-            <label>${fa?'کلید API':'API Key'}</label>
-            <input type="text" id="muAiKey" value="${fa?'🔒 کلید داخلی — نیازی به وارد کردن نیست، قابل مشاهده/کپی/حذف نیست':'🔒 Built-in key — nothing to enter, not viewable/copyable/removable'}" disabled style="opacity:.65">
-            <label>${fa?'مدل (از بین مدل‌های رایگان سوییچ کن)':'Model (switch between free models)'}</label>` : `
             <label>${fa?'کلید API':'API Key'}</label>
             <input type="password" id="muAiKey" value="${escapeHtml(fields.apiKey||'')}" placeholder="sk-...">
             <label>${isCustom
                 ? (fa?'مدل (الزامی — نام دقیق مدل همان سرویس)':'Model (required — the exact model name from that service)')
-                : (fa?'مدل (اختیاری — پیش‌فرض دارد)':'Model (optional — has a default)')}</label>`}
+                : (fa?'مدل (اختیاری — پیش‌فرض دارد)':'Model (optional — has a default)')}</label>
             <div style="display:flex;gap:6px;align-items:center">
                 <input type="text" id="muAiModel" value="${escapeHtml(fields.model||'')}" placeholder="${fa?'مثلاً gpt-5-mini یا openai/gpt-4o-mini':'e.g. gpt-5-mini or openai/gpt-4o-mini'}" style="flex:1">
-                <button type="button" class="btn-main" style="white-space:nowrap" onclick="mu_fetchAiModelsList()">🔍 ${fa?(lockedPreset?'دریافت مدل‌های رایگان':'دریافت مدل‌ها'):(lockedPreset?'Fetch free models':'Fetch models')}</button>
+                <button type="button" class="btn-main" style="white-space:nowrap" onclick="mu_fetchAiModelsList()">🔍 ${fa?'دریافت مدل‌ها':'Fetch models'}</button>
             </div>
             <div id="muAiModelsBox" style="display:none;max-height:160px;overflow:auto;border:1px solid var(--panel-border);border-radius:8px;padding:6px;flex-direction:column;gap:4px"></div>
-            ${lockedPreset ? `
-            <p style="opacity:.6;font-size:10.5px;line-height:1.8;margin:0">${fa
-                ? 'این ارائه‌دهنده با یک کلید API داخلی همیشه فعال است و به‌صورت پیش‌فرض روشن می‌ماند تا وقتی خودت ارائه‌دهنده دیگری را انتخاب و ذخیره کنی. فقط مدل‌های رایگان OpenRouter (پسوند «:free») در لیست دریافت مدل‌ها نشان داده می‌شوند. Base URL آن ثابت و غیرقابل تغییر است.'
-                : "This provider runs on an always-on built-in API key and stays the default until you pick and save a different provider. Only OpenRouter's free models (the \":free\" suffix) show up in the Fetch models list, and its Base URL is fixed and cannot be changed."}</p>` : `
             <label>${fa?'Base URL (اختیاری برای OpenAI/OpenRouter)':'Base URL (optional for OpenAI/OpenRouter)'}</label>
             <input type="text" id="muAiBase" value="${escapeHtml(fields.baseUrl||'')}" placeholder="https://api.openai.com/v1">
             ${isCustom ? `<p style="opacity:.6;font-size:10.5px;line-height:1.8;margin:0">${fa
                 ? 'نکته: اگر بعد از تست همچنان خطای شبکه/اتصال می‌گیری، معمولاً یعنی آن سرویس اجازه تماس مستقیم از داخل مرورگر (CORS) را نمی‌دهد — این را فقط خودِ سرویس می‌تواند فعال کند.'
-                : "Note: if you still get a network/connection error after testing, it usually means that service doesn't allow direct browser calls (CORS) — only the service itself can enable that."}</p>` : ''}`}
+                : "Note: if you still get a network/connection error after testing, it usually means that service doesn't allow direct browser calls (CORS) — only the service itself can enable that."}</p>` : ''}
         </div>
         <div class="markhin-ai-settings-row" style="margin-top:10px">
             <label>🎭 ${fa?'طرز حرف زدن (لحن دستیار)':'Speaking style (assistant tone)'}</label>
@@ -11317,11 +11199,9 @@ function mu_openAiSettingsModal(forcedActiveId){
                 ? 'این لحن روی همه پاسخ‌های MARKHIN AI در همین چت اعمال می‌شود، مستقل از این‌که کدام ارائه‌دهنده انتخاب شده — هر وقت خواستی می‌توانی عوضش کنی.'
                 : "This tone applies to every MARKHIN AI reply in this chat, independent of which provider is selected — switch it anytime."}</p>
         </div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
             <button class="btn-main" onclick="mu_saveAiSettings()">💾 ${fa?'ذخیره':'Save'}</button>
-            ${lockedPreset
-                ? `<span style="font-size:11px;opacity:.6">🔒 ${fa?'قابل حذف نیست — برای عوض‌کردن، ارائه‌دهنده دیگری از لیست بالا انتخاب و ذخیره کن':'Not removable — pick a different provider above and save to switch'}</span>`
-                : (isCustom ? `<button class="btn-main" onclick="mu_removeAiProvider()">🗑️ ${fa?'حذف این ارائه‌دهنده':'Remove this provider'}</button>` : `<button class="btn-main" onclick="mu_clearAiSettings()">🗑️ ${fa?'حذف کلید':'Clear key'}</button>`)}
+            ${isCustom ? `<button class="btn-main" onclick="mu_removeAiProvider()">🗑️ ${fa?'حذف این ارائه‌دهنده':'Remove this provider'}</button>` : `<button class="btn-main" onclick="mu_clearAiSettings()">🗑️ ${fa?'حذف کلید':'Clear key'}</button>`}
             <button class="btn-main" onclick="mu_testAiSettings()">🔎 ${fa?'تست اتصال':'Test connection'}</button>
         </div>
         <div id="muAiTestResult" style="margin-top:8px;font-size:11px;opacity:.85"></div>
@@ -11330,19 +11210,22 @@ function mu_openAiSettingsModal(forcedActiveId){
 window.mu_openAiSettingsModal = mu_openAiSettingsModal;
 
 window.mu_onProviderPick = function(value){
+    const box = document.getElementById('muAiNewProviderBox');
+    const modelsBox = document.getElementById('muAiModelsBox');
+    if(modelsBox){ modelsBox.style.display = 'none'; modelsBox.innerHTML = ''; }
     if(value === '__add_new__'){
-        const box = document.getElementById('muAiNewProviderBox');
-        const modelsBox = document.getElementById('muAiModelsBox');
-        if(modelsBox){ modelsBox.style.display = 'none'; modelsBox.innerHTML = ''; }
         if(box) box.style.display = 'flex';
         return;
     }
-    // Full re-render (rather than just patching the key/model/Base URL
-    // inputs in place) so switching to/from the locked free-OpenRouter
-    // provider correctly shows/hides its API-key and Base URL fields and
-    // the remove/clear button. Nothing is persisted by this — only
-    // Save/Test actually make `value` the active provider, same as before.
-    mu_openAiSettingsModal(value);
+    if(box) box.style.display = 'none';
+    const fields = MarkhinAI.getProviderFields(value);
+    if(!fields) return;
+    const keyEl = document.getElementById('muAiKey');
+    const modelEl = document.getElementById('muAiModel');
+    const baseEl = document.getElementById('muAiBase');
+    if(keyEl) keyEl.value = fields.apiKey||'';
+    if(modelEl) modelEl.value = fields.model||'';
+    if(baseEl) baseEl.value = fields.baseUrl||'';
 };
 
 window.mu_confirmNewProvider = function(){
@@ -11372,12 +11255,7 @@ window.mu_removeAiProvider = function(){
 
 function mu_readAiForm(){
     const sel = document.getElementById('muAiProvider');
-    const id = sel ? sel.value : 'openrouter_free';
-    const lockedPreset = MU_AI_BUILTINS[id] && MU_AI_BUILTINS[id].locked;
-    // The key/Base URL inputs for a locked provider are disabled and show
-    // a placeholder message rather than a real value — never read them
-    // back as if they were user-entered data.
-    const rawKey = lockedPreset ? '' : ((document.getElementById('muAiKey')||{}).value || '');
+    const rawKey = ((document.getElementById('muAiKey')||{}).value || '');
     const cleaned = mu_sanitizeApiKeyValue(rawKey);
     if(cleaned.wasCleaned){
         showToast(currentLang==='fa'
@@ -11385,10 +11263,10 @@ function mu_readAiForm(){
             : '⚠️ The API key contained invisible/invalid characters; it was cleaned up automatically.');
     }
     return {
-        id,
+        id: sel ? sel.value : 'openai',
         apiKey: cleaned.value,
         model: ((document.getElementById('muAiModel')||{}).value || '').trim(),
-        baseUrl: lockedPreset ? '' : ((document.getElementById('muAiBase')||{}).value || '').trim()
+        baseUrl: ((document.getElementById('muAiBase')||{}).value || '').trim()
     };
 }
 window.mu_saveAiSettings = function(){
@@ -11402,14 +11280,7 @@ window.mu_saveAiSettings = function(){
 };
 window.mu_clearAiSettings = function(){
     const sel = document.getElementById('muAiProvider');
-    const id = sel ? sel.value : 'openrouter_free';
-    if(MU_AI_BUILTINS[id] && MU_AI_BUILTINS[id].locked){
-        // No UI path should normally reach this (the button is hidden for
-        // locked providers), but guard anyway — this provider's key can
-        // never be cleared/removed, only switched away from.
-        showToast(currentLang==='fa' ? 'این ارائه‌دهنده قابل حذف نیست — ارائه‌دهنده دیگری را انتخاب کن.' : 'This provider cannot be removed — pick a different provider instead.');
-        return;
-    }
+    const id = sel ? sel.value : 'openai';
     if(id.indexOf('custom:')===0){ MarkhinAI.removeCustomProvider(id); }
     else { MarkhinAI.saveProviderFields(id, { apiKey:'', model:'', baseUrl:'' }); }
     showToast(currentLang==='fa' ? 'کلید حذف شد.' : 'Key cleared.');
@@ -11445,10 +11316,9 @@ window.mu_fetchAiModelsList = async function(){
     const fa = currentLang==='fa';
     const box = document.getElementById('muAiModelsBox');
     const sel = document.getElementById('muAiProvider');
-    const id = sel ? sel.value : 'openrouter_free';
-    const lockedPreset = MU_AI_BUILTINS[id] && MU_AI_BUILTINS[id].locked;
+    const id = sel ? sel.value : 'openai';
     let format = 'openai';
-    let baseUrl = lockedPreset ? '' : ((document.getElementById('muAiBase')||{}).value||'').trim();
+    let baseUrl = ((document.getElementById('muAiBase')||{}).value||'').trim();
     if(id === '__add_new__'){
         format = (document.getElementById('muAiNewFormat')||{}).value || 'openai';
         if(!baseUrl) baseUrl = ((document.getElementById('muAiNewBase')||{}).value||'').trim();
@@ -11460,17 +11330,13 @@ window.mu_fetchAiModelsList = async function(){
         format = (MU_AI_BUILTINS[id] && MU_AI_BUILTINS[id].format) || 'openai';
         if(!baseUrl) baseUrl = (MU_AI_BUILTINS[id] && MU_AI_BUILTINS[id].defaultBaseUrl) || '';
     }
-    // For the locked free-OpenRouter provider, the key input on screen is
-    // disabled and shows a placeholder message, not a real key — always
-    // use the fixed built-in key for this id instead of reading the DOM.
-    const apiKey = lockedPreset ? (MU_AI_BUILTINS[id].fixedApiKey||'') : ((document.getElementById('muAiKey')||{}).value || '');
-    const onlyFree = !!(lockedPreset && MU_AI_BUILTINS[id].freeOnly);
+    const apiKey = ((document.getElementById('muAiKey')||{}).value || '');
     if(!box) return;
     box.style.display = 'flex';
     box.innerHTML = fa ? '⏳ در حال دریافت لیست مدل‌ها...' : '⏳ Fetching model list...';
     try{
-        const models = await MarkhinAI.fetchModels({ format, apiKey, baseUrl, onlyFree });
-        if(!models.length){ box.innerHTML = fa ? (onlyFree ? 'مدل رایگانی پیدا نشد.' : 'چیزی پیدا نشد.') : (onlyFree ? 'No free models found.' : 'Nothing found.'); return; }
+        const models = await MarkhinAI.fetchModels({ format, apiKey, baseUrl });
+        if(!models.length){ box.innerHTML = fa ? 'چیزی پیدا نشد.' : 'Nothing found.'; return; }
         box.innerHTML = '';
         models.slice(0,200).forEach(m=>{
             const b = document.createElement('button');
@@ -12606,19 +12472,6 @@ window.attachWrapperEvents = function(categoryId){
         const msg = String((err && err.message) || err || '');
         const m = msg.match(/can only afford\s+(\d[\d,]*)/i);
         return m ? Math.max(64, parseInt(m[1].replace(/,/g,''), 10)) : null;
-    }
-
-    /* Distinct from both error types above: HTTP 429 (rate limit / quota
-       exceeded) — unlike a too-large request or a low balance, this can't
-       be fixed by shrinking anything about the request; the account
-       itself is temporarily capped. The only real fix is a different
-       account/provider (or waiting it out), so this is what triggers the
-       automatic fallback-provider switch in the retry loop below (see
-       MarkhinAI.listFallbackCandidates / setActiveProviderId) instead of
-       a shrink-and-retry like the other two. */
-    function mu_looksLikeRateLimitError(err){
-        const msg = String((err && err.message) || err || '');
-        return /\b429\b/.test(msg) || /rate limit|rate-limited|rate limited|too many requests|quota exceeded/i.test(msg);
     }
 
     /* Locked note content is never readable without its password, so
@@ -14275,11 +14128,6 @@ window.attachWrapperEvents = function(categoryId){
         let contextScale = 1;
         let maxTokensOverride = null;
         let lastErr = null;
-        // Set when the rate-limit fallback below actually switches
-        // providers mid-retry, so the success path further down can tell
-        // the person what happened (see autoSwitchNotice usage after the
-        // loop). Only one such switch is attempted per message.
-        let autoSwitchNotice = null;
         for(let attemptNum = 0; attemptNum < 3; attemptNum++){
             try {
                 finalText = await runAiTurn(contextScale, maxTokensOverride);
@@ -14303,26 +14151,6 @@ window.attachWrapperEvents = function(categoryId){
                     const affordable = mu_affordableTokens(err);
                     if(affordable){
                         maxTokensOverride = affordable;
-                        continue;
-                    }
-                }
-                // Rate limit (429) on the currently active provider: instead
-                // of just failing, look for another already-configured
-                // provider to fall back to (see listFallbackCandidates) and
-                // silently switch the active provider to it before retrying
-                // — runAiTurn's calls into MarkhinAI.chat() always resolve
-                // whichever provider is active right now, so no other
-                // plumbing is needed for the retry itself to actually use
-                // the new one. If nothing is available to fall back to,
-                // this falls through to throw below exactly as before.
-                if(attemptNum < 2 && !autoSwitchNotice && mu_looksLikeRateLimitError(err)){
-                    const current = MarkhinAI.getActiveProvider();
-                    const currentId = current ? current.id : null;
-                    const candidates = MarkhinAI.listFallbackCandidates(currentId);
-                    if(candidates.length && MarkhinAI.setActiveProviderId(candidates[0])){
-                        const next = MarkhinAI.getActiveProvider();
-                        autoSwitchNotice = { fromName: (current && current.name) || '', toName: (next && next.name) || '' };
-                        if(typeof mAiUpdateSub === 'function') mAiUpdateSub();
                         continue;
                     }
                 }
@@ -14361,16 +14189,6 @@ window.attachWrapperEvents = function(categoryId){
                     ? `🔒 این سوال به یادداشت قفل «${names}» هم مربوط به نظر می‌رسه، ولی چون رمزش رو ندارم توی جوابم لحاظش نکردم. برای بازش‌کردن، روی دکمه 🔒 بالای همین چت بزن و رمزش رو وارد کن، بعد دوباره همین سوال رو از من بپرس.`
                     : `🔒 This question also looks related to the locked note "${names}", but I couldn't use it since I don't have its password. Tap the 🔒 button above this chat to unlock it, then ask me again.` });
             }
-            // Same deterministic, app-generated notice pattern as the
-            // locked-note one above — tells the person exactly what just
-            // happened (which provider hit its limit, which one it
-            // switched to) rather than leaving the switch invisible, and
-            // reminds them the switch can always be made manually too.
-            if(autoSwitchNotice){
-                mAiHistory.push({ id: mAiNextId(), ts: Date.now(), role: 'assistant', synthetic: true, content: fa
-                    ? `🔄 ارائه‌دهنده «${autoSwitchNotice.fromName}» به محدودیت نرخ درخواست/سهمیه خورد، برای همین به‌صورت خودکار به ارائه‌دهنده «${autoSwitchNotice.toName}» سوییچ شد و همین پیام دوباره برایش ارسال و پاسخ داده شد — جواب بالا از همون ارائه‌دهنده جدیده. هر وقت خواستی می‌تونی از ⚙️ بالای همین چت، مدل یا ارائه‌دهنده رو دستی هم عوض کنی.`
-                    : `🔄 The "${autoSwitchNotice.fromName}" provider hit its rate limit/quota, so the app automatically switched to "${autoSwitchNotice.toName}" and resent this message — the reply above came from the new provider. You can always switch the model or provider yourself anytime from ⚙️ above this chat.` });
-            }
             mAiSave();
             }
         } catch(err){
@@ -14384,10 +14202,6 @@ window.attachWrapperEvents = function(categoryId){
                 ? (fa
                     ? '⚠️ خطا از سمت ارائه‌دهنده‌ی هوش مصنوعی (کد 402): ' + (err && err.message || String(err)) + '\n\nخلاصه‌ی ماجرا: این خطا یعنی موجودی/اعتبار (credit) حسابِ ارائه‌دهنده‌ای که وصل کرده‌ای (مثلاً OpenRouter) کم یا صفر است و اجازه نمی‌دهد پاسخ به‌اندازه‌ی لازم بلند باشد. ربطی به یادداشت‌ها یا تنظیمات خودِ برنامه ندارد. راه‌حل: یا به حساب همان ارائه‌دهنده اعتبار اضافه کن، یا یک مدل رایگان (معمولاً با پسوند «:free») انتخاب کن، یا موقتاً به یک ارائه‌دهنده‌ی دیگر سوییچ کن.'
                     : '⚠️ Error from the AI provider (code 402): ' + (err && err.message || String(err)) + '\n\nIn short: this means the connected provider account\'s (e.g. OpenRouter\'s) credit balance is too low or empty to cover a reply of the needed length — nothing to do with your notes or this app\'s own settings. Fix: top up credits on that provider\'s account, pick a free model (usually suffixed ":free"), or switch to a different provider for now.')
-                : mu_looksLikeRateLimitError(err)
-                ? (fa
-                    ? '⏳ ارائه‌دهنده‌ی فعلی به محدودیت نرخ درخواست/سهمیه‌اش خورده، و ارائه‌دهنده‌ی دیگری هم برای سوییچ خودکار در دسترس نبود (هیچ ارائه‌دهنده‌ی دیگری با کلید API تنظیم‌شده نداری تا خودکار بهش سوییچ کنم). کمی صبر کن و دوباره امتحان کن، یا از ⚙️ بالای همین چت یک ارائه‌دهنده/مدل دیگر اضافه یا انتخاب کن. جزئیات فنی: ' + (err && err.message || String(err))
-                    : "⏳ The current provider hit its rate limit/quota, and no other configured provider was available to automatically switch to (you don't have another provider set up with its own API key). Wait a bit and try again, or add/select a different provider or model from ⚙️ above this chat. Technical detail: " + (err && err.message || String(err)))
                 : '⚠️ ' + (fa ? 'خطا: ' : 'Error: ') + (err && err.message || String(err));
             mAiHistory.push({ id: mAiNextId(), ts: Date.now(), role: 'assistant', content: errMsg });
             mAiSave();
