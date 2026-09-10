@@ -2631,6 +2631,7 @@ window.mu_syncHtmlBg = function(){
 
     <div class="control-panel">
         <div class="search-tools-row">
+            <input type="text" id="searchInput" class="search-box" placeholder="جستجو..." autocomplete="off" oninput="debounceSearch()">
             <button class="btn-main" id="btnSmartSearch" onclick="runSmartSearch()">جستجو</button>
         </div>
 
@@ -10979,7 +10980,7 @@ window.attachWrapperEvents = function(categoryId){
         </div>
         <div class="mAi-header-actions">
             <button class="mAi-icon-btn" id="qaLockBtn" onclick="promptUnlockQa()" title="مدیریت قفل یادداشت‌ها برای MARKHIN AI" aria-label="قفل یادداشت‌ها">🔒</button>
-            <button class="mAi-icon-btn" onclick="mu_openAiSettingsModal()" title="تنظیمات هوش مصنوعی" aria-label="تنظیمات">⚙️</button>
+            <button class="mAi-icon-btn" id="muAiSettingsBtn" onclick="mu_openAiSettingsModal()" title="تنظیمات هوش مصنوعی" aria-label="تنظیمات">⚙️</button>
             <button class="mAi-icon-btn" onclick="markhinAiChat_clear()" title="پاک کردن گفتگو" aria-label="پاک کردن">🗑️</button>
             <button class="mAi-icon-btn mAi-close-btn" onclick="closeMarkhinAIChat()" title="بستن" aria-label="بستن">✕</button>
         </div>
