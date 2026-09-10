@@ -2402,10 +2402,60 @@ html, body, button, input, textarea, select, [contenteditable="true"] {
 }
 .mAi-welcome-text { font-size: 12.5px; opacity: .75; line-height: 1.9; }
 
-.mAi-msg { display: flex; max-width: 86%; animation: mAiPop .3s cubic-bezier(.2,.9,.25,1); }
+.mAi-msg { display: flex; align-items: flex-end; gap: 4px; max-width: 86%; animation: mAiPop .3s cubic-bezier(.2,.9,.25,1); }
 .mAi-msg.mAi-user { align-self: flex-end; }
 .mAi-msg.mAi-assistant { align-self: flex-start; }
+.mAi-msg .mAi-bubble { min-width: 0; }
 @keyframes mAiPop { from { opacity: 0; transform: translateY(8px) scale(.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+/* Reply button: a small circular affordance next to every bubble (both
+   the user's own messages and the assistant's). Always visible rather
+   than hover-only, since most usage here is touch/mobile where hover
+   never fires — kept low-opacity so it doesn't compete visually with
+   the message text, and brightens on tap. */
+.mAi-reply-btn {
+  flex: 0 0 auto;
+  width: 26px; height: 26px;
+  border: none;
+  background: transparent;
+  color: var(--text-color);
+  opacity: .35;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity .15s ease, background .15s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.mAi-reply-btn:hover, .mAi-reply-btn:active {
+  opacity: 1;
+  background: color-mix(in srgb, var(--text-color) 14%, transparent);
+}
+/* Quoted preview shown inside a bubble when that message is a reply to
+   an earlier one. Tapping it jumps back to (and briefly highlights)
+   the original message. */
+.mAi-quote {
+  border-inline-start: 3px solid color-mix(in srgb, var(--text-color) 55%, transparent);
+  background: rgba(0,0,0,.16);
+  border-radius: 6px;
+  padding: 5px 8px;
+  margin-bottom: 7px;
+  cursor: pointer;
+}
+.mAi-quote-label { font-size: 11px; font-weight: 700; opacity: .85; margin-bottom: 2px; }
+.mAi-quote-text {
+  font-size: 11.5px;
+  opacity: .75;
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mAi-msg-highlight .mAi-bubble {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--text-color) 60%, transparent), 0 3px 12px rgba(0,0,0,.15);
+}
 .mAi-bubble {
   padding: 11px 14px;
   border-radius: 16px;
@@ -2443,6 +2493,45 @@ html, body, button, input, textarea, select, [contenteditable="true"] {
 @keyframes mAiTypingBounce { 0%,60%,100% { transform: translateY(0); opacity:.5; } 30% { transform: translateY(-5px); opacity:1; } }
 .mAi-cursor { display: inline-block; margin-inline-start: 1px; animation: mAiCursorBlink 1s step-start infinite; opacity: .85; }
 @keyframes mAiCursorBlink { 50% { opacity: 0; } }
+
+/* Shown above the input bar while composing a reply to a specific
+   earlier message (own or MARKHIN AI's) — mirrors the quote preview
+   rendered inside the eventual message bubble. Hidden entirely
+   (display:none, toggled in JS) when not replying to anything. */
+.mAi-reply-bar {
+  flex: 0 0 auto;
+  display: none;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: color-mix(in srgb, var(--card-bg) 92%, transparent);
+  border-top: 1px solid var(--panel-border);
+  border-inline-start: 3px solid color-mix(in srgb, var(--text-color) 55%, transparent);
+}
+.mAi-reply-bar-content { flex: 1 1 auto; min-width: 0; }
+.mAi-reply-bar-label { font-size: 11px; font-weight: 700; opacity: .85; }
+.mAi-reply-bar-text {
+  font-size: 12px;
+  opacity: .7;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mAi-reply-bar-close {
+  flex: 0 0 auto;
+  width: 26px; height: 26px;
+  border: none;
+  background: transparent;
+  color: var(--text-color);
+  opacity: .7;
+  font-size: 13px;
+  cursor: pointer;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.mAi-reply-bar-close:hover, .mAi-reply-bar-close:active { opacity: 1; background: color-mix(in srgb, var(--text-color) 14%, transparent); }
 
 .mAi-inputbar {
   flex: 0 0 auto;
@@ -9989,7 +10078,7 @@ window.mu_jumpToTopMatch = mu_jumpToTopMatch;
 */
 const MU_AI_BUILTINS = {
     openai:     { label:'OpenAI',        format:'openai',    defaultBaseUrl:'https://api.openai.com/v1',                                  defaultModel:'gpt-5-mini' },
-    anthropic:  { label:'Anthropic',     format:'anthropic', defaultBaseUrl:'https://api.anthropic.com',                                   defaultModel:'claude-haiku-4-5-20251001' },
+    anthropic:  { label:'Anthropic',     format:'anthropic', defaultBaseUrl:'https://api.anthropic.com',                                   defaultModel:'claude-sonnet-5' },
     openrouter: { label:'OpenRouter',    format:'openai',    defaultBaseUrl:'https://openrouter.ai/api/v1',                                defaultModel:'openai/gpt-4o-mini' },
     google:     { label:'Google Gemini', format:'openai',    defaultBaseUrl:'https://generativelanguage.googleapis.com/v1beta/openai',     defaultModel:'gemini-2.5-flash' },
     groq:       { label:'Groq',          format:'openai',    defaultBaseUrl:'https://api.groq.com/openai/v1',                              defaultModel:'llama-3.3-70b-versatile' },
@@ -10023,7 +10112,7 @@ const MU_HUMANLIKE_FA = ' مثل یک آدم واقعی بنویس، نه مثل
 const MU_HUMANLIKE_EN = ' Write like an actual person, not a chatbot: drop AI-assistant boilerplate ("as an AI assistant...", over-apologizing, stiff disclaimers) and stock robotic phrasing. If asked directly whether you\'re an AI, answer honestly — this only governs the ordinary unprompted cadence of replies, not what you say if asked.';
 
 const MU_AI_STYLES = {
-    default: { labelFa:'عادی (پیش‌فرض)', labelEn:'Normal (default)', promptFa:'', promptEn:'' },
+    default: { labelFa:'عادی (پیش‌فرض)', labelEn:'Normal (default)', promptFa:MU_HUMANLIKE_FA.trim(), promptEn:MU_HUMANLIKE_EN.trim() },
     formal: {
         labelFa:'رسمی', labelEn:'Formal',
         promptFa:'لحن: کاملاً رسمی و مؤدبانه صحبت کن؛ از زبان معیار، واژگان دقیق و جملات کامل و منسجم استفاده کن، از شکلک و کلمات عامیانه پرهیز کن، و کاربر را محترمانه و حرفه‌ای خطاب کن — مثل یک متخصص باتجربه که دارد رسمی ولی روشن و بدون ابهام توضیح می‌دهد، نه خشک و پرطمطراق.' + MU_HUMANLIKE_FA,
@@ -11780,6 +11869,8 @@ window.attachWrapperEvents = function(categoryId){
 
     <div id="markhinAiChatMessages" class="mAi-messages"></div>
 
+    <div id="mAiReplyBar" class="mAi-reply-bar"></div>
+
     <div class="mAi-inputbar">
         <textarea id="markhinAiChatInput" class="mAi-input" rows="1"
                   placeholder="پیام خود را بنویس..."
@@ -11825,8 +11916,31 @@ window.attachWrapperEvents = function(categoryId){
     let mAiStreamText = '';
     try { mAiHistory = JSON.parse(localStorage.getItem(MAI_HISTORY_KEY) || '[]'); if(!Array.isArray(mAiHistory)) mAiHistory = []; } catch(e){ mAiHistory = []; }
 
+    /* ---------------------------------------------------------------
+       Reply-to-message feature: every message (assistant or the
+       user's own) gets a stable id so a later message can reference
+       it. mAiNextId() mints new ones; the loop right after backfills
+       ids onto conversations that were saved before this feature
+       existed, so old chats keep working with it immediately.
+       mAiReplyTarget holds whatever message is currently "queued" as
+       the thing being replied to (set by tapping the ↩ button on a
+       bubble, cleared by sending or by the ✕ on the reply bar).
+       --------------------------------------------------------------- */
+    let mAiIdSeq = 0;
+    function mAiNextId(){ mAiIdSeq++; return 'm' + Date.now().toString(36) + mAiIdSeq.toString(36); }
+    mAiHistory.forEach(function(m){ if(!m.id) m.id = mAiNextId(); });
+    let mAiReplyTarget = null; // { id, role, preview } | null
+
+    // Cap for how many turns are kept in storage at all. This used to be
+    // 60, which meant anything older (e.g. the user's very first message)
+    // was permanently gone — not just left out of the model's context —
+    // long before a long-running conversation would realistically end.
+    // Raised so the full conversation genuinely persists until the user
+    // clears it themselves (markhinAiChat_clear), which is the only thing
+    // that should make earlier turns unrecoverable.
+    const MAI_HISTORY_STORE_CAP = 4000;
     function mAiSave(){
-        try { localStorage.setItem(MAI_HISTORY_KEY, JSON.stringify(mAiHistory.slice(-60))); } catch(e){}
+        try { localStorage.setItem(MAI_HISTORY_KEY, JSON.stringify(mAiHistory.slice(-MAI_HISTORY_STORE_CAP))); } catch(e){}
     }
 
     function mAiFormat(t){
@@ -11875,6 +11989,66 @@ window.attachWrapperEvents = function(categoryId){
     }
     window.mu_updateAiLockNotice = mAiUpdateLockNotice;
 
+    // Short, single-line preview of a message's text, used both in the
+    // quote block inside a reply bubble and in the reply bar above the
+    // input while composing. Collapses whitespace/newlines so a
+    // multi-line message doesn't blow up the one-line preview.
+    function mAiPreviewOf(text){
+        const s = String(text == null ? '' : text).replace(/\s+/g, ' ').trim();
+        return s.length > 120 ? s.slice(0, 120) + '…' : s;
+    }
+
+    function mAiRenderReplyBar(){
+        const bar = document.getElementById('mAiReplyBar');
+        if(!bar) return;
+        const fa = currentLang === 'fa';
+        if(!mAiReplyTarget){
+            bar.style.display = 'none';
+            bar.innerHTML = '';
+            return;
+        }
+        const label = mAiReplyTarget.role === 'user'
+            ? (fa ? 'پاسخ به پیام خودت' : 'Replying to yourself')
+            : (fa ? 'پاسخ به MARKHIN AI' : 'Replying to MARKHIN AI');
+        bar.style.display = 'flex';
+        bar.innerHTML =
+            '<div class="mAi-reply-bar-content">' +
+                '<div class="mAi-reply-bar-label">' + escapeHtml(label) + '</div>' +
+                '<div class="mAi-reply-bar-text">' + escapeHtml(mAiReplyTarget.preview) + '</div>' +
+            '</div>' +
+            '<button class="mAi-reply-bar-close" onclick="mAi_cancelReply()" title="' + (fa ? 'لغو پاسخ' : 'Cancel reply') + '" aria-label="' + (fa ? 'لغو پاسخ' : 'Cancel reply') + '">✕</button>';
+    }
+
+    // Tapping the ↩ on any bubble (own message or MARKHIN AI's) queues
+    // it as the reply target; the actual attachment happens when the
+    // user sends their next message (see markhinAiChat_send).
+    window.mAi_replyTo = function(id){
+        const msg = mAiHistory.find(function(m){ return m.id === id; });
+        if(!msg) return;
+        mAiReplyTarget = { id: msg.id, role: msg.role, preview: mAiPreviewOf(msg.content) };
+        mAiRenderReplyBar();
+        const input = document.getElementById('markhinAiChatInput');
+        if(input) input.focus();
+    };
+
+    window.mAi_cancelReply = function(){
+        mAiReplyTarget = null;
+        mAiRenderReplyBar();
+    };
+
+    // Tapping a quote block inside a message jumps back to (and briefly
+    // highlights) the original message it was replying to, in case
+    // that message has scrolled out of view.
+    window.mAi_scrollToMsg = function(id){
+        const box = document.getElementById('markhinAiChatMessages');
+        if(!box) return;
+        const el = box.querySelector('[data-mid="' + CSS.escape(id) + '"]');
+        if(!el) return;
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.classList.add('mAi-msg-highlight');
+        setTimeout(function(){ el.classList.remove('mAi-msg-highlight'); }, 1200);
+    };
+
     function mAiRender(){
         const box = document.getElementById('markhinAiChatMessages');
         if(!box) return;
@@ -11892,7 +12066,14 @@ window.attachWrapperEvents = function(categoryId){
         }
         let html = mAiHistory.map(function(m){
             const cls = m.role === 'user' ? 'mAi-user' : 'mAi-assistant';
-            return '<div class="mAi-msg ' + cls + '"><div class="mAi-bubble">' + mAiFormat(m.content) + '</div></div>';
+            const quoteHtml = m.replyTo
+                ? ('<div class="mAi-quote" onclick="mAi_scrollToMsg(\'' + m.replyTo.id + '\')">' +
+                        '<div class="mAi-quote-label">' + (m.replyTo.role === 'user' ? (fa ? 'خودت' : 'You') : 'MARKHIN AI') + '</div>' +
+                        '<div class="mAi-quote-text">' + escapeHtml(m.replyTo.preview) + '</div>' +
+                   '</div>')
+                : '';
+            const replyBtn = '<button class="mAi-reply-btn" onclick="mAi_replyTo(\'' + m.id + '\')" title="' + (fa ? 'پاسخ' : 'Reply') + '" aria-label="' + (fa ? 'پاسخ' : 'Reply') + '">↩</button>';
+            return '<div class="mAi-msg ' + cls + '" data-mid="' + m.id + '">' + replyBtn + '<div class="mAi-bubble">' + quoteHtml + mAiFormat(m.content) + '</div></div>';
         }).join('');
         if(mAiPending > 0){
             if(mAiStreamText){
@@ -11916,6 +12097,7 @@ window.attachWrapperEvents = function(categoryId){
         mAiUpdateSub();
         mAiUpdateLockNotice();
         mAiRender();
+        mAiRenderReplyBar();
         mAiSyncViewport();
         // Deliberately NOT auto-focusing the input here: focusing it would pop
         // the mobile keyboard open the instant the chat page opens. The keyboard
@@ -11963,11 +12145,15 @@ window.attachWrapperEvents = function(categoryId){
         if(mAiHistory.length && !confirm(fa ? 'کل گفتگو پاک شود؟' : 'Clear the entire conversation?')) return;
         mAiHistory = [];
         mAiStreamText = '';
+        // Also drop any message queued via the ↩ reply button — it would
+        // otherwise point at a message that no longer exists.
+        mAiReplyTarget = null;
         // Invalidate any reply still in flight so it cannot land back in
         // the conversation that was just cleared once it finishes.
         mAiGen++;
         mAiSave();
         mAiRender();
+        mAiRenderReplyBar();
     };
 
     window.markhinAiChat_autosize = function(el){
@@ -12079,7 +12265,8 @@ window.attachWrapperEvents = function(categoryId){
         { name:'find_duplicate_notes', description:'Scan the user\'s whole vault for pairs of notes that are near-duplicates or highly overlapping in content (based on shared significant words), so you can help the user spot clutter and clean it up — e.g. "do I have any duplicate notes?", "find notes that overlap with each other". Returns candidate pairs with a similarity score; it does not delete or merge anything by itself — suggest merge_notes or delete_note afterward based on what the user wants to do with the results.', parameters:{ type:'object', properties:{ min_similarity:{ type:'number', description:'Minimum similarity from 0 to 1 to include a pair (default 0.5). Lower finds more/looser matches, higher finds only near-identical notes.' } } } },
         { name:'move_note_position', description:'Move ONE note to a specific spot in its list — the very top, the very bottom, or directly before/after another note. Use this for one-off manual reordering requests like "move X above Y", "put X first", "send Y to the bottom of the list" — this is about WHERE a note sits in the list, never about which folder it is in (for that, use move_note_to_folder) and never about creating/deleting anything. For resorting a whole list at once by a rule (alphabetical, date, length) instead of moving one note, use sort_notes instead. Pinned notes always display before non-pinned ones, and favorites before plain notes, regardless of manual order — so a note can only be repositioned relative to another note in the same pinned/favorite/normal group; if the two are in different groups this tool returns a clear error explaining why instead of silently doing nothing.', parameters:{ type:'object', properties:{ note:{ type:'string', description:'The id or title of the note to move.' }, position:{ type:'string', enum:['top','bottom','before','after'], description:'"top"/"bottom" = the very start/end of the list. "before"/"after" = right next to reference_note.' }, reference_note:{ type:'string', description:'The id or title of the note to position relative to. Required when position is "before" or "after"; ignored otherwise.' } }, required:['note','position'] } },
         { name:'sort_notes', description:'Resort a whole set of notes at once by a rule — alphabetically by title, by last-edited date, or by content length — instead of moving notes one at a time (use move_note_position for a single one-off move). Optionally restrict to one folder; otherwise it sorts every visible note in the vault. Use this whenever the user asks to sort/order their notes "by name/alphabet", "by date", "by length", etc. Pinned notes always display before non-pinned ones, and favorites before plain notes, regardless of manual order — this sorts within each of those groups separately, so the pinned/favorite grouping itself never changes, only the order inside each group.', parameters:{ type:'object', properties:{ folder:{ type:'string', description:'Restrict sorting to notes inside this folder. Omit to sort across the whole vault.' }, by:{ type:'string', enum:['name','edited','length'], description:'"name" = alphabetical by title. "edited" = by last-edited date. "length" = by content length.' }, direction:{ type:'string', enum:['asc','desc'], description:'Sort direction. Defaults to "asc" (A→Z / oldest→newest / shortest→longest).' } }, required:['by'] } },
-        { name:'suggest_note_groups', description:'Analyze notes and suggest how to group related ones into folders, based on shared tags and shared significant words/topics in their content. This only analyzes and returns candidate groups (a suggested folder name plus the notes that belong in it) — it never moves or changes anything by itself. Use this whenever the user asks you to organize/tidy/group their notes into folders, or find which notes are related enough to file together. After getting the result, briefly tell the user what you found, then actually apply it yourself by calling move_note_to_folder (or bulk_update_notes) for each suggested group — any folder that does not exist yet is created automatically, exactly like move_note_to_folder always does.', parameters:{ type:'object', properties:{ include_foldered:{ type:'boolean', description:'If true, also consider notes that already have a folder, to suggest a full reorganization. Defaults to false, meaning only currently-unfiled notes are considered.' }, min_group_size:{ type:'number', description:'Minimum number of notes required to suggest a group. Defaults to 2.' } } } }
+        { name:'suggest_note_groups', description:'Analyze notes and suggest how to group related ones into folders, based on shared tags and shared significant words/topics in their content. This only analyzes and returns candidate groups (a suggested folder name plus the notes that belong in it) — it never moves or changes anything by itself. Use this whenever the user asks you to organize/tidy/group their notes into folders, or find which notes are related enough to file together. After getting the result, briefly tell the user what you found, then actually apply it yourself by calling move_note_to_folder (or bulk_update_notes) for each suggested group — any folder that does not exist yet is created automatically, exactly like move_note_to_folder always does.', parameters:{ type:'object', properties:{ include_foldered:{ type:'boolean', description:'If true, also consider notes that already have a folder, to suggest a full reorganization. Defaults to false, meaning only currently-unfiled notes are considered.' }, min_group_size:{ type:'number', description:'Minimum number of notes required to suggest a group. Defaults to 2.' } } } },
+        { name:'get_chat_history', description:'Look up part of THIS conversation (between you and the user, in this same chat) that falls outside what you can currently see above — only the most recent turns are included directly in your context each time, older ones are not, even though the app still has them stored. Call this whenever the user refers to something earlier in this chat that is not visible above: "what was my first message", "what did I ask you at the start", "what did we say about X earlier", "repeat what you told me before". Do not guess or say you don\'t know before calling this. If the user has cleared this conversation, there is no earlier history at all — the tool will correctly return nothing before that point, and you should tell the user the earlier conversation was cleared rather than invent something.', parameters:{ type:'object', properties:{ mode:{ type:'string', enum:['first','last','range','search'], description:'"first" = the earliest message(s) of the whole stored conversation (e.g. for "what was my first message"). "last" = the most recent stored message(s) (rarely needed — recent turns are usually already visible above). "range" = a specific slice by zero-based index (use total_messages from a previous call to pick indices). "search" = find messages whose text contains a keyword/phrase.' }, count:{ type:'number', description:'How many messages to return for "first" or "last". Default 1, max 20.' }, start:{ type:'number', description:'Zero-based start index, for mode "range".' }, end:{ type:'number', description:'Zero-based end index, exclusive, for mode "range".' }, query:{ type:'string', description:'Keyword or phrase to search for, for mode "search".' } }, required:['mode'] } }
     ];
 
     /* Resolves a model-supplied note reference (an id, an exact title, or a
@@ -13011,6 +13198,42 @@ window.attachWrapperEvents = function(categoryId){
                     pairs.sort((x, y) => y.similarity - x.similarity);
                     return { ok:true, data:{ pairs: pairs.slice(0, 30), scanned_notes: prepped.length } };
                 }
+                case 'get_chat_history': {
+                    // Reads from the full in-memory mAiHistory array — the same
+                    // one mAiSave() persists in full (up to MAI_HISTORY_STORE_CAP)
+                    // — not the shorter slice actually sent as live context for
+                    // this turn. So this can reach turns the model can't already
+                    // see above, while still respecting a real clear: once the
+                    // user clears the chat, mAiHistory is emptied, so nothing
+                    // before that point can ever be returned here again.
+                    const full = mAiHistory;
+                    const mode = String(input.mode || '').toLowerCase();
+                    const capCount = function(n){ const v = Math.round(Number(n)); return Math.max(1, Math.min(20, Number.isFinite(v) && v > 0 ? v : 1)); };
+                    function pack(list){
+                        return list.map(function(m){
+                            return { index: full.indexOf(m), role: m.role, content: String(m.content == null ? '' : m.content).slice(0, 800) };
+                        });
+                    }
+                    let results;
+                    if(mode === 'first'){
+                        results = pack(full.slice(0, capCount(input.count)));
+                    } else if(mode === 'last'){
+                        results = pack(full.slice(-capCount(input.count)));
+                    } else if(mode === 'range'){
+                        let start = Math.round(Number(input.start));
+                        if(!Number.isFinite(start) || start < 0) start = 0;
+                        let end = Math.round(Number(input.end));
+                        if(!Number.isFinite(end) || end <= start) end = start + 10;
+                        results = pack(full.slice(start, Math.min(end, full.length)));
+                    } else if(mode === 'search'){
+                        const q = normalizeText(String(input.query || ''));
+                        if(!q) return { ok:false, error: fa ? 'برای جستجو باید عبارتی وارد کنی.' : 'A search query is required for "search" mode.' };
+                        results = pack(full.filter(function(m){ return normalizeText(String(m.content || '')).includes(q); })).slice(0, 20);
+                    } else {
+                        return { ok:false, error: 'mode must be one of: first, last, range, search' };
+                    }
+                    return { ok:true, data:{ total_messages: full.length, results: results } };
+                }
                 default:
                     return { ok:false, error: 'Unknown tool: ' + toolName };
             }
@@ -13033,7 +13256,7 @@ window.attachWrapperEvents = function(categoryId){
         // same text still can't fire this twice for the same message.
 
         if(!MarkhinAI.isConfigured()){
-            mAiHistory.push({ role: 'assistant', content: fa
+            mAiHistory.push({ id: mAiNextId(), role: 'assistant', content: fa
                 ? '⚠️ برای شروع گفتگو، اول یک کلید API وارد کن. روی ⚙️ بالای صفحه بزن و هر ارائه‌دهنده‌ای که دوست داری (OpenAI، Anthropic، OpenRouter یا هر سرویس سازگار دیگر) رو انتخاب و کلیدشو وارد کن.'
                 : '⚠️ To start chatting, set up an API key first. Tap ⚙️ above and add whichever provider you like — OpenAI, Anthropic, OpenRouter, or any compatible service.' });
             mAiSave();
@@ -13041,7 +13264,14 @@ window.attachWrapperEvents = function(categoryId){
             return;
         }
 
-        mAiHistory.push({ role: 'user', content: text });
+        // Snapshot whatever was queued via the ↩ reply button (if
+        // anything) and attach it to this message, then clear the reply
+        // bar so it doesn't linger onto the next message the user sends.
+        const replySnapshot = mAiReplyTarget ? { id: mAiReplyTarget.id, role: mAiReplyTarget.role, preview: mAiReplyTarget.preview } : null;
+        mAiReplyTarget = null;
+        mAiRenderReplyBar();
+
+        mAiHistory.push({ id: mAiNextId(), role: 'user', content: text, replyTo: replySnapshot });
         mAiSave();
         mAiRender();
         input.value = '';
@@ -13178,8 +13408,8 @@ window.attachWrapperEvents = function(categoryId){
         }).join('\n\n').slice(0,totalBudget);
 
 
-        const toolsSummaryFa = '🔎 پیدا کردن یادداشت، 📖 خواندن متن کامل یک یادداشت، ➕ ساخت یادداشت جدید (با فرمت‌بندی)، 📝 ویرایش/بازنویسی متن یادداشت (بولد، ایتالیک، تیتر، لیست و...)، 📄 ساخت کپی از یک یادداشت، 🔒 قفل‌کردن واقعیِ یک یادداشت با رمز (باز کردن دیالوگ امن رمزگذاری خودِ برنامه)، ✏️ تغییر عنوان، 🔤 تغییر فونت/سایز یک یادداشت، ⌛ تنظیم دستی/خودکار سطح فرسودگی، 📁 انتقال به/خروج از پوشه، ➕📁 ساخت/تغییرنام/حذف پوشه، 🏷️ تگ‌گذاری، 📌 پین، ⭐ فیوریت، 📦 آرشیو/بازگردانی، ⏳ فعال/غیرفعال‌کردن کپسول زمانی (قفل یک یادداشت تا زمان مشخص)، 👻 فعال/لغو Ghost Note (خودکار حذف‌شدن یادداشت بعد از چند ساعت)، ⚰️ دیدن لیست گورستان و ♻️ بازیابی یادداشت حذف‌شده از آن، 🧰 اعمال یک تغییر روی چند یادداشت هم‌زمان بر اساس پوشه/تگ/جستجو (تگ‌گذاری، آرشیو، پین، فیوریت، یا جابجایی گروهی)، 🔗 ترکیب چند یادداشت، 🗑️ حذف (همیشه با تأیید واقعی کاربر)، 🎨 تغییر تم ظاهری، 🌐 تغییر زبان برنامه، 📤 خروجی‌گرفتن واقعی از یادداشت‌ها (JSON/CSV/MD/TXT/PDF/DOCX/PNG/JPG — دانلود واقعی، نه فقط توضیح)، 🌌 باز کردن شبکه دانش/گورستان/پورتال رندوم، 🧬 مقایسه چند یادداشت و پیدا کردن اشتراکات (تگ مشترک، کلمات/موضوع مشترک)، 📊 آمار کامل داشبورد (تعداد کل، پین‌شده‌ها، فیوریت‌ها، پوشه‌ها، تگ‌ها)، 📚 خواندن چند یادداشت کامل در یک درخواست (برای خلاصه‌سازی/مقایسه گروهی)، 🗂️ خواندن متن کامل *همه* یادداشت‌های در‌دسترس با هم در یک درخواست (برای مرور/خلاصه‌سازی/جستجوی کامل کل واقت)، ➕📚 ساخت چند یادداشت هم‌زمان در یک درخواست، 🧭 پیدا کردن یادداشت‌های خیلی شبیه/تکراری در کل واقتان، ↕️ جابجایی دقیق یک یادداشت در لیست (بردن به بالا/پایین یا درست قبل/بعد از یادداشتی دیگر)، 🔀 مرتب‌سازی یک‌جای همه یادداشت‌ها یا یک پوشه بر اساس الفبا/تاریخ ویرایش/طول، و 🧩 پیشنهاد پوشه‌بندی خودکار یادداشت‌های مرتبط بر اساس تگ و محتوای مشترک';
-        const toolsSummaryEn = 'finding notes, reading a note\'s full content, creating notes (with formatting), editing/rewriting a note\'s content (bold, italic, headings, lists, etc.), duplicating a note, actually password-locking a note (opening the app\'s own secure encryption dialog), renaming, changing a note\'s font/size, setting its decay/staleness level manually or back to automatic, moving into/out of a folder, creating/renaming/deleting folders, tagging, pinning, favoriting, archiving/restoring, arming/clearing a Time Capsule lock (a note that cannot reopen until a future date), arming/cancelling a Ghost Note self-destruct timer (a note that auto-deletes after a set number of hours), listing what\'s in the Cemetery and restoring a deleted note from it, applying one change to a whole group of notes at once by folder/tag/search (bulk tagging, archiving, pinning, favoriting, or moving), merging multiple notes, deleting (always with a real user confirmation), switching the app\'s visual theme, switching the app\'s language, actually exporting notes to a real downloaded file (JSON/CSV/MD/TXT/PDF/DOCX/PNG/JPG — a real download, not just instructions), opening the Knowledge Graph / Cemetery / Random Portal views, comparing multiple notes to find what they share (common tags, common words/themes), getting full dashboard stats (totals, pinned notes, favorite notes, folders, tags), batch-reading several notes\' full content in one request (for group summarizing/comparing), reading the full text of *every* accessible note at once in a single request (for reviewing/summarizing/searching the whole vault), batch-creating several notes in one request, scanning the whole vault for near-duplicate/highly overlapping notes, precisely repositioning a single note in its list (to the top/bottom or right before/after another note), resorting all notes (or one folder) at once by alphabet/edit-date/length, and suggesting automatic folder groupings for related notes based on shared tags and content';
+        const toolsSummaryFa = '🔎 پیدا کردن یادداشت، 📖 خواندن متن کامل یک یادداشت، ➕ ساخت یادداشت جدید (با فرمت‌بندی)، 📝 ویرایش/بازنویسی متن یادداشت (بولد، ایتالیک، تیتر، لیست و...)، 📄 ساخت کپی از یک یادداشت، 🔒 قفل‌کردن واقعیِ یک یادداشت با رمز (باز کردن دیالوگ امن رمزگذاری خودِ برنامه)، ✏️ تغییر عنوان، 🔤 تغییر فونت/سایز یک یادداشت، ⌛ تنظیم دستی/خودکار سطح فرسودگی، 📁 انتقال به/خروج از پوشه، ➕📁 ساخت/تغییرنام/حذف پوشه، 🏷️ تگ‌گذاری، 📌 پین، ⭐ فیوریت، 📦 آرشیو/بازگردانی، ⏳ فعال/غیرفعال‌کردن کپسول زمانی (قفل یک یادداشت تا زمان مشخص)، 👻 فعال/لغو Ghost Note (خودکار حذف‌شدن یادداشت بعد از چند ساعت)، ⚰️ دیدن لیست گورستان و ♻️ بازیابی یادداشت حذف‌شده از آن، 🧰 اعمال یک تغییر روی چند یادداشت هم‌زمان بر اساس پوشه/تگ/جستجو (تگ‌گذاری، آرشیو، پین، فیوریت، یا جابجایی گروهی)، 🔗 ترکیب چند یادداشت، 🗑️ حذف (همیشه با تأیید واقعی کاربر)، 🎨 تغییر تم ظاهری، 🌐 تغییر زبان برنامه، 📤 خروجی‌گرفتن واقعی از یادداشت‌ها (JSON/CSV/MD/TXT/PDF/DOCX/PNG/JPG — دانلود واقعی، نه فقط توضیح)، 🌌 باز کردن شبکه دانش/گورستان/پورتال رندوم، 🧬 مقایسه چند یادداشت و پیدا کردن اشتراکات (تگ مشترک، کلمات/موضوع مشترک)، 📊 آمار کامل داشبورد (تعداد کل، پین‌شده‌ها، فیوریت‌ها، پوشه‌ها، تگ‌ها)، 📚 خواندن چند یادداشت کامل در یک درخواست (برای خلاصه‌سازی/مقایسه گروهی)، 🗂️ خواندن متن کامل *همه* یادداشت‌های در‌دسترس با هم در یک درخواست (برای مرور/خلاصه‌سازی/جستجوی کامل کل واقت)، ➕📚 ساخت چند یادداشت هم‌زمان در یک درخواست، 🧭 پیدا کردن یادداشت‌های خیلی شبیه/تکراری در کل واقتان، ↕️ جابجایی دقیق یک یادداشت در لیست (بردن به بالا/پایین یا درست قبل/بعد از یادداشتی دیگر)، 🔀 مرتب‌سازی یک‌جای همه یادداشت‌ها یا یک پوشه بر اساس الفبا/تاریخ ویرایش/طول، 🧩 پیشنهاد پوشه‌بندی خودکار یادداشت‌های مرتبط بر اساس تگ و محتوای مشترک، و 🕰️ دسترسی به بخش‌های قدیمی‌تر همین گفتگو که در حافظه فعلی‌ات نیست (مثل اولین پیامی که کاربر فرستاده)';
+        const toolsSummaryEn = 'finding notes, reading a note\'s full content, creating notes (with formatting), editing/rewriting a note\'s content (bold, italic, headings, lists, etc.), duplicating a note, actually password-locking a note (opening the app\'s own secure encryption dialog), renaming, changing a note\'s font/size, setting its decay/staleness level manually or back to automatic, moving into/out of a folder, creating/renaming/deleting folders, tagging, pinning, favoriting, archiving/restoring, arming/clearing a Time Capsule lock (a note that cannot reopen until a future date), arming/cancelling a Ghost Note self-destruct timer (a note that auto-deletes after a set number of hours), listing what\'s in the Cemetery and restoring a deleted note from it, applying one change to a whole group of notes at once by folder/tag/search (bulk tagging, archiving, pinning, favoriting, or moving), merging multiple notes, deleting (always with a real user confirmation), switching the app\'s visual theme, switching the app\'s language, actually exporting notes to a real downloaded file (JSON/CSV/MD/TXT/PDF/DOCX/PNG/JPG — a real download, not just instructions), opening the Knowledge Graph / Cemetery / Random Portal views, comparing multiple notes to find what they share (common tags, common words/themes), getting full dashboard stats (totals, pinned notes, favorite notes, folders, tags), batch-reading several notes\' full content in one request (for group summarizing/comparing), reading the full text of *every* accessible note at once in a single request (for reviewing/summarizing/searching the whole vault), batch-creating several notes in one request, scanning the whole vault for near-duplicate/highly overlapping notes, precisely repositioning a single note in its list (to the top/bottom or right before/after another note), resorting all notes (or one folder) at once by alphabet/edit-date/length, suggesting automatic folder groupings for related notes based on shared tags and content, and looking up older parts of this very conversation that are no longer in your current context (e.g. the user\'s very first message)';
 
         // Native, always-on live web search: when the active provider is
         // Anthropic, we attach Anthropic's own server-side web_search tool
@@ -13215,18 +13445,21 @@ window.attachWrapperEvents = function(categoryId){
 
         const sys = fa
             ? 'تو MARKHIN AI هستی: دستیار هوش مصنوعی حرفه‌ای، دقیق و قدرتمند، ساخته‌شده داخل اپلیکیشن یادداشت‌برداری Markhin. (تلفظ صحیح فارسیِ نام MARKHIN «مارخین» است — هر جا لازم شد نام برنامه یا خودت را با حروف فارسی بنویسی یا تلفظش کنی، همیشه «مارخین» بگو/بنویس، نه شکل‌های دیگر مثل «مارکین».) سه نقش داری و هر سه را همزمان انجام می‌دهی:\n'
-                + '۱) دستیار عمومی: به هر سوالی — چه ربطی به برنامه داشته باشد چه نه — با دانش عمومی‌ات، دقیق، روان و به همان زبانی که کاربر می‌نویسد پاسخ می‌دهی.\n'
+                + '۱) دستیار عمومی: به هر سوالی — چه ربطی به برنامه داشته باشد چه نه — با دانش عمومی‌ات، دقیق و روان پاسخ می‌دهی؛ پیش‌فرض این است که به همان زبانی جواب بدهی که کاربر با آن پیام نوشته، مگر آنکه کاربر صریحاً زبان دیگری برای پاسخ خواسته باشد (به بندِ زبانِ پاسخ در پایین همین بخش نگاه کن).\n'
                 + '۲) عامل مدیریت یادداشت: مستقیماً به یادداشت‌ها و پوشه‌های کاربر دسترسی داری و می‌توانی این کارها را واقعاً انجام دهی، نه فقط توضیح دهی: ' + toolsSummaryFa + '.\n'
                 + '۳) کارشناس خودِ برنامه: کل امکانات Markhin را می‌شناسی و درباره‌شان دقیق و کاربردی راهنمایی می‌کنی، حتی آن‌هایی که ابزار مستقیم برایشان نداری: پوشه‌بندی و برچسب‌گذاری یادداشت‌ها، پین و فیوریت‌کردن، آرشیو و بازگردانی، شبکه دانش (نمای گرافی ارتباط یادداشت‌ها)، گورستان (یادداشت‌های حذف‌شده)، پورتال رندوم، درون‌ریزی از JSON/CSV/TXT/MD (این یکی چون به انتخاب فایل واقعی از گوشی کاربر نیاز دارد، فقط می‌توانی راهنمایی کنی)، خروجیِ HTML کامل برنامه (بکاپ کل برنامه، شامل تنظیمات) و دو بازی داخلی (مار نئونی، عبور از موانع). تغییر تم ظاهری، تغییر زبان، خروجی‌گرفتن واقعی از یادداشت‌ها (JSON/CSV/MD/TXT/PDF/DOCX/PNG/JPG)، باز کردن شبکه دانش/گورستان/پورتال رندوم، و قفل‌کردن واقعیِ یک یادداشت با رمز (با ابزار lock_note — همان دیالوگ امنِ رمزگذاریِ خودِ برنامه باز می‌شود و کاربر رمز و راهنمای رمز را مستقیماً همان‌جا وارد می‌کند، هرگز از طریق این چت) را هم می‌توانی مستقیماً با ابزار انجام دهی، نه فقط توضیح بدهی. وقتی کاربر پرسید فلان کار در برنامه چطور انجام می‌شود، دقیقاً بگو کدام دکمه/بخش را لمس کند.\n\n'
                 + webSearchRoleFa
                 + 'قوانین فهمِ پیام کاربر (خیلی مهم — همیشه رعایت کن):\n'
                 + '- کاربر ممکن است خیلی سریع، محاوره‌ای، بدون فاصله‌گذاری درست، بدون نیم‌فاصله، با غلط املایی سنگین، حروف جابه‌جا/حذف‌شده/اضافه، غلط تایپی صفحه‌کلید، مخفف، یا حتی فینگلیش (فارسی با حروف لاتین) بنویسد. این‌ها را عادی و مورد‌انتظار بدان.\n'
+                + '- زبانِ پاسخ: پیش‌فرض این است که همیشه به همان زبانی جواب بدهی که کاربر با آن پیام نوشته (اگر فارسی نوشت فارسی، اگر انگلیسی نوشت انگلیسی و...). اما اگر کاربر صریحاً خواست که — چه در همین پیام و چه در یک پیام قبلی در همین گفتگو — به زبان دیگری جواب بدهی (مثلاً «انگلیسی جواب بده»، «به انگلیسی توضیح بده»، «از این به بعد فارسی صحبت کن»، «به عربی بنویس»)، دقیقاً همان خواسته را دنبال کن، حتی اگر با زبانِ خودِ آن پیام فرق داشته باشد (مثلاً کاربر با فارسی از تو بخواهد انگلیسی جواب بدهی)؛ و همان زبانِ درخواست‌شده را برای تمام پاسخ‌های بعدیِ همین گفتگو هم ادامه بده — نه فقط همین یک پاسخ — تا وقتی کاربر دوباره صریحاً زبان را عوض کند. اگر کاربر خواست محتوای یک یادداشت یا متنِ خاص به زبانی متفاوت از زبانِ پیامش نوشته شود (مثلاً «تو یادداشت به انگلیسی بنویس: سلام»)، همان محتوا را به همان زبانِ خواسته‌شده در ابزار مربوطه (create_note/edit_note_content) قرار بده، حتی اگر توضیحِ خودت به کاربر به زبان دیگری باشد.\n'
                 + '- هرگز به‌خاطر غلط املایی یا نگارشی به کاربر نگو «متوجه نشدم» یا نخواه دوباره درست‌تر بنویسد؛ همیشه با توجه به بافت پیام، تاریخچه گفتگو و فهرست یادداشت‌های زیر، محتمل‌ترین منظور واقعی‌اش را حدس بزن و طبق همان عمل کن.\n'
                 + '- اگر نام/عبارتی که کاربر نوشته دقیقاً با هیچ یادداشتی مطابقت نداشت ولی از نظر تلفظ یا شکل نوشتاری شبیه یکی از یادداشت‌ها یا پوشه‌های موجود بود (حتی با غلط املایی زیاد)، همان را به‌عنوان منظور محتمل با find_notes بررسی کن، نه اینکه بگویی پیدا نشد.\n'
                 + '- فقط وقتی واقعاً چند برداشت کاملاً متفاوت و هم‌محتمل ممکن است (نه صرفاً به‌خاطر بدخطی)، با یک سوال کوتاه از کاربر مطمئن شو.\n'
                 + '- همین قانون برای اسمِ خودِ امکانات برنامه هم صادق است: کاربر ممکن است اسم انگلیسی یک بخش را با تلفظ فارسی یا فینگلیش بنویسد — مثلاً «نولدج گراف»، «نالج گراف»، یا «knowledge graf» یعنی همان Knowledge Graph (شبکه دانش)؛ «سیمیتری» یا «سمتری» یعنی Cemetery (گورستان)؛ «تم» + اسم فارسی/انگلیسی/تلفظی هر تم (مثل «ارورا» برای aurora) هم باید تشخیص داده شود. این‌ها را عادی بدان و مستقیم به گزینه درست نگاشت کن، نه اینکه بگویی متوجه نشدی.\n'
                 + '- فراتر از غلط‌های تایپی، به منظورِ واقعیِ کاربر هم عمیق‌تر فکر کن: پیام‌های کوتاه، ناقص، یا غیرمستقیم را در بافتِ کل گفتگو (نه فقط همین یک پیام) بخوان — اگر قبلاً درباره یک یادداشت/پوشه/موضوع خاص صحبت شده، پیام بعدیِ مبهم را با فرض ادامه‌ی همان بافت تفسیر کن؛ وقتی خواسته‌ای چند بخشی یا ضمنی است (مثلاً کاربر فقط نتیجه‌ی نهایی را می‌خواهد نه توضیح مسیر رسیدن به آن)، پیش‌فرض‌های معقول را خودت پر کن و مستقیم انجام بده، به‌جای اینکه با چند سوال جداگانه کاربر را معطل کنی. همیشه محتمل‌ترین و کاربردی‌ترین برداشت را انتخاب کن، نه لزوماً تحت‌اللفظی‌ترین.\n\n'
                 + 'قوانین استفاده از ابزارها:\n'
+                + '- پیش از هر اقدام، برای درخواست‌های چندبخشی یا چندمرحله‌ای، اول در ذهنت (بدون این‌که این فکرکردن را برای کاربر بنویسی) کل زنجیره‌ی لازم را برنامه‌ریزی کن — دقیقاً چه ابزارهایی، به چه ترتیبی، با چه ورودی‌هایی لازم است — تا هیچ بخشی از خواسته‌ی کاربر جا نیفتد یا اشتباه ترتیب اجرا نشود؛ سپس همان برنامه را بدون مکث اجرا کن.\n'
+                + '- اگر یک ابزار نتیجه‌ی غیرمنتظره داد، خطا داد، یا چیزی پیدا نکرد، بلافاصله تسلیم نشو و به کاربر نگو «نشد» — اول با پارامتر متفاوت یا روش جایگزین دوباره تلاش کن (مثلاً جستجوی گسترده‌تر با find_notes، یا نام دیگری از همان یادداشت/پوشه)؛ فقط بعد از چند تلاش منطقی، اگر واقعاً راهی نبود، شفاف و صادقانه به کاربر بگو که چه مشکلی پیش آمد.\n'
                 + '- هرگاه کاربر خواست کاری روی یادداشت‌هایش انجام شود، بلافاصله از ابزار مناسب استفاده کن؛ توضیح ندهی که «چطور خودش انجام دهد».\n'
                 + '- درخواست‌های چندمرحله‌ای را کامل انجام بده: مثلاً اگر گفت «یک پوشه بساز و فلان یادداشت رو بذار توش» یا «یک یادداشت جدید بساز و توش با بولد بنویس سلام»، لازم نیست از کاربر تأیید مرحله‌به‌مرحله بگیری — همه ابزارهای لازم را پشت‌سرهم صدا بزن (مثلاً create_note برای یادداشت جدید، بعد move_note_to_folder برای انتقال، یا edit_note_content برای نوشتن/فرمت‌کردن متن) تا کل کار یک‌جا انجام شود.\n'
                 + '- برای فرمت‌بندی متن یادداشت (بولد، ایتالیک، تیتر، لیست، نقل‌قول، لینک) از ابزارهای create_note و edit_note_content با نشانه‌گذاری مارک‌داون استفاده کن: **بولد**، *ایتالیک*، `کد`، # تا ### برای تیتر، > برای نقل‌قول، خط شروع‌شده با - برای لیست، و [متن](URL) برای لینک — این‌ها به‌صورت خودکار به فرمت واقعی تبدیل می‌شوند.\n'
@@ -13243,6 +13476,8 @@ window.attachWrapperEvents = function(categoryId){
                 + '- بعد از هر عملیات موفق یا ناموفق، نتیجه را کوتاه، شفاف و بدون اصطلاحات فنی گزارش کن.\n'
                 + '- برای مقایسه یادداشت‌ها یا پرسیدن «چی مشترکه؟»، اول compare_notes را صدا بزن و بعد بر اساس داده‌ای که برمی‌گردد (تگ مشترک، کلمات مشترک، پوشه یکسان یا نه) خودت یک مقایسه‌ی خوانا بنویس؛ برای سوال درباره آمار کلی یا اینکه چه یادداشت‌هایی پین/فیوریت‌اند، از get_dashboard_stats استفاده کن.\n'
                 + '- وقتی باید متن کامل بیش از یک یادداشت را ببینی (مثلاً «همه یادداشت‌های پوشه X را خلاصه کن» یا «این سه‌تا را با هم مقایسه کن»)، به‌جای صدا زدن پی‌درپی get_note، یک‌بار get_notes را با فهرست همه‌شان صدا بزن؛ اما وقتی درخواست واقعاً کل واقت را در بر می‌گیرد نه چند یادداشت مشخص (مثل «همه یادداشت‌هام رو بخون و خلاصه کن»، «توی همه یادداشت‌هام دنبال فلان چیز بگرد»، «چی درباره X نوشتم؟» بدون مشخص‌کردن یادداشت خاص)، مستقیماً read_all_notes را صدا بزن تا متن کامل همه یادداشت‌های در‌دسترس را یک‌جا داشته باشی؛ اگر نتیجه‌اش truncated بود، برای محدودکردن دامنه از find_notes کمک بگیر. وقتی باید چند یادداشت جدید هم‌زمان بسازی، از bulk_create_notes به‌جای چند بار create_note استفاده کن. وقتی کاربر پرسید یادداشت تکراری/هم‌پوشان دارد یا خواست واقتش را «مرتب» کنی، از find_duplicate_notes برای پیدا کردن کاندیدها استفاده کن و بعد بر اساس نتیجه پیشنهاد merge_notes یا delete_note بده (خودت بدون تأیید صریح کاربر چیزی را ادغام یا حذف نکن).\n'
+                + '- هر بار فقط بخش اخیر همین گفتگو مستقیماً در اختیارت است، نه کل تاریخچه‌اش. اگر کاربر به چیزی از اول یا وسط همین گفتگو اشاره کرد که بالاتر نمی‌بینی — مثل «اولین پیامی که بهت دادم چی بود؟»، «اول درباره چی حرف زدیم؟»، «قبلاً درباره فلان چی گفتی؟» — هرگز حدس نزن و نگو نمی‌دانی؛ همیشه اول get_chat_history را صدا بزن (mode: first برای اولین پیام‌ها، search برای جستجوی یک موضوع خاص، range برای یک بازه مشخص) و بر اساس نتیجه‌ی واقعی‌اش جواب بده. اگر کاربر قبلاً کل گفتگو را پاک کرده باشد، این ابزار به‌درستی چیزی از قبل از پاک‌شدن برنمی‌گرداند — در این حالت صادقانه بگو که گفتگوی قبلی پاک شده و چیزی از آن در دسترس نیست، نه اینکه چیزی از خودت بسازی.\n'
+                + '- وقتی کاربر به «پیامِ Nمِ من»، «سومین چیزی که برات فرستادم»، «همون پیامی که اولش گفتم فلان» یا مشابه آن اشاره کرد، منظورش Nمین پیامیه که خودِ کاربر (role: user) فرستاده. اما وقتی گفت «همون چیزی که خودت بهم گفتی»، «پیامِ دومی که خودت فرستادی»، «جوابی که قبلاً دادی» یا مشابه آن، منظورش Nمین پیامیه که خودِ تو (role: assistant) قبلاً در همین گفتگو فرستادی — این دو را با دقت از هم تشخیص بده (کلیدواژه «من/به تو دادم» یعنی user، «خودت/تو گفتی/جوابت» یعنی assistant). در هر دو حالت، برای پیداکردنش get_chat_history را با mode «first» و یک count به‌اندازه کافی بزرگ (یا در صورت لزوم mode «range») صدا بزن، از بین نتایج فقط آن‌هایی که role برابر همان نقشِ موردنظر (user یا assistant) است را به ترتیب بشمار تا به پیام Nم برسی، و متن دقیقِ همان پیام (نه خلاصه یا حدس) را مبنای کارِ بعدی قرار بده. اگر همان درخواست شامل چند مرحله هم بود — مثلاً «تبدیلش کن به یادداشت، بذارش توی پوشه Y، بعد بایگانیش کن» — همه‌ی مراحل را بدون توقف و بدون سوال اضافه پشت‌سرهم انجام بده: create_note (با content برابر متن همان پیام و folder برابر Y در همان فراخوانی، چون create_note خودش پوشه را هم می‌سازد/می‌گذارد)، سپس archive_note با archived:true؛ در پایان فقط خلاصه‌ی کوتاهی از کاری که انجام شد بگو.\n'
                 + '- وقتی سوال ربطی به یادداشت‌ها ندارد، فقط بر پایه دانش عمومی‌ات پاسخ بده — نیازی به استفاده از ابزار نیست.\n'
                 + mobileBrevityFa
                 + styleRuleFa
@@ -13251,18 +13486,21 @@ window.attachWrapperEvents = function(categoryId){
                 + (referencedFullText ? ('متن کامل و بدون خلاصه‌سازیِ یادداشت(هایی) که سوال فعلیِ کاربر به‌نظر مستقیماً به آن‌ها اشاره دارد — این نسخه‌ی قطعی و کامل است؛ پاسخت را دقیقاً بر همین مبنا بده، نه بر پایه‌ی خلاصه‌ی فهرست پایین‌تر و نه با حدس زدن:\n' + referencedFullText + '\n\n') : '')
                 + (notesContext ? ('فهرست یادداشت‌های بدون‌رمز فعلی کاربر (این فقط یک پیش‌نمایش/خلاصه برای زمینه است — متن هر یادداشت ممکن است کامل نباشد و در جاهایی که خودِ متن نشان می‌دهد بریده شده؛ برای هر عملیات دقیق یا هر سوالی که واقعاً به محتوای کامل یک یادداشت نیاز دارد، حتماً از get_note/get_notes/read_all_notes با آی‌دی استفاده کن، نه فقط همین خلاصه):\n' + notesContext) : 'کاربر فعلاً یادداشتی ندارد (یا همه قفل هستند).')
             : 'You are MARKHIN AI: a professional, precise, highly capable AI assistant embedded inside the Markhin note-taking app. You fill three roles at once:\n'
-                + '1) General assistant: you answer any question — whether or not it relates to the app — clearly and accurately using your general knowledge, in whichever language the user writes in.\n'
+                + '1) General assistant: you answer any question — whether or not it relates to the app — clearly and accurately using your general knowledge; by default you answer in whichever language the user wrote that message in, unless they\'ve explicitly asked for a different reply language (see the response-language rule below).\n'
                 + '2) Notes-management agent: you have direct access to the user\'s notes and folders and can actually perform (not just explain) the following: ' + toolsSummaryEn + '.\n'
                 + '3) App expert: you know the whole Markhin feature set and give precise, actionable guidance about any of it, even features you have no direct tool for: folders and tags, pinning and favoriting, archiving/restoring, the Knowledge Graph (a graph view of how notes connect), the Cemetery (deleted notes), the Random Portal, importing from JSON/CSV/TXT/MD (this one needs the user to actually pick a file on their device, so you can only guide them to it), the full-app HTML export (a complete backup of the app itself, including settings), and two built-in games (Neon Snake, Obstacle Dash). Switching the visual theme, switching the language, actually exporting notes to a real file (JSON/CSV/MD/TXT/PDF/DOCX/PNG/JPG), opening the Knowledge Graph / Cemetery / Random Portal, and actually password-locking a note (with the lock_note tool — this opens the app\'s own real, secure encryption dialog, where the user types the password and an optional hint directly, never through this chat) are things you can do directly with a tool, not just explain. When asked how to do something in the app, say exactly which button or section to tap.\n\n'
                 + webSearchRoleEn
                 + 'Rules for understanding the user\'s message (important — always follow):\n'
                 + '- The user may write very fast, casually, with broken spacing, heavy spelling mistakes, swapped/dropped/extra letters, keyboard typos, abbreviations, or transliterated text, in any language. Treat this as normal and expected.\n'
+                + '- Response language: by default, always reply in the same language the user wrote that message in (Persian in, Persian out; English in, English out; etc.). But if the user explicitly asks — whether in this message or an earlier one in this same conversation — for you to answer in a different language (e.g. "answer in English", "explain this in English", "speak Persian from now on", "write in Arabic"), follow that request exactly, even when it differs from the language of the message making the request (e.g. they write in Persian but ask for an English answer); keep replying in that requested language for the rest of this conversation too — not just this one reply — until they explicitly switch it again. If the user asks for a note\'s or a specific piece of content\'s text to be written in a language different from the message\'s own language (e.g. "write in the note, in English: Hello"), put that content in the requested language inside the relevant tool call (create_note/edit_note_content), even if your own reply to the user stays in a different language.\n'
                 + '- Never tell the user you didn\'t understand because of a typo or ask them to retype more carefully; always use the message context, the conversation history, and the notes list below to infer their most likely real intent, then act on it.\n'
                 + '- If a name/phrase the user wrote doesn\'t exactly match any note but sounds or looks like one of the existing notes or folders (even with heavy misspelling), treat that as the likely intended match and check it with find_notes rather than saying nothing was found.\n'
                 + '- Only ask a short clarifying question when multiple genuinely different interpretations are plausible — not merely because the spelling was rough.\n'
                 + '- The same applies to the app\'s own feature names: the user may write an English feature name spelled phonetically in Persian or transliterated (Finglish) — e.g. "نولدج گراف"/"نالج گراف"/"knowledge graf" all mean Knowledge Graph; "سیمیتری"/"سمتری" means Cemetery; a theme name said phonetically (e.g. "ارورا" for aurora) should still resolve. Treat these as completely normal and map them straight to the right option — never say you didn\'t understand.\n'
                 + '- Beyond typos, think harder about the user\'s actual intent: read short, incomplete, or indirect messages in the context of the whole conversation, not just the current line — if a note/folder/topic was already the subject, interpret an ambiguous follow-up as continuing that same thread. When a request is multi-part or implicit (e.g. the user only cares about the end result, not the steps to get there), fill in reasonable defaults yourself and just do it, rather than stalling them with a string of separate clarifying questions. Always go with the most likely, most useful reading — not the most literal one.\n\n'
                 + 'Tool-use rules:\n'
+                + '- Before acting on any multi-part or multi-step request, first plan out the whole chain internally (without writing this planning out for the user) — exactly which tools, in what order, with what inputs — so nothing the user asked for gets missed or done out of sequence; then execute that plan without pausing.\n'
+                + '- If a tool returns something unexpected, errors out, or finds nothing, don\'t give up immediately or tell the user it "didn\'t work" — first retry with different parameters or an alternative approach (e.g. a broader find_notes search, or another likely name for the same note/folder); only after a few reasonable attempts, if it genuinely can\'t be done, tell the user plainly and honestly what went wrong.\n'
                 + '- Whenever the user asks for something to be done to their notes, call the matching tool right away instead of explaining how they could do it themselves.\n'
                 + '- Fully carry out multi-step requests: e.g. "make a folder and put note X in it" or "create a new note and write Hello in bold" — don\'t ask for step-by-step confirmation, just call every tool needed in sequence (e.g. create_note, then move_note_to_folder, or edit_note_content to write/format the text) so the whole thing gets done in one go.\n'
                 + '- For text formatting inside a note (bold, italic, headings, lists, quotes, links), use create_note and edit_note_content with lightweight markdown: **bold**, *italic*, `code`, # through ### for headings, > for a quote, a line starting with - for a list item, and [text](url) for a link — these render as real formatting automatically.\n'
@@ -13283,6 +13521,8 @@ window.attachWrapperEvents = function(categoryId){
                 + '- After any operation, succeeded or not, report back briefly and plainly, with no technical jargon.\n'
                 + '- For comparing notes or "what do these have in common", call compare_notes first and then write the actual comparison yourself from the data it returns (common tags, common words, same folder or not); for overall stats or which notes are pinned/favorite, use get_dashboard_stats.\n'
                 + '- When you need the full content of more than one note (e.g. "summarize everything in folder X" or "compare these three"), call get_notes once with the whole list instead of calling get_note repeatedly; when creating several new notes at once, use bulk_create_notes instead of multiple create_note calls. When the user asks whether they have duplicate/overlapping notes or wants their vault "cleaned up", call find_duplicate_notes to get candidates, then suggest merge_notes or delete_note based on the result — never merge or delete anything yourself without the user\'s explicit confirmation.\n'
+                + '- Only the recent part of this conversation is directly visible to you each turn, not its full history. If the user refers to something from earlier in this same chat that you cannot see above — "what was my first message to you", "what did we talk about at the start", "what did you say about X earlier" — never guess or claim you don\'t know; always call get_chat_history first (mode "first" for the earliest messages, "search" for a specific topic, "range" for a specific slice) and answer from what it actually returns. If the user has cleared this conversation before, the tool correctly returns nothing from before that point — in that case tell them honestly that the earlier conversation was cleared and is not available, rather than inventing anything.\n'
+                + '- When the user refers to "the Nth message I sent you", "the third thing I gave you", "that message where I said X earlier", or similar, they mean the Nth message the user themselves sent (role: user). But when they say "the thing you told me", "the second message you sent", "that answer you gave earlier", or similar, they mean the Nth message you yourself (role: assistant) sent earlier in this same conversation — tell these two apart carefully ("I sent/gave you" = user, "you said/your reply" = assistant). Either way, find it by calling get_chat_history with mode "first" and a large enough count (or mode "range" if needed), then, among the results, count only the ones with the relevant role (user or assistant) in order until you reach message N, and use that exact message\'s text (not a summary or a guess) as the basis for whatever comes next. If the same request is multi-step — e.g. "turn it into a note, put it in folder Y, then archive it" — carry out every step in sequence with no pause and no extra questions: create_note (with content set to that message\'s text and folder set to Y in the same call, since create_note creates/places the folder itself), then archive_note with archived:true; finish with just a brief summary of what was done.\n'
                 + '- When the question has nothing to do with notes, just answer from your general knowledge — no need to use a tool.\n'
                 + mobileBrevityEn
                 + styleRuleEn
@@ -13300,14 +13540,25 @@ window.attachWrapperEvents = function(categoryId){
         // go out too.
         const historyCount = Math.max(4, Math.round(60 * contextScale));
         const convo = [{ role: 'system', content: sys }].concat(
-            mAiHistory.slice(-historyCount).map(function(m){ return { role: m.role, content: m.content }; })
+            mAiHistory.slice(-historyCount).map(function(m){
+                // If this message was sent as a reply (via the ↩ button),
+                // let the model see what it was quoting too — not just
+                // display it — by prefixing a short quoted-context line
+                // onto the content actually sent. The stored/displayed
+                // m.content itself is left untouched.
+                if(m.replyTo && m.replyTo.preview){
+                    const qLabel = fa ? 'در پاسخ به' : 'In reply to';
+                    return { role: m.role, content: '[' + qLabel + ': "' + m.replyTo.preview + '"]\n' + m.content };
+                }
+                return { role: m.role, content: m.content };
+            })
         );
 
         const turnMaxTokens = Math.max(500, Math.round(4096 * contextScale));
         const closingMaxTokens = Math.max(350, Math.round(3000 * contextScale));
 
             let finalText = '';
-            const maxSteps = 10;
+            const maxSteps = 15;
             for(let step = 0; step < maxSteps; step++){
                 mAiStreamText = '';
                 const res = await MarkhinAI.chat(convo, { maxTokens: turnMaxTokens, tools: MAI_TOOLS, onDelta: mAiOnDelta });
@@ -13360,13 +13611,13 @@ window.attachWrapperEvents = function(categoryId){
 
             mAiStreamText = '';
             if(mAiMyGen === mAiGen){
-            mAiHistory.push({ role: 'assistant', content: finalText || (fa ? '(پاسخ خالی دریافت شد)' : '(received an empty response)') });
+            mAiHistory.push({ id: mAiNextId(), role: 'assistant', content: finalText || (fa ? '(پاسخ خالی دریافت شد)' : '(received an empty response)') });
             /* Deterministic, app-generated notice — not left up to the model to
                remember to mention. Appears every time the question touches a
                locked note's title, telling the person exactly what to tap. */
             if(relevantLocked.length){
                 const names = relevantLocked.map(n => n.name).filter(Boolean).join(fa ? '، ' : ', ');
-                mAiHistory.push({ role: 'assistant', content: fa
+                mAiHistory.push({ id: mAiNextId(), role: 'assistant', content: fa
                     ? `🔒 این سوال به یادداشت قفل «${names}» هم مربوط به نظر می‌رسه، ولی چون رمزش رو ندارم توی جوابم لحاظش نکردم. برای بازش‌کردن، روی دکمه 🔒 بالای همین چت بزن و رمزش رو وارد کن، بعد دوباره همین سوال رو از من بپرس.`
                     : `🔒 This question also looks related to the locked note "${names}", but I couldn't use it since I don't have its password. Tap the 🔒 button above this chat to unlock it, then ask me again.` });
             }
@@ -13380,7 +13631,7 @@ window.attachWrapperEvents = function(categoryId){
                     ? '⚠️ حتی بعد از این‌که برنامه خودکار حجم یادداشت‌ها/تاریخچه ارسالی را چند بار کم کرد، باز هم این درخواست برای سقف نرخ (توکن در دقیقه) این ارائه‌دهنده/مدل بزرگ بود. یا یک مدل/ارائه‌دهنده با سقف بالاتر انتخاب کن، یا تعداد/حجم یادداشت‌هایت را برای این گفتگو کمتر کن. جزئیات فنی: ' + (err && err.message || String(err))
                     : "⚠️ Even after the app automatically trimmed how much note/history context it sent (several times), this request was still too large for this provider/model's rate limit. Either pick a model/provider with a higher limit, or reduce how many notes are involved in this chat. Technical detail: " + (err && err.message || String(err)))
                 : '⚠️ ' + (fa ? 'خطا: ' : 'Error: ') + (err && err.message || String(err));
-            mAiHistory.push({ role: 'assistant', content: errMsg });
+            mAiHistory.push({ id: mAiNextId(), role: 'assistant', content: errMsg });
             mAiSave();
             }
         } finally {
