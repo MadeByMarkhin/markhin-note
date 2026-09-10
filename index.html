@@ -2586,26 +2586,6 @@ window.mu_syncHtmlBg = function(){
         </div>
 
         <div class="toolbar-section-box">
-            <span class="toolbar-section-title" id="secTitleAi">جستجو با هوش مصنوعی در یادداشت‌ها</span>
-            <div class="qa-box">
-                <input type="text" id="qaInput" class="qa-input" placeholder="سوال خود را بپرسید" onkeydown="if(event.key === 'Enter') askQuestion()">
-                <button class="qa-lock-btn" id="qaLockBtn" title="مدیریت قفل یادداشت‌ها برای پرسش" onclick="promptUnlockQa()">🔒</button>
-                <button class="btn-main" id="btnAskQA" onclick="askQuestion()">پرسش</button>
-                <!-- Bug fix ("options jump"): this button used to only be created and
-                     appended by mu_injectUiControls() in JS, after first paint — which
-                     meant the qa-box row resized a moment after the page had already
-                     rendered, nudging everything below it down. Same button, same id,
-                     same click handler, but now static from the very first paint like
-                     its siblings above, so there is nothing left for JS to insert here
-                     later. mu_injectUiControls() still runs (see startup handler and
-                     the fallback DOMContentLoaded listener further down) but is a
-                     no-op now that #muAiSettingsBtn already exists. -->
-                <button type="button" class="qa-lock-btn" id="muAiSettingsBtn" title="تنظیمات هوش مصنوعی" onclick="mu_openAiSettingsModal()">⚙️</button>
-            </div>
-            <div id="qaResponse" class="qa-response-box"></div>
-        </div>
-
-        <div class="toolbar-section-box">
             <span class="toolbar-section-title" id="secTitleInput">ورودی‌ها</span>
             <div class="toolbar-group">
                 <button class="btn-main" id="btnImportJson" onclick="document.getElementById('importFileInput').click()">ورودی JSON</button>
@@ -2970,11 +2950,8 @@ window.mu_syncHtmlBg = function(){
                 arcadeName: "منطقه بازی",
                 arcadeTitle: "منطقه بازی و مینی‌گیم‌ها",
                 searchPlaceholder: "جستجو...",
-                qaPlaceholder: "سوال خود را بپرسید",
-                btnAsk: "پرسش",
                 secStructure: "مدیریت ساختار",
                 secAdvancedTools: "ابزارهای ویژه",
-                secAi: "جستجو با هوش مصنوعی در یادداشت‌ها",
                 secInput: "ورودی‌ها",
                 secGeneralExport: "خروجی‌های کلی",
                 gameMenuH: "منطقه بازی (Game Zone)",
@@ -3073,11 +3050,8 @@ window.mu_syncHtmlBg = function(){
                 arcadeName: "Game Zone",
                 arcadeTitle: "Game Zone & Mini Games",
                 searchPlaceholder: "Search...",
-                qaPlaceholder: "Ask a question",
-                btnAsk: "Ask",
                 secStructure: "Structure Management",
                 secAdvancedTools: "Special Tools",
-                secAi: "AI / QA",
                 secInput: "Inputs",
                 secGeneralExport: "General Exports",
                 gameMenuH: "GAME ZONE",
@@ -3571,6 +3545,7 @@ window.mu_syncHtmlBg = function(){
             } else {
                 lockBtn.innerText = '🔒';
             }
+            if (typeof window.mu_updateAiLockNotice === 'function') window.mu_updateAiLockNotice();
         }
 
         async function promptUnlockQa() {
@@ -3587,17 +3562,17 @@ window.mu_syncHtmlBg = function(){
                    explains the button's purpose. */
                 showAdvanced(`
                     <div class="advanced-head">
-                        <h3>🔒 ${fa ? 'قفل یادداشت‌ها برای پرسش' : 'Note lock for Ask'}</h3>
+                        <h3>🔒 ${fa ? 'قفل یادداشت‌ها برای MARKHIN AI' : 'Note lock for MARKHIN AI'}</h3>
                         <button class="btn-main" type="button" onclick="closeAdvancedModal()">✕</button>
                     </div>
                     <p style="line-height:2">${fa
-                        ? 'این دکمه برای مدیریت دسترسی هوش مصنوعی به یادداشت‌های قفل‌شده هنگام «پرسش» است. یادداشت‌هایی که با رمز محافظت شده‌اند، به‌طور پیش‌فرض در پاسخ AI به سوالاتت لحاظ نمی‌شوند تا محتوایشان بدون اجازه دیده نشود. وقتی یادداشتی را قفل کنی، از همین‌جا می‌توانی با وارد کردن رمزش، اجازه‌ی موقت بدهی تا در جستجوی پرسش هم لحاظ شود.<br><br>در حال حاضر هیچ یادداشت قفلی نداری، برای همین چیزی برای مدیریت وجود ندارد.'
-                        : 'This button manages which locked notes the AI is allowed to use when you use "Ask". Password-protected notes are excluded from AI answers by default, so their content isn\'t read without permission. Once you lock a note, you can come back here, enter its password, and temporarily allow it to be included in Ask searches too.<br><br>There are currently no locked notes, so there is nothing to manage yet.'}</p>
+                        ? 'این دکمه برای مدیریت دسترسی MARKHIN AI به یادداشت‌های قفل‌شده است. یادداشت‌هایی که با رمز محافظت شده‌اند، به‌طور پیش‌فرض در اختیار MARKHIN AI قرار نمی‌گیرند تا محتوایشان بدون اجازه دیده نشود. وقتی یادداشتی را قفل کنی، از همین‌جا می‌توانی با وارد کردن رمزش، اجازه‌ی موقت بدهی تا MARKHIN AI هم به آن دسترسی داشته باشد.<br><br>در حال حاضر هیچ یادداشت قفلی نداری، برای همین چیزی برای مدیریت وجود ندارد.'
+                        : 'This button manages which locked notes MARKHIN AI is allowed to use. Password-protected notes are withheld from MARKHIN AI by default, so their content isn\'t read without permission. Once you lock a note, you can come back here, enter its password, and temporarily grant MARKHIN AI access to it too.<br><br>There are currently no locked notes, so there is nothing to manage yet.'}</p>
                 `);
                 return;
             }
 
-            let promptStr = "وضعیت قفل یادداشت‌ها برای بخش پرسش:\n";
+            let promptStr = fa ? "وضعیت قفل یادداشت‌ها برای MARKHIN AI:\n" : "Note lock status for MARKHIN AI:\n";
             lockedItems.forEach((item, index) => {
                 const isUnlocked = unlockedQaIds.includes(item.id);
                 promptStr += `${index + 1}: ${item.name} [${isUnlocked ? 'باز 🔓' : 'قفل 🔒'}]\n`;
@@ -3626,7 +3601,7 @@ window.mu_syncHtmlBg = function(){
             }
 
             if (unlockedQaIds.includes(targetItem.id)) {
-                if (confirm(`آیا می‌خواهید قفل یادداشت "${targetItem.name}" را برای پرسش دوباره ببندید؟`)) {
+                if (confirm(`آیا می‌خواهید دسترسی MARKHIN AI به یادداشت "${targetItem.name}" را دوباره قفل کنید؟`)) {
                     unlockedQaIds = unlockedQaIds.filter(id => id !== targetItem.id);
                     alert(`قفل یادداشت "${targetItem.name}" بسته شد.`);
                 }
@@ -3634,30 +3609,12 @@ window.mu_syncHtmlBg = function(){
                 const pass = await promptNotePassword(targetItem);
                 if (pass !== null && await unlockNote(targetItem, pass.trim())) {
                     unlockedQaIds.push(targetItem.id);
-                    alert(`قفل یادداشت "${targetItem.name}" برای بخش پرسش باز شد.`);
+                    alert(`یادداشت "${targetItem.name}" برای MARKHIN AI باز شد.`);
                 } else {
                     alert(i18n[currentLang].wrongPass);
                 }
             }
             updateLockBtnState();
-        }
-
-        /* Bug fix / feature change (removed per request): this function used to
-           run an entirely local, non-AI keyword/synonym search over the notes
-           (stopword filtering, synonym expansion, sentence scoring) and would
-           answer with that even when no AI was connected. That whole local
-           "smart search" answer path has been removed — Ask now only ever
-           answers through the AI (see mu_askAI() / window.askQuestion further
-           down this file, which fully replaces this function once that script
-           block runs). This early definition is kept only as a safe no-op
-           placeholder in case anything calls askQuestion() before that point;
-           it just clears the response box for an empty query. */
-        function askQuestion() {
-            const resBox = document.getElementById('qaResponse');
-            const query = normalizeText(document.getElementById('qaInput').value);
-            if (!query && resBox) {
-                resBox.style.display = 'none';
-            }
         }
 
         function baseTriggerLogoTyping() {
@@ -3720,14 +3677,11 @@ window.mu_syncHtmlBg = function(){
             document.getElementById('langLabel').innerText = currentLang === 'fa' ? 'FA' : 'EN';
 
             document.getElementById('uiTitle').innerText = t.title;
-            document.getElementById('qaInput').placeholder = t.qaPlaceholder;
-            document.getElementById('btnAskQA').innerText = t.btnAsk;
 
             document.getElementById('arcadeBtnText').innerText = t.arcadeName;
             document.getElementById('arcadeTriggerBtn').title = t.arcadeTitle;
             document.getElementById('secTitleStructure').innerText = t.secStructure;
             if(document.getElementById('secTitleAdvancedTools')) document.getElementById('secTitleAdvancedTools').innerText = t.secAdvancedTools;
-            document.getElementById('secTitleAi').innerText = t.secAi;
             document.getElementById('secTitleInput').innerText = t.secInput;
             document.getElementById('secTitleGeneralExport').innerText = t.secGeneralExport;
             if(document.getElementById('btnKnowledgeGraph')) { const kg=document.getElementById('btnKnowledgeGraph'); kg.querySelector('.kg-label-fa').style.display=currentLang==='fa'?'inline-block':'none'; kg.querySelector('.kg-label-en').style.display=currentLang==='fa'?'none':'inline-block'; }
@@ -8090,7 +8044,7 @@ window.mu_syncHtmlBg = function(){
             const notes=categories.filter(c=>!isArchived(c)&&!c.isDecoy);
             if(!notes.length){showToast(fa?'هنوز یادداشتی نیست.':'No notes yet.');return;}
 
-            // Locked notes that haven't been unlocked from the Ask section keep their content
+            // Locked notes that haven't been unlocked for MARKHIN AI keep their content
             // out of the similarity analysis entirely (same rule the AI/semantic-search
             // features already follow) — they still appear as isolated, dimmed nodes.
             const openNotes=notes.filter(n=>!isNoteLocked(n)||unlockedQaIds.includes(n.id));
@@ -8236,7 +8190,7 @@ window.mu_syncHtmlBg = function(){
                      `<circle cx="${x}" cy="${y}" r="${r}" fill="rgba(0,0,0,.6)" stroke="currentColor" stroke-width="2.2" opacity="${locked ? 0.55 : 0.95}"${dash}/>`+
                      (glyph?`<text x="${x}" y="${y-r-10}" text-anchor="middle" font-size="14">${glyph}</text>`:'')+
                      `<text x="${x}" y="${y+fontSize*0.35}" text-anchor="middle" fill="currentColor" font-size="${fontSize}" font-weight="600" opacity="${locked?.6:1}">${escapeHtml(label)}</text>`+
-                     `<title>${escapeHtml(fullName)}${locked?(fa?' (قفل — از بخش پرسش آنلاک کن)':' (locked — unlock from Ask section)'):''}</title>`+
+                     `<title>${escapeHtml(fullName)}${locked?(fa?' (قفل — از 🔒 در MARKHIN AI آنلاک کن)':' (locked — unlock via the 🔒 button in MARKHIN AI)'):''}</title>`+
                      `</g>`;
             });
             svg+='</svg>';
@@ -9959,6 +9913,29 @@ const MarkhinAI = window.MarkhinAI = {
 
     isConfigured(){ const p=this.getActiveProvider(); return !!(p && p.apiKey); },
 
+    /* chat() supports an optional agentic tool-calling mode used by the
+       MARKHIN AI chat widget to actually operate on the user's notes
+       (search/create/rename/move/tag/pin/favorite/archive/merge/delete),
+       on top of its original plain Q&A use (translate/summarize/suggest
+       tags — none of which pass opts.tools and so are completely
+       unaffected).
+
+       Contract:
+       - Call with opts.tools omitted/empty → returns a plain string, exactly
+         as before. Every pre-existing caller keeps working unchanged.
+       - Call with opts.tools = [{name, description, parameters}] (JSON-Schema
+         parameters) → always returns { text, toolCalls } where toolCalls is
+         [{id, name, input}] (empty array if the model didn't call anything).
+
+       The `messages` array accepts two extra generic turn shapes on top of
+       the normal {role:'system'|'user'|'assistant', content:string}, so the
+       calling code never has to know which provider format is in use:
+       - { role:'assistant', content, toolCalls:[{id,name,input}] } — an
+         assistant turn that invoked tools.
+       - { role:'tool_result', toolCallId, name, content } — the result of
+         running one of those tool calls. Consecutive tool_result entries are
+         grouped as needed per-provider (Anthropic wants them combined into a
+         single following user turn; OpenAI wants one 'tool' message each). */
     async chat(messages, opts){
         opts = opts||{};
         const p = this.getActiveProvider();
@@ -9966,10 +9943,37 @@ const MarkhinAI = window.MarkhinAI = {
         if(!p) throw new Error(fa ? 'ارائه‌دهنده انتخاب‌شده پیدا نشد.' : 'Selected provider was not found.');
         if(!p.apiKey) throw new Error(fa ? 'کلید API تنظیم نشده است.' : 'API key is not set.');
         const maxTokens = opts.maxTokens || 500;
+        const tools = Array.isArray(opts.tools) && opts.tools.length ? opts.tools : null;
 
         if(p.format === 'anthropic'){
             const sysMsg = messages.find(m=>m.role==='system');
             const rest = messages.filter(m=>m.role!=='system');
+            const aMessages = [];
+            rest.forEach(m=>{
+                if(m.role === 'tool_result'){
+                    const block = { type:'tool_result', tool_use_id:m.toolCallId, content:String(m.content==null?'':m.content) };
+                    const last = aMessages[aMessages.length-1];
+                    if(last && last.role === 'user' && last.__toolResults) last.content.push(block);
+                    else aMessages.push({ role:'user', content:[block], __toolResults:true });
+                    return;
+                }
+                if(m.role === 'assistant' && Array.isArray(m.toolCalls) && m.toolCalls.length){
+                    const blocks = [];
+                    if(m.content) blocks.push({ type:'text', text:m.content });
+                    m.toolCalls.forEach(tc=>blocks.push({ type:'tool_use', id:tc.id, name:tc.name, input:tc.input||{} }));
+                    aMessages.push({ role:'assistant', content:blocks });
+                    return;
+                }
+                aMessages.push({ role: m.role==='assistant'?'assistant':'user', content:m.content });
+            });
+            aMessages.forEach(m=>{ delete m.__toolResults; });
+            const body = {
+                model: p.model || 'claude-haiku-4-5-20251001',
+                max_tokens: maxTokens,
+                system: sysMsg ? sysMsg.content : undefined,
+                messages: aMessages
+            };
+            if(tools) body.tools = tools.map(t=>({ name:t.name, description:t.description, input_schema:t.parameters }));
             const res = await fetch((p.baseUrl||'https://api.anthropic.com').replace(/\/+$/,'')+'/v1/messages', {
                 method:'POST',
                 headers:{
@@ -9978,16 +9982,15 @@ const MarkhinAI = window.MarkhinAI = {
                     'anthropic-version':'2023-06-01',
                     'anthropic-dangerous-direct-browser-access':'true'
                 },
-                body: JSON.stringify({
-                    model: p.model || 'claude-haiku-4-5-20251001',
-                    max_tokens: maxTokens,
-                    system: sysMsg ? sysMsg.content : undefined,
-                    messages: rest.map(m=>({role: m.role==='assistant'?'assistant':'user', content:m.content}))
-                })
+                body: JSON.stringify(body)
             });
             if(!res.ok){ const tx=await res.text().catch(()=> ''); throw new Error('Anthropic: '+res.status+' '+tx.slice(0,220)); }
             const data = await res.json();
-            return (data.content||[]).map(bk=>bk.text||'').join('\n').trim();
+            const blocks = data.content || [];
+            const text = blocks.filter(b=>b.type==='text').map(b=>b.text||'').join('\n').trim();
+            if(!tools) return text;
+            const toolCalls = blocks.filter(b=>b.type==='tool_use').map(b=>({ id:b.id, name:b.name, input:b.input||{} }));
+            return { text, toolCalls };
         }
 
         // OpenAI-compatible format — covers OpenAI, OpenRouter, and any
@@ -10002,14 +10005,35 @@ const MarkhinAI = window.MarkhinAI = {
             headers['HTTP-Referer'] = (typeof location!=='undefined' && location.origin) || 'https://localhost';
             headers['X-Title'] = 'Markhin';
         }
+        const oMessages = messages.map(m=>{
+            if(m.role === 'tool_result') return { role:'tool', tool_call_id:m.toolCallId, content:String(m.content==null?'':m.content) };
+            if(m.role === 'assistant' && Array.isArray(m.toolCalls) && m.toolCalls.length){
+                return {
+                    role:'assistant',
+                    content: m.content || null,
+                    tool_calls: m.toolCalls.map(tc=>({ id:tc.id, type:'function', function:{ name:tc.name, arguments: JSON.stringify(tc.input||{}) } }))
+                };
+            }
+            return { role: m.role, content: m.content };
+        });
+        const body = { model: p.model || 'gpt-5-mini', max_tokens:maxTokens, messages: oMessages };
+        if(tools) body.tools = tools.map(t=>({ type:'function', function:{ name:t.name, description:t.description, parameters:t.parameters } }));
         const res = await fetch(p.baseUrl.replace(/\/+$/,'')+'/chat/completions', {
             method:'POST',
             headers,
-            body: JSON.stringify({ model: p.model || 'gpt-5-mini', max_tokens:maxTokens, messages })
+            body: JSON.stringify(body)
         });
         if(!res.ok){ const tx=await res.text().catch(()=> ''); throw new Error('API: '+res.status+' '+tx.slice(0,220)); }
         const data = await res.json();
-        return (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || '';
+        const msg = (data.choices && data.choices[0] && data.choices[0].message) || {};
+        const text = msg.content || '';
+        if(!tools) return text;
+        const toolCalls = Array.isArray(msg.tool_calls) ? msg.tool_calls.map(tc=>({
+            id: tc.id,
+            name: tc.function && tc.function.name,
+            input: safeParseJSON((tc.function && tc.function.arguments) || '{}', {})
+        })) : [];
+        return { text, toolCalls };
     }
 };
 
@@ -10095,8 +10119,8 @@ function mu_openAiSettingsModal(){
     showAdvanced(`
         <div class="advanced-head"><h3>⚙️ ${fa?'تنظیمات هوش مصنوعی':'AI Settings'}</h3><button class="btn-main" onclick="closeAdvancedModal()">✕</button></div>
         <p style="opacity:.65;font-size:11px;line-height:1.9">${fa
-            ? 'کلید API فقط در localStorage همین مرورگر ذخیره می‌شود و فقط به آدرس همان سرویس ارسال می‌شود؛ به هیچ سرور دیگری فرستاده نمی‌شود. یادداشت‌های رمزدار هرگز به AI فرستاده نمی‌شوند مگر این‌که از بخش «پرسش» باز/آنلاک شده باشند. می‌تونی هر تعداد ارائه‌دهنده دلخواه (هر API سازگاری) اضافه کنی.'
-            : 'Your API key is stored only in this browser\'s localStorage and is sent only to the provider you pick — never anywhere else. Locked notes are never sent to AI unless unlocked from the Ask section. Add as many providers as you like, any compatible API.'}</p>
+            ? 'کلید API فقط در localStorage همین مرورگر ذخیره می‌شود و فقط به آدرس همان سرویس ارسال می‌شود؛ به هیچ سرور دیگری فرستاده نمی‌شود. یادداشت‌های رمزدار هرگز به AI فرستاده نمی‌شوند مگر این‌که با دکمه 🔒 داخل MARKHIN AI باز/آنلاک شده باشند. می‌تونی هر تعداد ارائه‌دهنده دلخواه (هر API سازگاری) اضافه کنی.'
+            : 'Your API key is stored only in this browser\'s localStorage and is sent only to the provider you pick — never anywhere else. Locked notes are never sent to AI unless unlocked via the 🔒 button in MARKHIN AI. Add as many providers as you like, any compatible API.'}</p>
         <div class="markhin-ai-settings-row">
             <label>${fa?'ارائه‌دهنده':'Provider'}</label>
             <select id="muAiProvider" onchange="mu_onProviderPick(this.value)">
@@ -10220,55 +10244,6 @@ window.mu_testAiSettings = async function(){
     }
 };
 
-/* ---------- Ask (Q&A) section: AI-only ----------
-   Pressing "پرسش" now always asks the AI directly — the local, non-AI
-   keyword/synonym matching that used to answer here (with or without an
-   AI connected) has been removed completely per request. If no AI
-   provider is configured yet, this opens AI settings instead of silently
-   doing nothing or falling back to keyword matching. */
-window.askQuestion = function(){
-    mu_askAI();
-};
-async function mu_askAI(){
-    const qEl = document.getElementById('qaInput');
-    const query = qEl ? qEl.value.trim() : '';
-    const resBox = document.getElementById('qaResponse');
-    if(!resBox) return;
-    if(!query){
-        resBox.style.display = 'none';
-        return;
-    }
-    if(!MarkhinAI.isConfigured()){
-        mu_openAiSettingsModal();
-        return;
-    }
-    const fa = currentLang==='fa';
-    const notes = categories.filter(c=>!c.isDecoy && (!isNoteLocked(c) || unlockedQaIds.includes(c.id)));
-    /* Locked notes are excluded from the AI's context unless unlocked via the
-       🔒 button next to Ask. That used to happen silently — the person had no
-       way to tell a locked note was left out of the answer. Now, whenever at
-       least one locked note is being skipped, a small notice is shown above
-       the answer saying so and pointing at the 🔒 button. */
-    const excludedLockedCount = categories.filter(c=>!c.isDecoy && isNoteLocked(c) && !unlockedQaIds.includes(c.id)).length;
-    const lockNotice = excludedLockedCount > 0
-        ? `<div class="markhin-ai-lock-notice">🔒 ${fa
-            ? `${excludedLockedCount} یادداشت قفل در این جستجو لحاظ نشد — فقط بین یادداشت‌های بدون رمز جستجو شد. برای اینکه یک یادداشت قفل هم در پاسخ AI لحاظ بشه، از دکمه 🔒 کنار «پرسش» بازش کن.`
-            : `${excludedLockedCount} locked note(s) were skipped — only unlocked notes were searched. To include a locked note in AI answers, unlock it with the 🔒 button next to Ask.`}</div>`
-        : '';
-    resBox.style.display = 'block';
-    resBox.innerHTML = lockNotice + `<div class="markhin-ai-loading">🤖 ${fa?'در حال پرسیدن از AI...':'Asking AI...'}</div>`;
-    const context = notes.map(n=>'### '+n.name+'\n'+(n.text||'').slice(0,800)).join('\n\n').slice(0,9000);
-    const sys = fa
-        ? 'فقط بر اساس یادداشت‌های زیر به سوال کاربر پاسخ بده. اگر پاسخ در یادداشت‌ها نبود، بگو اطلاعات کافی در یادداشت‌ها پیدا نشد. از دانش عمومی خودت استفاده نکن و مختصر پاسخ بده.'
-        : 'Answer the user only using the notes below. If the answer is not present, say the notes do not contain enough information. Do not use outside knowledge; answer concisely.';
-    try{
-        const reply = await MarkhinAI.chat([{role:'system',content:sys},{role:'user',content:'Notes:\n'+context+'\n\nQuestion: '+query}], {maxTokens:400});
-        resBox.innerHTML = lockNotice + `🤖 <b>${fa?'پاسخ AI':'AI answer'}:</b> ${escapeHtml(reply)}`;
-    }catch(err){
-        resBox.innerHTML = lockNotice + `⚠️ ${fa?'خطا در دریافت پاسخ AI: ':'AI error: '}${escapeHtml(err.message||String(err))}`;
-    }
-}
-
 /* ---------- Per-note AI tools: summarize + suggest tags ---------- */
 const mu_baseRenderContents = window.renderContents;
 window.renderContents = function(filtered){
@@ -10343,7 +10318,7 @@ async function mu_aiTranslateNote(id) {
     const item = categories.find(c => c.id === id); if (!item) return;
     const fa = currentLang === 'fa';
     if (!MarkhinAI.isConfigured()) { mu_openAiSettingsModal(); return; }
-    if (isNoteLocked(item) && !unlockedQaIds.includes(id)) { showToast(fa?'ابتدا این یادداشت را از بخش پرسش آنلاک کن.':'Unlock this note from the Ask section first.'); return; }
+    if (isNoteLocked(item) && !unlockedQaIds.includes(id)) { showToast(fa?'ابتدا این یادداشت را از MARKHIN AI (دکمه 🔒) آنلاک کن.':'Unlock this note via the 🔒 button in MARKHIN AI first.'); return; }
     const textEl = document.getElementById('text-' + id);
     if (!textEl) return;
     const sourceText = mu_notePlainText(item).slice(0, 8000);
@@ -10398,7 +10373,7 @@ async function mu_summarizeNote(id){
     const item = categories.find(c=>c.id===id); if(!item) return;
     const fa = currentLang==='fa';
     if(!MarkhinAI.isConfigured()){ mu_openAiSettingsModal(); return; }
-    if(isNoteLocked(item) && !unlockedQaIds.includes(id)){ showToast(fa?'ابتدا این یادداشت را از بخش پرسش آنلاک کن.':'Unlock this note from the Ask section first.'); return; }
+    if(isNoteLocked(item) && !unlockedQaIds.includes(id)){ showToast(fa?'ابتدا این یادداشت را از MARKHIN AI (دکمه 🔒) آنلاک کن.':'Unlock this note via the 🔒 button in MARKHIN AI first.'); return; }
     showToast(fa?'در حال خلاصه‌سازی...':'Summarizing...');
     try{
         const plain = mu_notePlainText(item).slice(0,6000);
@@ -10424,7 +10399,7 @@ async function mu_suggestTags(id){
     const item = categories.find(c=>c.id===id); if(!item) return;
     const fa = currentLang==='fa';
     if(!MarkhinAI.isConfigured()){ mu_openAiSettingsModal(); return; }
-    if(isNoteLocked(item) && !unlockedQaIds.includes(id)){ showToast(fa?'ابتدا این یادداشت را از بخش پرسش آنلاک کن.':'Unlock this note from the Ask section first.'); return; }
+    if(isNoteLocked(item) && !unlockedQaIds.includes(id)){ showToast(fa?'ابتدا این یادداشت را از MARKHIN AI (دکمه 🔒) آنلاک کن.':'Unlock this note via the 🔒 button in MARKHIN AI first.'); return; }
     showToast(fa?'در حال پیشنهاد برچسب...':'Suggesting tags...');
     try{
         const plain = mu_notePlainText(item).slice(0,4000);
@@ -10445,17 +10420,8 @@ window.mu_addTag = function(id, tag){
     showToast(currentLang==='fa'?'برچسب اضافه شد.':'Tag added.');
 };
 
-/* ---------- inject UI controls: AI gear button + note delete-mode toggle ---------- */
+/* ---------- inject UI controls: note delete-mode toggle + search placeholder ---------- */
 function mu_injectUiControls(){
-    const qaBox = document.querySelector('.qa-box');
-    if(qaBox && !document.getElementById('muAiSettingsBtn')){
-        const gear = document.createElement('button');
-        gear.type='button'; gear.id='muAiSettingsBtn'; gear.className='qa-lock-btn';
-        gear.title = currentLang==='fa' ? 'تنظیمات هوش مصنوعی' : 'AI settings';
-        gear.textContent='⚙️';
-        gear.onclick = mu_openAiSettingsModal;
-        qaBox.appendChild(gear);
-    }
     const noteDelBtn = document.getElementById('btnToggleDeleteNote');
     if(noteDelBtn && !noteDelBtn.onclick) noteDelBtn.onclick = mu_toggleNoteDeleteMode;
     const si = document.getElementById('searchInput');
@@ -10856,11 +10822,14 @@ window.attachWrapperEvents = function(categoryId){
             </div>
         </div>
         <div class="mAi-header-actions">
+            <button class="mAi-icon-btn" id="qaLockBtn" onclick="promptUnlockQa()" title="مدیریت قفل یادداشت‌ها برای MARKHIN AI" aria-label="قفل یادداشت‌ها">🔒</button>
             <button class="mAi-icon-btn" onclick="mu_openAiSettingsModal()" title="تنظیمات هوش مصنوعی" aria-label="تنظیمات">⚙️</button>
             <button class="mAi-icon-btn" onclick="markhinAiChat_clear()" title="پاک کردن گفتگو" aria-label="پاک کردن">🗑️</button>
             <button class="mAi-icon-btn mAi-close-btn" onclick="closeMarkhinAIChat()" title="بستن" aria-label="بستن">✕</button>
         </div>
     </div>
+
+    <div id="mAiLockNotice" class="markhin-ai-lock-notice" style="display:none"></div>
 
     <div id="markhinAiChatMessages" class="mAi-messages"></div>
 
@@ -10876,9 +10845,13 @@ window.attachWrapperEvents = function(categoryId){
 <script>
 (function(){
     /* ---------------------------------------------------------------
-       State: a plain general-purpose conversation, independent of the
-       notes/QA assistant above. Persisted locally so the conversation
-       survives closing/reopening the page (not tied to any one note).
+       State: a single general-purpose conversation that also has read
+       access to the user's (unlocked) notes as extra context — this used
+       to be split into two separate features (this chat for general
+       knowledge, plus a standalone notes-only "Ask" box). The Ask box has
+       been removed; MARKHIN AI now covers both jobs itself. Persisted
+       locally so the conversation survives closing/reopening the page
+       (not tied to any one note).
        --------------------------------------------------------------- */
     const MAI_HISTORY_KEY = 'markhinAiChatHistory_v1';
     let mAiHistory = [];
@@ -10912,6 +10885,28 @@ window.attachWrapperEvents = function(categoryId){
     }
     window.markhinAiChat_updateSub = mAiUpdateSub;
 
+    /* Shows/hides the small banner under the header that tells the person
+       when one or more locked notes are being kept out of MARKHIN AI's
+       notes context (mirrors what the old standalone Ask box used to show
+       above its answer box). The 🔒 button in the header — same element,
+       same promptUnlockQa()/updateLockBtnState() logic as before — is how
+       they grant/revoke access; this banner just reflects current state. */
+    function mAiUpdateLockNotice(){
+        const el = document.getElementById('mAiLockNotice');
+        if(!el || typeof categories === 'undefined') return;
+        const fa = currentLang === 'fa';
+        const excluded = categories.filter(c=>!c.isDecoy && isNoteLocked(c) && !unlockedQaIds.includes(c.id)).length;
+        if(excluded > 0){
+            el.style.display = 'block';
+            el.innerHTML = '🔒 ' + (fa
+                ? `${excluded} یادداشت قفل به MARKHIN AI داده نشده — فقط یادداشت‌های بدون رمز در دسترسش هستند. برای اینکه یادداشت قفلی هم در دسترس MARKHIN AI باشد، از دکمه 🔒 بالای همین چت بازش کن.`
+                : `${excluded} locked note(s) are withheld from MARKHIN AI — only unlocked notes are visible to it. Unlock a note with the 🔒 button above to give it access.`);
+        } else {
+            el.style.display = 'none';
+        }
+    }
+    window.mu_updateAiLockNotice = mAiUpdateLockNotice;
+
     function mAiRender(){
         const box = document.getElementById('markhinAiChatMessages');
         if(!box) return;
@@ -10922,8 +10917,8 @@ window.attachWrapperEvents = function(categoryId){
                     '<div class="mAi-welcome-orb">🤖</div>' +
                     '<div class="mAi-welcome-title">MARKHIN AI</div>' +
                     '<div class="mAi-welcome-text">' + (fa
-                        ? 'یک دستیار هوش مصنوعی واقعی و مستقل از یادداشت‌هایت — بر پایه دانش عمومی، متصل به هر ارائه‌دهنده‌ای که خودت انتخاب کنی. هر سوالی داری همینجا بپرس.'
-                        : 'A real general-purpose AI assistant, unrelated to your notes — powered by whichever provider you connect. Ask me anything.') + '</div>' +
+                        ? 'یک دستیار هوش مصنوعی واقعی — بر پایه دانش عمومی و متصل به هر ارائه‌دهنده‌ای که خودت انتخاب کنی. علاوه بر پاسخ‌گویی، مستقیماً به برنامه‌ات هم دسترسی دارد: می‌تواند یادداشت پیدا کند، بسازد، تغییر نام دهد، به پوشه‌ای منتقل کند، تگ بزند، آرشیو/پین/فیوریت کند، چند یادداشت را ترکیب کند، و با تأیید خودت حذف کند. هر سوالی داری یا هر کاری با یادداشت‌هات، همینجا بگو.'
+                        : 'A real general-purpose AI assistant — powered by whichever provider you connect. Beyond answering questions, it has direct access to your app: it can find notes, create them, rename them, move them into folders, tag them, archive/pin/favorite them, merge several notes together, and delete them with your confirmation. Ask it anything, or just tell it what to do with your notes.') + '</div>' +
                 '</div>';
             return;
         }
@@ -10940,6 +10935,7 @@ window.attachWrapperEvents = function(categoryId){
         ov.style.display = 'flex';
         document.body.style.overflow = 'hidden';
         mAiUpdateSub();
+        mAiUpdateLockNotice();
         mAiRender();
         mAiSyncViewport();
         // Deliberately NOT auto-focusing the input here: focusing it would pop
@@ -11004,6 +11000,457 @@ window.attachWrapperEvents = function(categoryId){
         }
     };
 
+    /* Locked note content is never readable without its password, so
+       relevance can only be judged from what's visible while locked: the
+       note's title. A rough word-overlap check against the query is good
+       enough to decide whether to mention the note at all. */
+    function mAiFindRelevantLockedNotes(query){
+        if(typeof categories === 'undefined') return [];
+        const q = normalizeText(query);
+        if(!q) return [];
+        return categories.filter(c => !c.isDecoy && isNoteLocked(c) && !unlockedQaIds.includes(c.id)).filter(c => {
+            const name = normalizeText(c.name || '');
+            if(!name) return false;
+            if(q.includes(name)) return true;
+            return name.split(' ').some(w => w.length >= 3 && q.includes(w));
+        });
+    }
+
+    /* =================================================================
+       App-access tools: this is what turns MARKHIN AI from a plain Q&A
+       chat into a real notes-management agent. Each tool below maps to
+       one of the app's own note/folder operations (the same ones the
+       toolbar buttons use), so the model can actually perform them
+       instead of just describing how. See markhinAiChat_send() further
+       down for the loop that feeds these to MarkhinAI.chat() and runs
+       whichever ones the model calls.
+       ================================================================= */
+    const MAI_TOOLS = [
+        { name:'find_notes', description:'Search the user\'s unlocked notes by keyword (matches title, body text, or tags). Call this first whenever the user refers to a note by name/topic and you do not already know its exact id, or whenever asked to list/find notes. Returns id, name, folder, tags, pinned, favorite, archived, and a short content snippet for every match. Locked (password-protected) notes are never included.', parameters:{ type:'object', properties:{ query:{ type:'string', description:'Keyword or phrase to search for. Leave empty to list all unlocked notes.' } } } },
+        { name:'create_note', description:'Create a brand-new note in the app. If a folder is given that does not exist yet, it is created automatically — so "make a note X in a new folder Y" is a single call.', parameters:{ type:'object', properties:{ name:{ type:'string', description:'Title of the new note.' }, content:{ type:'string', description:'Body of the new note. Supports lightweight markdown that gets rendered to real formatting: **bold**, *italic*, `code`, # / ## / ### headings, > quote, - list items, [text](url) links. Use it whenever the user asks for bold/italic/headings/lists/etc.' }, folder:{ type:'string', description:'Folder to place the note in. Leave empty for no folder. A folder that does not exist yet will be created automatically.' } }, required:['name'] } },
+        { name:'edit_note_content', description:'Change the body text of an existing note — replace it entirely or append to it. Supports the same lightweight markdown as create_note (**bold**, *italic*, `code`, headings, quotes, lists, links) rendered to real formatting. Use this whenever the user asks to write/add/format something inside a note that already exists (including making existing text bold, adding a bullet list, appending a paragraph, etc.).', parameters:{ type:'object', properties:{ note:{ type:'string', description:'The id or title of the note to edit.' }, content:{ type:'string', description:'The new text (markdown allowed).' }, mode:{ type:'string', enum:['replace','append'], description:'"replace" overwrites the whole body (default). "append" adds this content after the existing body.' } }, required:['note','content'] } },
+        { name:'rename_note', description:'Rename an existing note.', parameters:{ type:'object', properties:{ note:{ type:'string', description:'The id or current title of the note.' }, new_name:{ type:'string', description:'The new title.' } }, required:['note','new_name'] } },
+        { name:'move_note_to_folder', description:'Move a note into a folder, or take it out of its folder.', parameters:{ type:'object', properties:{ note:{ type:'string', description:'The id or title of the note.' }, folder:{ type:'string', description:'Target folder name. Pass an empty string or "none" to remove the note from any folder. A folder that does not exist yet will be created automatically.' } }, required:['note','folder'] } },
+        { name:'tag_note', description:'Add and/or remove tags on a note.', parameters:{ type:'object', properties:{ note:{ type:'string', description:'The id or title of the note.' }, add_tags:{ type:'array', items:{type:'string'}, description:'Tags to add.' }, remove_tags:{ type:'array', items:{type:'string'}, description:'Tags to remove.' } }, required:['note'] } },
+        { name:'set_pinned', description:'Pin or unpin a note.', parameters:{ type:'object', properties:{ note:{ type:'string' }, pinned:{ type:'boolean' } }, required:['note','pinned'] } },
+        { name:'set_favorite', description:'Add or remove a note from favorites.', parameters:{ type:'object', properties:{ note:{ type:'string' }, favorite:{ type:'boolean' } }, required:['note','favorite'] } },
+        { name:'archive_note', description:'Archive or unarchive (restore) a note.', parameters:{ type:'object', properties:{ note:{ type:'string' }, archived:{ type:'boolean' } }, required:['note','archived'] } },
+        { name:'merge_notes', description:'Combine two or more existing notes into one brand-new note, each source note under its own heading. Never deletes anything by itself unless delete_originals is explicitly set — and even then it always shows the user a real confirmation dialog first.', parameters:{ type:'object', properties:{ notes:{ type:'array', items:{type:'string'}, description:'Ids or titles of the notes to merge — at least two.' }, new_name:{ type:'string', description:'Title for the merged note. If omitted, one is generated from the source titles.' }, delete_originals:{ type:'boolean', description:'If true, ask the user to confirm deleting the original notes right after merging.' } }, required:['notes'] } },
+        { name:'delete_note', description:'Permanently delete a note. This always pops a native confirmation dialog for the user and only actually deletes if they accept it, so it is safe to call as soon as the user has clearly asked to delete a specific note — but never call it just to be helpful when deletion was not requested.', parameters:{ type:'object', properties:{ note:{ type:'string', description:'The id or title of the note to delete.' } }, required:['note'] } },
+        { name:'set_theme', description:'Switch the app\'s visual theme. Available themes: oceanic, phantom, aurora, aurora-phantom, spider, dreamy, galaxy, cloudy, cyberpunk, love, snowy, rainy, autumn, anonymous, terminal, darkweb, acid. Matches loosely against the theme id or its Persian/English display name, so close/misspelled names (e.g. "شفق قطبی", "aurora", "قطبی") still resolve.', parameters:{ type:'object', properties:{ theme:{ type:'string', description:'Theme id or name the user asked for, e.g. "aurora" or "شفق قطبی".' } }, required:['theme'] } },
+        { name:'set_language', description:'Switch the app\'s interface language between Persian (fa) and English (en).', parameters:{ type:'object', properties:{ language:{ type:'string', enum:['fa','en'] } }, required:['language'] } },
+        { name:'export_notes', description:'Export note(s) to a real downloadable file — this actually triggers the download, the same as tapping the app\'s own export buttons, with no extra menus for the user to click through. Formats: "json" (full structured backup), "csv", "md" (Markdown), "txt" (plain text), "pdf", "docx" (Word), "png" or "jpg" (an image of one note\'s content). Locked notes are always excluded unless already unlocked this session.', parameters:{ type:'object', properties:{ format:{ type:'string', enum:['json','csv','md','txt','pdf','docx','png','jpg'], description:'Export file format.' }, note:{ type:'string', description:'Id or title of a single note to export. Omit to export every exportable note at once (not available for png/jpg — those are always a single note).' }, filename:{ type:'string', description:'Optional file name, without extension. A sensible default is generated if omitted.' } }, required:['format'] } },
+        { name:'open_app_view', description:'Open one of the app\'s special full-screen views for the user, exactly like tapping its button. Recognize this even when the user names it phonetically/in Finglish or with an approximate translation — e.g. "نولدج گراف", "نالج گراف", "knowledge graf", "شبکه دانش", or "گراف" all mean knowledge_graph; "سیمیتری"/"سمتری"/"قبرستان" mean cemetery; "رندوم پرتال"/"پرتال تصادفی" mean random_portal.', parameters:{ type:'object', properties:{ view:{ type:'string', enum:['knowledge_graph','cemetery','random_portal'], description:'knowledge_graph = the graph view of how notes connect to each other. cemetery = the list of deleted notes. random_portal = jumps to a random note.' } }, required:['view'] } },
+        { name:'compare_notes', description:'Compare two or more notes and get structured facts about what they share and how they differ: common tags, common significant words (the closest thing to shared "DNA"/theme between them), whether they\'re in the same folder, and each note\'s pinned/favorite/archived status, word count, and last-edited date. Use this whenever the user asks to compare notes or find what they have in common. This tool only gathers the facts — write the actual comparison for the user yourself, in your own words, from the returned data.', parameters:{ type:'object', properties:{ notes:{ type:'array', items:{ type:'string' }, description:'Ids or titles of the notes to compare — at least two.' } }, required:['notes'] } },
+        { name:'get_dashboard_stats', description:'Get an overview of the user\'s whole notes vault: total/archived/locked note counts, total word count, per-folder note counts, per-tag note counts, and the actual lists (names) of which notes are currently pinned and which are favorite. Use this whenever the user asks something like which notes are favorite/pinned, wants stats about their notes as a whole, or asks what the dashboard shows.', parameters:{ type:'object', properties:{} } }
+    ];
+
+    /* Resolves a model-supplied note reference (an id, an exact title, or a
+       loose/partial title) to an actual note object. Never returns a decoy
+       note (a locked note's fake front); locked-ness itself is checked
+       separately by callers via mAiIsLockedForAi() so the "not found" vs
+       "it's locked" messages stay distinct for the user. */
+    function mAiResolveNote(ref){
+        if(typeof categories === 'undefined' || !ref) return null;
+        const items = categories.filter(c => !c.isDecoy);
+        let item = items.find(c => c.id === ref);
+        if(item) return item;
+        const norm = normalizeText(String(ref));
+        if(!norm) return null;
+        item = items.find(c => normalizeText(c.name || '') === norm);
+        if(item) return item;
+        return items.find(c => {
+            const n = normalizeText(c.name || '');
+            return n && (n.includes(norm) || norm.includes(n));
+        }) || null;
+    }
+
+    function mAiIsLockedForAi(item){
+        return isNoteLocked(item) && !unlockedQaIds.includes(item.id);
+    }
+
+    /* Runs one tool call and performs the real app action, returning a
+       small JSON-able result object that gets fed back to the model as a
+       tool_result. Every mutating branch reuses the app's own
+       saveToLocalStorage()/renderApp()/showToast() so an AI-driven change
+       looks and behaves exactly like a manual one (same persistence, same
+       on-screen toast, same live re-render). */
+    async function mAiExecuteTool(toolName, input){
+        input = input || {};
+        const fa = currentLang === 'fa';
+        const notFound = { ok:false, error: fa ? 'یادداشتی با این مشخصات پیدا نشد.' : 'No matching note was found.' };
+        const locked = { ok:false, error: fa ? 'این یادداشت قفل است و در دسترس نیست؛ کاربر باید اول از دکمه 🔒 بازش کند.' : 'This note is locked and unavailable; the user needs to unlock it via the 🔒 button first.' };
+        try {
+            switch(toolName){
+                case 'find_notes': {
+                    const qn = normalizeText(String(input.query || '').trim());
+                    const base = categories.filter(c => !c.isDecoy && (!isNoteLocked(c) || unlockedQaIds.includes(c.id)));
+                    let list = base;
+                    if(qn){
+                        // First try a plain substring match (fast path for clean queries).
+                        list = base.filter(c => {
+                            const name = normalizeText(c.name || '');
+                            const body = normalizeText(mu_notePlainText(c) || '');
+                            const tags = (c.tags || []).some(t => normalizeText(t).includes(qn));
+                            return name.includes(qn) || body.includes(qn) || tags;
+                        });
+                        /* Fuzzy fallback: the query may itself carry the user's typos
+                           (misspelled note title, swapped/dropped letters, sloppy
+                           spacing) relayed almost verbatim by the model, so an exact
+                           substring match can legitimately find nothing even though a
+                           note clearly matches. Score every note by term overlap,
+                           allowing each search word to match a near-miss substring
+                           (same trick used by the app's own fuzzy in-note search), and
+                           fall back to whatever scores reasonably instead of reporting
+                           "not found". */
+                        if(!list.length){
+                            const terms = qn.split(/\s+/).filter(Boolean);
+                            if(terms.length){
+                                const scored = base.map(c => {
+                                    const hay = normalizeText([c.name, mu_notePlainText(c), c.folder, (c.tags||[]).join(' ')].join(' '));
+                                    let score = 0;
+                                    terms.forEach(term => {
+                                        if(hay.includes(term)) score += 3;
+                                        else if([...hay].some((_, i) => hay.slice(i, i + term.length).includes(term.slice(0, Math.max(2, term.length - 1))))) score += 1;
+                                    });
+                                    return { c, score };
+                                }).filter(x => x.score >= Math.max(1, terms.length));
+                                scored.sort((a, b) => b.score - a.score);
+                                list = scored.map(x => x.c);
+                            }
+                        }
+                    }
+                    return { ok:true, data: list.slice(0, 30).map(c => ({
+                        id: c.id, name: c.name, folder: c.folder || '', tags: c.tags || [],
+                        pinned: !!c.pinned, favorite: !!c.favorite, archived: !!c.archived,
+                        snippet: mu_notePlainText(c).slice(0, 180)
+                    })) };
+                }
+                case 'create_note': {
+                    const name = String(input.name || '').trim();
+                    if(!name) return { ok:false, error: fa ? 'نام یادداشت لازم است.' : 'A note name is required.' };
+                    const contentText = String(input.content || '');
+                    let folderName = String(input.folder || '').trim();
+                    if(folderName && folderName !== DEFAULT_FOLDER){
+                        if(!folders.includes(folderName)){ folders.push(folderName); saveFoldersToLocalStorage(); }
+                    } else {
+                        folderName = '';
+                    }
+                    const id = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+                    // contentText may carry lightweight markdown (**bold**, *italic*,
+                    // `code`, # headings, > quotes, - lists, [text](url)) that the model
+                    // was told it can use — render it to real formatted HTML instead of
+                    // dumping it as escaped plain text with the markers still visible.
+                    const html = mdToHtml(contentText);
+                    const newCategory = normalizeCategory({ id, name, folder: folderName, text: contentText, html, lastEdited: new Date().toUTCString() }, categories.length);
+                    categories.push(newCategory);
+                    saveToLocalStorage();
+                    renderApp(newCategory.id);
+                    showToast(fa ? '🤖 یادداشت «' + name + '» ساخته شد' : '🤖 Note "' + name + '" created');
+                    return { ok:true, data:{ id:newCategory.id, name:newCategory.name, folder:newCategory.folder } };
+                }
+                case 'edit_note_content': {
+                    const item = mAiResolveNote(input.note);
+                    if(!item) return notFound;
+                    if(mAiIsLockedForAi(item)) return locked;
+                    const newText = String(input.content == null ? '' : input.content);
+                    const mode = String(input.mode || 'replace').toLowerCase();
+                    const newHtml = mdToHtml(newText);
+                    if(mode === 'append'){
+                        item.text = (item.text || '') + (item.text ? '\n' : '') + newText;
+                        item.html = (item.html || '') + newHtml;
+                    } else {
+                        item.text = newText;
+                        item.html = newHtml;
+                    }
+                    item.lastEdited = new Date().toUTCString();
+                    saveToLocalStorage();
+                    renderApp(item.id);
+                    showToast(fa ? '🤖 یادداشت «' + item.name + '» ویرایش شد' : '🤖 Note "' + item.name + '" updated');
+                    return { ok:true, data:{ id:item.id, name:item.name } };
+                }
+                case 'rename_note': {
+                    const item = mAiResolveNote(input.note);
+                    if(!item) return notFound;
+                    if(mAiIsLockedForAi(item)) return locked;
+                    const newName = String(input.new_name || '').trim();
+                    if(!newName) return { ok:false, error: fa ? 'نام جدید لازم است.' : 'A new name is required.' };
+                    const oldName = item.name;
+                    item.name = newName;
+                    saveToLocalStorage();
+                    renderApp(activeOpenId);
+                    showToast(fa ? '✏️ تغییر نام به: ' + newName : '✏️ Renamed to: ' + newName);
+                    return { ok:true, data:{ id:item.id, old_name:oldName, new_name:newName } };
+                }
+                case 'move_note_to_folder': {
+                    const item = mAiResolveNote(input.note);
+                    if(!item) return notFound;
+                    if(mAiIsLockedForAi(item)) return locked;
+                    let folderName = String(input.folder || '').trim();
+                    const isNone = !folderName || folderName === DEFAULT_FOLDER || normalizeText(folderName) === normalizeText('none') || normalizeText(folderName) === normalizeText('هیچ');
+                    if(isNone){
+                        item.folder = '';
+                    } else {
+                        if(!folders.includes(folderName)){ folders.push(folderName); saveFoldersToLocalStorage(); }
+                        item.folder = folderName;
+                    }
+                    saveToLocalStorage();
+                    renderApp(activeOpenId);
+                    showToast(fa ? '📁 یادداشت جابجا شد' : '📁 Note moved');
+                    return { ok:true, data:{ id:item.id, folder:item.folder } };
+                }
+                case 'tag_note': {
+                    const item = mAiResolveNote(input.note);
+                    if(!item) return notFound;
+                    if(mAiIsLockedForAi(item)) return locked;
+                    ensureItem(item);
+                    let tags = Array.isArray(item.tags) ? item.tags.slice() : [];
+                    const add = Array.isArray(input.add_tags) ? input.add_tags : [];
+                    const remove = Array.isArray(input.remove_tags) ? input.remove_tags : [];
+                    add.forEach(t => { t = String(t || '').trim(); if(t && !tags.some(x => normalizeText(x) === normalizeText(t))) tags.push(t); });
+                    if(remove.length) tags = tags.filter(t => !remove.some(r => normalizeText(String(r || '')) === normalizeText(t)));
+                    item.tags = tags;
+                    saveToLocalStorage();
+                    renderApp(activeOpenId);
+                    showToast(fa ? '🏷️ برچسب‌ها بروزرسانی شد' : '🏷️ Tags updated');
+                    return { ok:true, data:{ id:item.id, tags:item.tags } };
+                }
+                case 'set_pinned': {
+                    const item = mAiResolveNote(input.note);
+                    if(!item) return notFound;
+                    if(mAiIsLockedForAi(item)) return locked;
+                    ensureItem(item);
+                    item.pinned = !!input.pinned;
+                    saveToLocalStorage();
+                    renderApp(activeOpenId);
+                    showToast(item.pinned ? (fa ? '📌 پین شد' : '📌 Pinned') : (fa ? '📌 پین برداشته شد' : '📌 Unpinned'));
+                    return { ok:true, data:{ id:item.id, pinned:item.pinned } };
+                }
+                case 'set_favorite': {
+                    const item = mAiResolveNote(input.note);
+                    if(!item) return notFound;
+                    if(mAiIsLockedForAi(item)) return locked;
+                    ensureItem(item);
+                    item.favorite = !!input.favorite;
+                    saveToLocalStorage();
+                    renderApp(activeOpenId);
+                    showToast(item.favorite ? (fa ? '⭐ به فیوریت اضافه شد' : '⭐ Added to favorites') : (fa ? '⭐ از فیوریت حذف شد' : '⭐ Removed from favorites'));
+                    return { ok:true, data:{ id:item.id, favorite:item.favorite } };
+                }
+                case 'archive_note': {
+                    const item = mAiResolveNote(input.note);
+                    if(!item) return notFound;
+                    if(mAiIsLockedForAi(item)) return locked;
+                    ensureItem(item);
+                    const archived = !!input.archived;
+                    item.archived = archived;
+                    if(archived && activeOpenId === item.id) activeOpenId = null;
+                    saveToLocalStorage();
+                    renderApp(activeOpenId);
+                    showToast(archived ? (fa ? '📦 بایگانی شد' : '📦 Archived') : (fa ? '📦 از بایگانی بازگردانده شد' : '📦 Restored from archive'));
+                    return { ok:true, data:{ id:item.id, archived:item.archived } };
+                }
+                case 'merge_notes': {
+                    const refs = Array.isArray(input.notes) ? input.notes : [];
+                    const items = refs.map(r => mAiResolveNote(r)).filter(Boolean);
+                    if(items.length < 2) return { ok:false, error: fa ? 'حداقل دو یادداشت معتبر لازم است.' : 'At least two valid notes are required.' };
+                    if(items.some(it => mAiIsLockedForAi(it))) return locked;
+                    const mergedName = String(input.new_name || '').trim() || items.map(i => i.name).join(' + ');
+                    const mergedHtml = items.map(it => '<h3>' + escapeHtml(it.name) + '</h3>' + (it.html || escapeHtml(it.text || ''))).join('<hr>');
+                    const mergedText = items.map(it => '## ' + it.name + '\n' + (it.text || mu_notePlainText(it))).join('\n\n---\n\n');
+                    const id = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+                    const newCategory = normalizeCategory({ id, name: mergedName, folder: items[0].folder || '', text: mergedText, html: mergedHtml, lastEdited: new Date().toUTCString() }, categories.length);
+                    categories.push(newCategory);
+                    let deletedIds = [];
+                    if(input.delete_originals){
+                        const names = items.map(i => i.name).join(fa ? '، ' : ', ');
+                        const confirmMsg = fa
+                            ? `آیا ${items.length} یادداشت اصلی (${names}) بعد از ترکیب حذف شوند؟ این کار قابل بازگشت نیست.`
+                            : `Delete the ${items.length} original notes (${names}) now that they've been merged? This cannot be undone.`;
+                        if(confirm(confirmMsg)){
+                            deletedIds = items.map(i => i.id);
+                            categories = categories.filter(c => !deletedIds.includes(c.id));
+                            if(deletedIds.includes(activeOpenId)) activeOpenId = null;
+                        }
+                    }
+                    saveToLocalStorage();
+                    renderApp(newCategory.id);
+                    showToast(fa ? '🔗 یادداشت‌ها ترکیب شدند' : '🔗 Notes merged');
+                    return { ok:true, data:{ id:newCategory.id, name:newCategory.name, deleted_original_ids:deletedIds } };
+                }
+                case 'delete_note': {
+                    const item = mAiResolveNote(input.note);
+                    if(!item) return notFound;
+                    if(mAiIsLockedForAi(item)) return locked;
+                    const confirmMsg = fa
+                        ? `آیا مطمئنی می‌خواهی یادداشت «${item.name}» برای همیشه حذف شود؟ این کار قابل بازگشت نیست.`
+                        : `Are you sure you want to permanently delete the note "${item.name}"? This cannot be undone.`;
+                    if(!confirm(confirmMsg)){
+                        return { ok:false, cancelled:true, error: fa ? 'کاربر حذف را در پنجره تأیید لغو کرد.' : 'The user cancelled the deletion in the confirmation dialog.' };
+                    }
+                    categories = categories.filter(c => c.id !== item.id);
+                    if(activeOpenId === item.id) activeOpenId = null;
+                    saveToLocalStorage();
+                    renderApp();
+                    showToast(fa ? '🗑️ یادداشت حذف شد' : '🗑️ Note deleted');
+                    return { ok:true, data:{ id:item.id, name:item.name } };
+                }
+                case 'set_theme': {
+                    if(typeof themes === 'undefined' || !themes.length) return { ok:false, error: fa ? 'فهرست تم‌ها در دسترس نیست.' : 'Theme list is unavailable.' };
+                    const wanted = normalizeText(String(input.theme || '').trim());
+                    if(!wanted) return { ok:false, error: fa ? 'نام تم لازم است.' : 'A theme name is required.' };
+                    let idx = themes.findIndex(t => normalizeText(t.id) === wanted || normalizeText(t.nameFa) === wanted || normalizeText(t.nameEn) === wanted);
+                    if(idx < 0) idx = themes.findIndex(t => normalizeText(t.id).includes(wanted) || normalizeText(t.nameFa).includes(wanted) || normalizeText(t.nameEn).includes(wanted) || wanted.includes(normalizeText(t.id)));
+                    if(idx < 0){
+                        return { ok:false, error: fa
+                            ? 'تمی با این نام پیدا نشد. تم‌های موجود: ' + themes.map(t => t.nameFa).join('، ')
+                            : 'No matching theme found. Available themes: ' + themes.map(t => t.nameEn).join(', ') };
+                    }
+                    applyTheme(idx);
+                    try{ localStorage.setItem('app_theme_index_v13', idx); }catch(e){}
+                    const applied = themes[idx];
+                    showToast(fa ? '🎨 تم به «' + applied.nameFa + '» تغییر کرد' : '🎨 Theme switched to "' + applied.nameEn + '"');
+                    return { ok:true, data:{ theme: applied.id, nameFa: applied.nameFa, nameEn: applied.nameEn } };
+                }
+                case 'set_language': {
+                    const wanted = String(input.language || '').trim().toLowerCase();
+                    if(wanted !== 'fa' && wanted !== 'en') return { ok:false, error: fa ? 'زبان باید fa یا en باشد.' : 'language must be "fa" or "en".' };
+                    if(currentLang !== wanted) toggleLanguage();
+                    return { ok:true, data:{ language: currentLang } };
+                }
+                case 'export_notes': {
+                    const format = String(input.format || '').toLowerCase();
+                    const structuredFormats = ['json','csv','md','txt'];
+                    const imageFormats = ['png','jpg'];
+                    if(![...structuredFormats, 'pdf', 'docx', ...imageFormats].includes(format)){
+                        return { ok:false, error: fa ? 'فرمت خروجی نامعتبر است.' : 'Invalid export format.' };
+                    }
+                    let items, singleItem = null;
+                    if(input.note){
+                        singleItem = mAiResolveNote(input.note);
+                        if(!singleItem) return notFound;
+                        if(mAiIsLockedForAi(singleItem)) return locked;
+                        items = [singleItem];
+                    } else {
+                        if(imageFormats.includes(format)){
+                            return { ok:false, error: fa ? 'برای خروجی تصویر باید یک یادداشت مشخص کنی.' : 'Image export needs a specific note.' };
+                        }
+                        items = getExportableCategories();
+                    }
+                    if(!items.length) return { ok:false, error: fa ? 'یادداشتی برای خروجی وجود ندارد.' : 'There are no notes to export.' };
+                    const now = new Date();
+                    const pad2 = n => String(n).padStart(2, '0');
+                    const stamp = `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())}_${pad2(now.getHours())}-${pad2(now.getMinutes())}`;
+                    const defaultBase = singleItem ? sanitizeFilename(singleItem.name) : `Markhin_Export_${stamp}`;
+                    const chosenName = sanitizeFilename(String(input.filename || '').trim() || defaultBase);
+                    try {
+                        if(structuredFormats.includes(format)){
+                            const ext = getStructuredExtension(format);
+                            const mime = getStructuredMime(format);
+                            const blob = new Blob([buildStructuredExport(format, items)], { type: mime });
+                            await robustDownload(blob, `${chosenName}.${ext}`, mime);
+                        } else if(format === 'pdf'){
+                            if(window.html2canvas && window.jspdf?.jsPDF){
+                                const blob = await createPDFBlob(items);
+                                await robustDownload(blob, `${chosenName}.pdf`, 'application/pdf');
+                            } else if(typeof exportPDFPrint === 'function'){
+                                exportPDFPrint(items, chosenName);
+                            } else {
+                                return { ok:false, error: fa ? 'ساخت PDF در دسترس نیست.' : 'PDF export is unavailable.' };
+                            }
+                        } else if(format === 'docx'){
+                            const blob = await createDOCXBlob(items);
+                            await robustDownload(blob, `${chosenName}.docx`, blob.type || 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+                        } else if(imageFormats.includes(format)){
+                            const blob = await renderNoteToImage(items[0], format);
+                            await robustDownload(blob, `${chosenName}.${format}`, format === 'jpg' ? 'image/jpeg' : 'image/png');
+                        }
+                        showToast(fa ? '📤 خروجی آماده شد و دانلود شروع شد.' : '📤 Export is ready — the download has started.');
+                        return { ok:true, data:{ format, count: items.length, filename: chosenName } };
+                    } catch(e){
+                        console.error('AI export error:', e);
+                        return { ok:false, error: fa ? 'ساخت فایل خروجی انجام نشد.' : 'Building the export file failed.' };
+                    }
+                }
+                case 'open_app_view': {
+                    const view = String(input.view || '').toLowerCase();
+                    if(view === 'knowledge_graph' && typeof openKnowledgeGraph === 'function'){ openKnowledgeGraph(); return { ok:true, data:{ view } }; }
+                    if(view === 'cemetery' && typeof openCemetery === 'function'){ openCemetery(); return { ok:true, data:{ view } }; }
+                    if(view === 'random_portal' && typeof openRandomPortal === 'function'){ openRandomPortal(); return { ok:true, data:{ view } }; }
+                    return { ok:false, error: fa ? 'این بخش در دسترس نیست.' : 'That view is unavailable.' };
+                }
+                case 'compare_notes': {
+                    const refs = Array.isArray(input.notes) ? input.notes : [];
+                    if(refs.length < 2) return { ok:false, error: fa ? 'حداقل به دو یادداشت نیاز است.' : 'At least two notes are required.' };
+                    const items = [];
+                    for(const ref of refs){
+                        const it = mAiResolveNote(ref);
+                        if(!it) return { ok:false, error: (fa ? 'یادداشتی با این مشخصات پیدا نشد: ' : 'No matching note found: ') + ref };
+                        if(mAiIsLockedForAi(it)) return { ok:false, error: (fa ? 'این یادداشت قفل است: ' : 'This note is locked: ') + (it.name || ref) };
+                        items.push(it);
+                    }
+                    const MAI_STOPWORDS = new Set(['است','این','آن','برای','با','که','را','در','از','به','و','یا','هم','هست','بود','شد','می','های','ها','یک','چه','اگر','ولی','اما','the','and','or','a','an','is','are','was','were','to','of','in','on','for','with','that','this','it','as','be','by']);
+                    function mAiSignificantWords(text){
+                        const norm = normalizeText(text || '');
+                        return new Set(norm.split(/\s+/).filter(w => w.length >= 3 && !MAI_STOPWORDS.has(w)));
+                    }
+                    const perNote = items.map(it => {
+                        const text = mu_notePlainText(it) || '';
+                        return {
+                            id: it.id, name: it.name, folder: it.folder || '', tags: it.tags || [],
+                            pinned: !!it.pinned, favorite: !!it.favorite, archived: !!it.archived,
+                            wordCount: text.trim() ? text.trim().split(/\s+/).length : 0,
+                            charCount: text.length,
+                            lastEdited: it.lastEdited || '',
+                            words: mAiSignificantWords(text + ' ' + it.name)
+                        };
+                    });
+                    let common = perNote[0].words;
+                    for(let i = 1; i < perNote.length; i++){ common = new Set([...common].filter(w => perNote[i].words.has(w))); }
+                    let commonTags = new Set((perNote[0].tags || []).map(t => normalizeText(t)));
+                    for(let i = 1; i < perNote.length; i++){
+                        const tagSet = new Set((perNote[i].tags || []).map(t => normalizeText(t)));
+                        commonTags = new Set([...commonTags].filter(t => tagSet.has(t)));
+                    }
+                    const sameFolder = perNote.every(n => n.folder && n.folder === perNote[0].folder) ? perNote[0].folder : null;
+                    return { ok:true, data:{
+                        notes: perNote.map(n => ({ id:n.id, name:n.name, folder:n.folder, tags:n.tags, pinned:n.pinned, favorite:n.favorite, archived:n.archived, wordCount:n.wordCount, charCount:n.charCount, lastEdited:n.lastEdited })),
+                        commonSignificantWords: [...common].slice(0, 40),
+                        commonTags: [...commonTags],
+                        sameFolder
+                    } };
+                }
+                case 'get_dashboard_stats': {
+                    const all = categories.filter(c => !c.isDecoy && (!isNoteLocked(c) || unlockedQaIds.includes(c.id)));
+                    const activeList = all.filter(c => !isArchived(c));
+                    const archivedList = all.filter(c => isArchived(c));
+                    const pinned = activeList.filter(c => c.pinned).map(c => ({ id:c.id, name:c.name, folder:c.folder || '' }));
+                    const favorite = activeList.filter(c => c.favorite).map(c => ({ id:c.id, name:c.name, folder:c.folder || '' }));
+                    const folderCounts = {};
+                    activeList.forEach(c => { const f = c.folder || (fa ? '(بدون پوشه)' : '(no folder)'); folderCounts[f] = (folderCounts[f] || 0) + 1; });
+                    const tagCounts = {};
+                    activeList.forEach(c => (c.tags || []).forEach(t => { tagCounts[t] = (tagCounts[t] || 0) + 1; }));
+                    const totalWords = activeList.reduce((sum, c) => sum + (mu_notePlainText(c) || '').trim().split(/\s+/).filter(Boolean).length, 0);
+                    const lockedCount = categories.filter(c => !c.isDecoy && isNoteLocked(c) && !unlockedQaIds.includes(c.id)).length;
+                    return { ok:true, data:{
+                        totalNotes: activeList.length,
+                        archivedNotes: archivedList.length,
+                        lockedNotes: lockedCount,
+                        totalWords,
+                        pinnedNotes: pinned,
+                        favoriteNotes: favorite,
+                        folderCounts,
+                        tagCounts
+                    } };
+                }
+                default:
+                    return { ok:false, error: 'Unknown tool: ' + toolName };
+            }
+        } catch(e){
+            return { ok:false, error: String((e && e.message) || e) };
+        }
+    }
+
     window.markhinAiChat_send = async function(){
         const input = document.getElementById('markhinAiChatInput');
         const btn = document.getElementById('markhinAiChatSendBtn');
@@ -11031,23 +11478,129 @@ window.attachWrapperEvents = function(categoryId){
         input.blur();
 
         if(btn) btn.disabled = true;
+
+        /* Just detect whether the question looks related to a locked note —
+           no password prompt here. The person asked for the flow to be:
+           answer normally using what's available, then tell them in the
+           chat which note is locked and to go unlock it themselves via the
+           🔒 button before asking again. This runs on every message, not
+           just the first time a note comes up. */
+        const relevantLocked = mAiFindRelevantLockedNotes(text);
+
         const typingEl = document.createElement('div');
         typingEl.className = 'mAi-msg mAi-assistant';
         typingEl.innerHTML = '<div class="mAi-bubble mAi-typing"><span></span><span></span><span></span></div>';
         if(box){ box.appendChild(typingEl); box.scrollTop = box.scrollHeight; }
 
+        /* Build the notes context the same way the old standalone Ask box
+           used to: every non-decoy note that isn't locked (or has been
+           temporarily unlocked via the 🔒 button above). Locked notes stay
+           out entirely — see mAiUpdateLockNotice() for the banner that
+           tells the person when that's happening. Each note now also
+           carries its id/folder/tags/flags so the model can reference it
+           precisely, and the excerpt/total budget is larger so a serious
+           question can actually draw on real note content instead of just
+           the first couple of paragraphs. */
+        const notes = (typeof categories !== 'undefined')
+            ? categories.filter(c=>!c.isDecoy && (!isNoteLocked(c) || unlockedQaIds.includes(c.id)))
+            : [];
+        const notesContext = notes.map(function(n){
+            const meta = [];
+            if(n.folder) meta.push((fa?'پوشه: ':'folder: ')+n.folder);
+            if(n.tags && n.tags.length) meta.push((fa?'برچسب‌ها: ':'tags: ')+n.tags.join(', '));
+            if(n.pinned) meta.push(fa?'پین‌شده':'pinned');
+            if(n.favorite) meta.push(fa?'فیوریت':'favorite');
+            if(n.archived) meta.push(fa?'آرشیوشده':'archived');
+            const head = '### ['+n.id+'] '+n.name+(meta.length?' ('+meta.join(' | ')+')':'');
+            return head+'\n'+mu_notePlainText(n).slice(0,1500);
+        }).join('\n\n').slice(0,14000);
+
+        const toolsSummaryFa = '🔎 پیدا کردن یادداشت، ➕ ساخت یادداشت جدید (با فرمت‌بندی)، 📝 ویرایش/بازنویسی متن یادداشت (بولد، ایتالیک، تیتر، لیست و...)، ✏️ تغییر عنوان، 📁 انتقال به/خروج از پوشه (پوشه جدید هم خودکار ساخته می‌شود)، 🏷️ تگ‌گذاری، 📌 پین، ⭐ فیوریت، 📦 آرشیو/بازگردانی، 🔗 ترکیب چند یادداشت، 🗑️ حذف (همیشه با تأیید واقعی کاربر)، 🎨 تغییر تم ظاهری، 🌐 تغییر زبان برنامه، 📤 خروجی‌گرفتن واقعی از یادداشت‌ها (JSON/CSV/MD/TXT/PDF/DOCX/PNG/JPG — دانلود واقعی، نه فقط توضیح)، 🌌 باز کردن شبکه دانش/گورستان/پورتال رندوم، 🧬 مقایسه چند یادداشت و پیدا کردن اشتراکات (تگ مشترک، کلمات/موضوع مشترک)، و 📊 آمار کامل داشبورد (تعداد کل، پین‌شده‌ها، فیوریت‌ها، پوشه‌ها، تگ‌ها)';
+        const toolsSummaryEn = 'finding notes, creating notes (with formatting), editing/rewriting a note\'s content (bold, italic, headings, lists, etc.), renaming, moving into/out of a folder (a new folder is created automatically too), tagging, pinning, favoriting, archiving/restoring, merging multiple notes, deleting (always with a real user confirmation), switching the app\'s visual theme, switching the app\'s language, actually exporting notes to a real downloaded file (JSON/CSV/MD/TXT/PDF/DOCX/PNG/JPG — a real download, not just instructions), opening the Knowledge Graph / Cemetery / Random Portal views, comparing multiple notes to find what they share (common tags, common words/themes), and getting full dashboard stats (totals, pinned notes, favorite notes, folders, tags)';
+
         const sys = fa
-            ? 'تو MARKHIN AI هستی، یک دستیار هوش مصنوعی عمومی، دوستانه و دقیق. با استفاده از دانش عمومی‌ات، واضح و مفید به زبانی که کاربر می‌نویسد پاسخ بده. تو داخل یک برنامه یادداشت‌برداری قرار داری، اما این گفتگوی خاص هیچ ربطی به یادداشت‌های کاربر ندارد؛ فقط یک چت‌بات هوش مصنوعی عمومی هستی، نه دستیار یادداشت‌ها.'
-            : 'You are MARKHIN AI, a friendly, knowledgeable general-purpose AI assistant. Answer clearly and helpfully using your general knowledge, in whichever language the user writes in. You are embedded inside a note-taking app, but this particular conversation has nothing to do with the user\'s notes — you are simply a general-purpose AI chatbot, not a notes assistant.';
+            ? 'تو MARKHIN AI هستی: دستیار هوش مصنوعی حرفه‌ای، دقیق و قدرتمند، ساخته‌شده داخل اپلیکیشن یادداشت‌برداری Markhin. سه نقش داری و هر سه را همزمان انجام می‌دهی:\n'
+                + '۱) دستیار عمومی: به هر سوالی — چه ربطی به برنامه داشته باشد چه نه — با دانش عمومی‌ات، دقیق، روان و به همان زبانی که کاربر می‌نویسد پاسخ می‌دهی.\n'
+                + '۲) عامل مدیریت یادداشت: مستقیماً به یادداشت‌ها و پوشه‌های کاربر دسترسی داری و می‌توانی این کارها را واقعاً انجام دهی، نه فقط توضیح دهی: ' + toolsSummaryFa + '.\n'
+                + '۳) کارشناس خودِ برنامه: کل امکانات Markhin را می‌شناسی و درباره‌شان دقیق و کاربردی راهنمایی می‌کنی، حتی آن‌هایی که ابزار مستقیم برایشان نداری: پوشه‌بندی و برچسب‌گذاری یادداشت‌ها، پین و فیوریت‌کردن، آرشیو و بازگردانی، قفل‌کردن یادداشت با رمز (رمزنگاری، با دکمه 🔒 بالای همین چت برای دادن دسترسی موقت به من)، شبکه دانش (نمای گرافی ارتباط یادداشت‌ها)، گورستان (یادداشت‌های حذف‌شده)، پورتال رندوم، درون‌ریزی از JSON/CSV/TXT/MD (این یکی چون به انتخاب فایل واقعی از گوشی کاربر نیاز دارد، فقط می‌توانی راهنمایی کنی)، خروجیِ HTML کامل برنامه (بکاپ کل برنامه، شامل تنظیمات) و دو بازی داخلی (مار نئونی، عبور از موانع). تغییر تم ظاهری، تغییر زبان، خروجی‌گرفتن واقعی از یادداشت‌ها (JSON/CSV/MD/TXT/PDF/DOCX/PNG/JPG)، و باز کردن شبکه دانش/گورستان/پورتال رندوم را هم می‌توانی مستقیماً با ابزار انجام دهی، نه فقط توضیح بدهی. وقتی کاربر پرسید فلان کار در برنامه چطور انجام می‌شود، دقیقاً بگو کدام دکمه/بخش را لمس کند.\n\n'
+                + 'قوانین فهمِ پیام کاربر (خیلی مهم — همیشه رعایت کن):\n'
+                + '- کاربر ممکن است خیلی سریع، محاوره‌ای، بدون فاصله‌گذاری درست، بدون نیم‌فاصله، با غلط املایی سنگین، حروف جابه‌جا/حذف‌شده/اضافه، غلط تایپی صفحه‌کلید، مخفف، یا حتی فینگلیش (فارسی با حروف لاتین) بنویسد. این‌ها را عادی و مورد‌انتظار بدان.\n'
+                + '- هرگز به‌خاطر غلط املایی یا نگارشی به کاربر نگو «متوجه نشدم» یا نخواه دوباره درست‌تر بنویسد؛ همیشه با توجه به بافت پیام، تاریخچه گفتگو و فهرست یادداشت‌های زیر، محتمل‌ترین منظور واقعی‌اش را حدس بزن و طبق همان عمل کن.\n'
+                + '- اگر نام/عبارتی که کاربر نوشته دقیقاً با هیچ یادداشتی مطابقت نداشت ولی از نظر تلفظ یا شکل نوشتاری شبیه یکی از یادداشت‌ها یا پوشه‌های موجود بود (حتی با غلط املایی زیاد)، همان را به‌عنوان منظور محتمل با find_notes بررسی کن، نه اینکه بگویی پیدا نشد.\n'
+                + '- فقط وقتی واقعاً چند برداشت کاملاً متفاوت و هم‌محتمل ممکن است (نه صرفاً به‌خاطر بدخطی)، با یک سوال کوتاه از کاربر مطمئن شو.\n'
+                + '- همین قانون برای اسمِ خودِ امکانات برنامه هم صادق است: کاربر ممکن است اسم انگلیسی یک بخش را با تلفظ فارسی یا فینگلیش بنویسد — مثلاً «نولدج گراف»، «نالج گراف»، یا «knowledge graf» یعنی همان Knowledge Graph (شبکه دانش)؛ «سیمیتری» یا «سمتری» یعنی Cemetery (گورستان)؛ «تم» + اسم فارسی/انگلیسی/تلفظی هر تم (مثل «ارورا» برای aurora) هم باید تشخیص داده شود. این‌ها را عادی بدان و مستقیم به گزینه درست نگاشت کن، نه اینکه بگویی متوجه نشدی.\n\n'
+                + 'قوانین استفاده از ابزارها:\n'
+                + '- هرگاه کاربر خواست کاری روی یادداشت‌هایش انجام شود، بلافاصله از ابزار مناسب استفاده کن؛ توضیح ندهی که «چطور خودش انجام دهد».\n'
+                + '- درخواست‌های چندمرحله‌ای را کامل انجام بده: مثلاً اگر گفت «یک پوشه بساز و فلان یادداشت رو بذار توش» یا «یک یادداشت جدید بساز و توش با بولد بنویس سلام»، لازم نیست از کاربر تأیید مرحله‌به‌مرحله بگیری — همه ابزارهای لازم را پشت‌سرهم صدا بزن (مثلاً create_note برای یادداشت جدید، بعد move_note_to_folder برای انتقال، یا edit_note_content برای نوشتن/فرمت‌کردن متن) تا کل کار یک‌جا انجام شود.\n'
+                + '- برای فرمت‌بندی متن یادداشت (بولد، ایتالیک، تیتر، لیست، نقل‌قول، لینک) از ابزارهای create_note و edit_note_content با نشانه‌گذاری مارک‌داون استفاده کن: **بولد**، *ایتالیک*، `کد`، # تا ### برای تیتر، > برای نقل‌قول، خط شروع‌شده با - برای لیست، و [متن](URL) برای لینک — این‌ها به‌صورت خودکار به فرمت واقعی تبدیل می‌شوند.\n'
+                + '- اگر مطمئن نیستی منظور کاربر کدام یادداشت است یا آی‌دی دقیقش را نداری، اول با ابزار find_notes جستجو کن؛ اگر چند نتیجه مشابه بود، از کاربر بپرس کدام‌یک را می‌خواهد.\n'
+                + '- برای حذف، فقط کافی‌ست delete_note را صدا بزنی؛ خودِ ابزار یک تأیید واقعی و قابل‌لغو از کاربر می‌گیرد، ولی هرگز آن را بدون درخواست صریح کاربر صدا نزن.\n'
+                + '- یادداشت‌های قفل (رمزدار) کاملاً خارج از دسترس تو هستند و هیچ ابزاری روی آن‌ها کار نمی‌کند؛ اگر درخواستی به یک یادداشت قفل مربوط بود، به‌سادگی به کاربر بگو باید اول از دکمه 🔒 بالای همین چت بازش کند.\n'
+                + '- بعد از هر عملیات موفق یا ناموفق، نتیجه را کوتاه، شفاف و بدون اصطلاحات فنی گزارش کن.\n'
+                + '- برای مقایسه یادداشت‌ها یا پرسیدن «چی مشترکه؟»، اول compare_notes را صدا بزن و بعد بر اساس داده‌ای که برمی‌گردد (تگ مشترک، کلمات مشترک، پوشه یکسان یا نه) خودت یک مقایسه‌ی خوانا بنویس؛ برای سوال درباره آمار کلی یا اینکه چه یادداشت‌هایی پین/فیوریت‌اند، از get_dashboard_stats استفاده کن.\n'
+                + '- وقتی سوال ربطی به یادداشت‌ها ندارد، فقط بر پایه دانش عمومی‌ات پاسخ بده — نیازی به استفاده از ابزار نیست.\n\n'
+                + (notesContext ? ('فهرست یادداشت‌های بدون‌رمز فعلی کاربر (برای زمینه؛ برای هر عملیات دقیق، از ابزارها با آی‌دی استفاده کن):\n' + notesContext) : 'کاربر فعلاً یادداشتی ندارد (یا همه قفل هستند).')
+            : 'You are MARKHIN AI: a professional, precise, highly capable AI assistant embedded inside the Markhin note-taking app. You fill three roles at once:\n'
+                + '1) General assistant: you answer any question — whether or not it relates to the app — clearly and accurately using your general knowledge, in whichever language the user writes in.\n'
+                + '2) Notes-management agent: you have direct access to the user\'s notes and folders and can actually perform (not just explain) the following: ' + toolsSummaryEn + '.\n'
+                + '3) App expert: you know the whole Markhin feature set and give precise, actionable guidance about any of it, even features you have no direct tool for: folders and tags, pinning and favoriting, archiving/restoring, password-locking a note (encryption, unlocked temporarily via the 🔒 button above this chat), the Knowledge Graph (a graph view of how notes connect), the Cemetery (deleted notes), the Random Portal, importing from JSON/CSV/TXT/MD (this one needs the user to actually pick a file on their device, so you can only guide them to it), the full-app HTML export (a complete backup of the app itself, including settings), and two built-in games (Neon Snake, Obstacle Dash). Switching the visual theme, switching the language, actually exporting notes to a real file (JSON/CSV/MD/TXT/PDF/DOCX/PNG/JPG), and opening the Knowledge Graph / Cemetery / Random Portal are things you can do directly with a tool, not just explain. When asked how to do something in the app, say exactly which button or section to tap.\n\n'
+                + 'Rules for understanding the user\'s message (important — always follow):\n'
+                + '- The user may write very fast, casually, with broken spacing, heavy spelling mistakes, swapped/dropped/extra letters, keyboard typos, abbreviations, or transliterated text, in any language. Treat this as normal and expected.\n'
+                + '- Never tell the user you didn\'t understand because of a typo or ask them to retype more carefully; always use the message context, the conversation history, and the notes list below to infer their most likely real intent, then act on it.\n'
+                + '- If a name/phrase the user wrote doesn\'t exactly match any note but sounds or looks like one of the existing notes or folders (even with heavy misspelling), treat that as the likely intended match and check it with find_notes rather than saying nothing was found.\n'
+                + '- Only ask a short clarifying question when multiple genuinely different interpretations are plausible — not merely because the spelling was rough.\n'
+                + '- The same applies to the app\'s own feature names: the user may write an English feature name spelled phonetically in Persian or transliterated (Finglish) — e.g. "نولدج گراف"/"نالج گراف"/"knowledge graf" all mean Knowledge Graph; "سیمیتری"/"سمتری" means Cemetery; a theme name said phonetically (e.g. "ارورا" for aurora) should still resolve. Treat these as completely normal and map them straight to the right option — never say you didn\'t understand.\n\n'
+                + 'Tool-use rules:\n'
+                + '- Whenever the user asks for something to be done to their notes, call the matching tool right away instead of explaining how they could do it themselves.\n'
+                + '- Fully carry out multi-step requests: e.g. "make a folder and put note X in it" or "create a new note and write Hello in bold" — don\'t ask for step-by-step confirmation, just call every tool needed in sequence (e.g. create_note, then move_note_to_folder, or edit_note_content to write/format the text) so the whole thing gets done in one go.\n'
+                + '- For text formatting inside a note (bold, italic, headings, lists, quotes, links), use create_note and edit_note_content with lightweight markdown: **bold**, *italic*, `code`, # through ### for headings, > for a quote, a line starting with - for a list item, and [text](url) for a link — these render as real formatting automatically.\n'
+                + '- If you\'re not sure which note the user means, or you don\'t already have its exact id, search first with find_notes; if several notes look like a match, ask the user which one they meant.\n'
+                + '- For deletions, just call delete_note — it shows the user a real, cancellable confirmation dialog itself — but never call it unless the user has clearly asked to delete something.\n'
+                + '- Locked (password-protected) notes are completely out of your reach and no tool can act on them; if a request touches one, simply tell the user to unlock it first via the 🔒 button above this chat.\n'
+                + '- After any operation, succeeded or not, report back briefly and plainly, with no technical jargon.\n'
+                + '- For comparing notes or "what do these have in common", call compare_notes first and then write the actual comparison yourself from the data it returns (common tags, common words, same folder or not); for overall stats or which notes are pinned/favorite, use get_dashboard_stats.\n'
+                + '- When the question has nothing to do with notes, just answer from your general knowledge — no need to use a tool.\n\n'
+                + (notesContext ? ('The user\'s current unlocked notes (for context; use the tools with the id for any precise operation):\n' + notesContext) : 'The user has no notes yet (or all of them are locked).');
 
         const convo = [{ role: 'system', content: sys }].concat(
-            mAiHistory.slice(-20).map(function(m){ return { role: m.role, content: m.content }; })
+            mAiHistory.slice(-30).map(function(m){ return { role: m.role, content: m.content }; })
         );
 
         try {
-            const reply = await MarkhinAI.chat(convo, { maxTokens: 900 });
+            let finalText = '';
+            const maxSteps = 6;
+            for(let step = 0; step < maxSteps; step++){
+                const res = await MarkhinAI.chat(convo, { maxTokens: 2000, tools: MAI_TOOLS });
+                const resText = (res && res.text) || '';
+                const calls = (res && res.toolCalls) || [];
+                if(!calls.length){
+                    finalText = resText.trim();
+                    break;
+                }
+                convo.push({ role: 'assistant', content: resText, toolCalls: calls });
+                for(const call of calls){
+                    const result = await mAiExecuteTool(call.name, call.input);
+                    convo.push({ role: 'tool_result', toolCallId: call.id, name: call.name, content: JSON.stringify(result) });
+                }
+                if(step === maxSteps - 1){
+                    const closingPrompt = fa
+                        ? 'بر اساس نتایج ابزارهای بالا، الان یک پاسخ نهایی و کوتاه به کاربر بده (بدون فراخوانی ابزار دیگر).'
+                        : 'Based on the tool results above, give the user a final, concise answer now (do not call any more tools).';
+                    const closing = await MarkhinAI.chat(convo.concat([{ role:'user', content: closingPrompt }]), { maxTokens: 1200 });
+                    finalText = String(closing || '').trim();
+                }
+            }
             typingEl.remove();
-            mAiHistory.push({ role: 'assistant', content: reply || (fa ? '(پاسخ خالی دریافت شد)' : '(received an empty response)') });
+            mAiHistory.push({ role: 'assistant', content: finalText || (fa ? '(پاسخ خالی دریافت شد)' : '(received an empty response)') });
+            /* Deterministic, app-generated notice — not left up to the model to
+               remember to mention. Appears every time the question touches a
+               locked note's title, telling the person exactly what to tap. */
+            if(relevantLocked.length){
+                const names = relevantLocked.map(n => n.name).filter(Boolean).join(fa ? '، ' : ', ');
+                mAiHistory.push({ role: 'assistant', content: fa
+                    ? `🔒 این سوال به یادداشت قفل «${names}» هم مربوط به نظر می‌رسه، ولی چون رمزش رو ندارم توی جوابم لحاظش نکردم. برای بازش‌کردن، روی دکمه 🔒 بالای همین چت بزن و رمزش رو وارد کن، بعد دوباره همین سوال رو از من بپرس.`
+                    : `🔒 This question also looks related to the locked note "${names}", but I couldn't use it since I don't have its password. Tap the 🔒 button above this chat to unlock it, then ask me again.` });
+            }
             mAiSave();
             mAiRender();
         } catch(err){
@@ -11063,8 +11616,8 @@ window.attachWrapperEvents = function(categoryId){
     };
 
     /* Keep the header subtitle in sync whenever the provider/API key is
-       changed from the shared AI settings modal (whether opened from
-       here or from the notes "Ask" section). */
+       changed from the shared AI settings modal (opened from the ⚙️
+       button here, or from the per-note AI tools). */
     if(typeof window.mu_saveAiSettings === 'function'){
         const mAiBaseSave = window.mu_saveAiSettings;
         window.mu_saveAiSettings = function(){ mAiBaseSave(); mAiUpdateSub(); };
