@@ -12032,13 +12032,32 @@ window.attachWrapperEvents = function(categoryId){
     // preview so the split shows up while it's still typing, not only
     // after it finishes.
     const MAI_MSG_SPLIT = '[[MAI_NEXT_MESSAGE]]';
+    // Defensive net for a known model failure mode: despite the system
+    // prompt explicitly telling the model the "[Timestamp of this
+    // message: ...]"/"[در پاسخ به: ...]" tags (see tsTag/replyTo in
+    // runAiTurn below) are internal-only and never to be written into its
+    // own reply, some models still copy one into the start of their own
+    // output anyway — the pattern is shown at the front of literally every
+    // user turn, so it can out-compete a negative instruction buried in a
+    // long system prompt. Rather than trust the instruction alone, strip
+    // any such leading tag here before the text ever reaches mAiHistory /
+    // the screen, in either language and regardless of exact wording.
+    function mAi_stripLeakedTag(text){
+        let t = String(text || '');
+        const re = /^\s*\[\s*(?:زمان(?:\s+این\s+پیام)?|Timestamp(?:\s+of\s+this\s+message)?|در\s+پاسخ\s+به|In\s+reply\s+to)\s*:[^\]\n]*\]\s*\n?/i;
+        // Loop (bounded) in case the model emitted more than one such line
+        // in a row at the very start of its reply.
+        for(let i = 0; i < 5 && re.test(t); i++){ t = t.replace(re, ''); }
+        return t;
+    }
     // Splits raw model output on the marker into a clean array of
-    // non-empty message chunks (trimmed, empties dropped). Always
-    // returns at least one element — [''] for genuinely empty input —
-    // so callers never need a separate empty-array special case.
+    // non-empty message chunks (trimmed, empties dropped, any leaked
+    // internal tag stripped from the start of each). Always returns at
+    // least one element — [''] for genuinely empty input — so callers
+    // never need a separate empty-array special case.
     function mAi_splitReply(text){
-        const parts = String(text || '').split(MAI_MSG_SPLIT).map(function(s){ return s.trim(); }).filter(Boolean);
-        return parts.length ? parts : [String(text || '').trim()];
+        const parts = String(text || '').split(MAI_MSG_SPLIT).map(function(s){ return mAi_stripLeakedTag(s).trim(); }).filter(Boolean);
+        return parts.length ? parts : [mAi_stripLeakedTag(String(text || '')).trim()];
     }
     // Number of replies currently in flight (0, 1, or more — the user
     // is always allowed to send another message even while a previous
