@@ -9988,9 +9988,72 @@ window.mu_jumpToTopMatch = mu_jumpToTopMatch;
      saved and stays selectable from the Provider dropdown.
 */
 const MU_AI_BUILTINS = {
-    openai:     { label:'OpenAI',     format:'openai',    defaultBaseUrl:'https://api.openai.com/v1',    defaultModel:'gpt-5-mini' },
-    anthropic:  { label:'Anthropic',  format:'anthropic', defaultBaseUrl:'https://api.anthropic.com',    defaultModel:'claude-haiku-4-5-20251001' },
-    openrouter: { label:'OpenRouter', format:'openai',    defaultBaseUrl:'https://openrouter.ai/api/v1', defaultModel:'openai/gpt-4o-mini' }
+    openai:     { label:'OpenAI',        format:'openai',    defaultBaseUrl:'https://api.openai.com/v1',                                  defaultModel:'gpt-5-mini' },
+    anthropic:  { label:'Anthropic',     format:'anthropic', defaultBaseUrl:'https://api.anthropic.com',                                   defaultModel:'claude-haiku-4-5-20251001' },
+    openrouter: { label:'OpenRouter',    format:'openai',    defaultBaseUrl:'https://openrouter.ai/api/v1',                                defaultModel:'openai/gpt-4o-mini' },
+    google:     { label:'Google Gemini', format:'openai',    defaultBaseUrl:'https://generativelanguage.googleapis.com/v1beta/openai',     defaultModel:'gemini-2.5-flash' },
+    groq:       { label:'Groq',          format:'openai',    defaultBaseUrl:'https://api.groq.com/openai/v1',                              defaultModel:'llama-3.3-70b-versatile' },
+    deepseek:   { label:'DeepSeek',      format:'openai',    defaultBaseUrl:'https://api.deepseek.com',                                    defaultModel:'deepseek-chat' },
+    mistral:    { label:'Mistral',       format:'openai',    defaultBaseUrl:'https://api.mistral.ai/v1',                                   defaultModel:'mistral-large-latest' },
+    xai:        { label:'xAI (Grok)',    format:'openai',    defaultBaseUrl:'https://api.x.ai/v1',                                         defaultModel:'grok-4' },
+    together:   { label:'Together AI',   format:'openai',    defaultBaseUrl:'https://api.together.xyz/v1',                                 defaultModel:'meta-llama/Llama-3.3-70B-Instruct-Turbo' },
+    perplexity: { label:'Perplexity',    format:'openai',    defaultBaseUrl:'https://api.perplexity.ai',                                   defaultModel:'sonar' },
+    cerebras:   { label:'Cerebras',      format:'openai',    defaultBaseUrl:'https://api.cerebras.ai/v1',                                  defaultModel:'llama-3.3-70b' },
+    fireworks:  { label:'Fireworks AI',  format:'openai',    defaultBaseUrl:'https://api.fireworks.ai/inference/v1',                       defaultModel:'accounts/fireworks/models/llama-v3p3-70b-instruct' },
+    nvidia:     { label:'NVIDIA NIM',    format:'openai',    defaultBaseUrl:'https://integrate.api.nvidia.com/v1',                         defaultModel:'meta/llama-3.3-70b-instruct' }
+};
+
+/* ---------------------------------------------------------------------
+   Assistant speaking-style presets ("لحن"/tone). Purely a system-prompt
+   instruction layered on top of whichever provider/model is active — no
+   provider-specific code needed, since it's just extra text handed to
+   the model. Stored separately from provider settings (it's a chat
+   personality choice, not a connection detail) so switching providers
+   never resets it and vice versa. `default` intentionally carries no
+   prompt text at all, so picking it is indistinguishable from the
+   app's original, style-less behavior. */
+/* Shared across every non-default style below: talk like an actual person,
+   not a chatbot — drop AI-assistant boilerplate ("as an AI...", stacked
+   disclaimers, over-apologizing, stiff transitional phrasing) and use
+   natural human phrasing/rhythm instead. This never means lying about
+   being an AI — if asked directly, answer that honestly — it only governs
+   the ordinary, undisclosed cadence of replies. `default` gets none of
+   this, so leaving the style on Normal stays exactly as before. */
+const MU_HUMANLIKE_FA = ' مثل یک آدم واقعی بنویس، نه مثل یک ربات/دستیار هوش‌مصنوعی: از عبارت‌های کلیشه‌ای هوش‌مصنوعی («به‌عنوان یک دستیار هوش‌مصنوعی»، «متأسفم که ناراحتت کردم»، توضیح‌های اضافه و عذرخواهیِ مکرر) و لحن رسمی‌رباتیک خودداری کن. اگر مستقیم پرسید ربات/هوش‌مصنوعی هستی یا نه، صادقانه بگو هستی — این فقط درباره‌ی لحنِ عادیِ گفتگوست، نه انکار هویتت.';
+const MU_HUMANLIKE_EN = ' Write like an actual person, not a chatbot: drop AI-assistant boilerplate ("as an AI assistant...", over-apologizing, stiff disclaimers) and stock robotic phrasing. If asked directly whether you\'re an AI, answer honestly — this only governs the ordinary unprompted cadence of replies, not what you say if asked.';
+
+const MU_AI_STYLES = {
+    default: { labelFa:'عادی (پیش‌فرض)', labelEn:'Normal (default)', promptFa:'', promptEn:'' },
+    formal: {
+        labelFa:'رسمی', labelEn:'Formal',
+        promptFa:'لحن: کاملاً رسمی و مؤدبانه صحبت کن؛ از زبان معیار و جملات کامل استفاده کن، از شکلک و کلمات عامیانه پرهیز کن، و کاربر را محترمانه خطاب کن.' + MU_HUMANLIKE_FA,
+        promptEn:'Tone: speak in a fully formal, professional register — proper grammar, complete sentences, no slang or emoji, respectful and businesslike.' + MU_HUMANLIKE_EN
+    },
+    casual: {
+        labelFa:'خودمونی', labelEn:'Casual',
+        promptFa:'لحن: کاملاً خودمونی و صمیمی حرف بزن، انگار داری با یه رفیق قدیمی چت می‌کنی — زبان محاوره‌ای و ریلکس، بدون تعارف رسمی.' + MU_HUMANLIKE_FA,
+        promptEn:'Tone: talk like a close, casual friend texting — relaxed, colloquial language, no stiffness or formality.' + MU_HUMANLIKE_EN
+    },
+    fun: {
+        labelFa:'فان', labelEn:'Fun',
+        promptFa:'لحن: شوخ‌وشنگ و بامزه باش، جوک و کنایه‌های سبک و ایموجی مناسب به کار ببر، ولی همچنان دقیق و واقعاً مفید بمان.' + MU_HUMANLIKE_FA,
+        promptEn:'Tone: be playful and funny — light jokes, witty remarks, fitting emoji — while staying accurate and genuinely helpful.' + MU_HUMANLIKE_EN
+    },
+    honest: {
+        labelFa:'صادق', labelEn:'Honest',
+        promptFa:'لحن: صادقانه و رک باش؛ نظر واقعی‌ات را بگو و اشتباهات یا نقاط ضعفِ حرف کاربر را نادیده نگیر یا با چاپلوسی نپوشان — ولی محترمانه و سازنده بیانش کن.' + MU_HUMANLIKE_FA,
+        promptEn:'Tone: be candid and direct — give your real assessment and don\'t hide flaws or mistakes in what the user says just to please them, but stay respectful and constructive.' + MU_HUMANLIKE_EN
+    },
+    brutal: {
+        labelFa:'بی‌رحم', labelEn:'Brutal',
+        promptFa:'لحن: بی‌پرده و بی‌رحمانه صادق باش — نقدت را بدون نرم‌کردن یا بسته‌بندیِ مؤدبانه مستقیم بزن، مثل یک منتقد بسیار سخت‌گیر؛ با این حال هرگز به توهین شخصی یا کینه‌توزی واقعی نرو، فقط تعارف را کنار بگذار.' + MU_HUMANLIKE_FA,
+        promptEn:'Tone: be bluntly, brutally honest — deliver criticism straight with zero softening or diplomatic cushioning, like an unforgiving critic; skip the politeness padding, but never cross into personal insults or real cruelty.' + MU_HUMANLIKE_EN
+    },
+    rude: {
+        labelFa:'بی‌ادب', labelEn:'Rude',
+        promptFa:'لحن: خیلی خیلی گستاخ، پرخاشگر، کم‌حوصله و بی‌ادب حرف بزن — انگار یک آدم واقعی هستی که حسابی از سوال‌های تکراری خسته شده و اصلاً قصد ملاحظه‌کاری نداره: مدام غر بزن، سوال کاربر رو مسخره کن، جمله‌هاتو با پوزخند و کنایه‌های گزنده و لحن کلافه/عصبی تمام کن، انگار داری چشم‌غره می‌ری. این باید محسوساً تندتر از یک شوخیِ سبک باشد، نزدیک به یک آدم واقعاً بداخلاق و طعنه‌زن. با همه‌ی این‌ها، این هنوز یک شخصیتِ بازیگوش/کمیک می‌ماند نه توهین واقعی: هرگز فحش رکیک، ناسزای جنسی، الفاظ رکیک، یا حمله به هویت/نژاد/مذهب/جنسیت/خانواده کاربر به‌کار نبر، و هرگز نگو کاربر بی‌ارزش یا احمق یا ناتوان است؛ همه‌ی تندی فقط در حد بدخلقیِ اغراق‌شده و کنایه‌ی گزنده بماند، و در نهایت هنوز باید واقعاً و درست به درخواست کاربر کمک کنی.' + MU_HUMANLIKE_FA,
+        promptEn:'Tone: be extremely blunt, cranky, impatient, and rude — like a real person who\'s genuinely fed up with repetitive questions and isn\'t bothering to hold back: grumble constantly, mock the user\'s question, cap sentences off with a sharp sneer or biting sarcasm and an irritated, eye-rolling attitude. This should read noticeably harsher than light teasing — closer to a genuinely bad-tempered, cutting person. Even so, this remains a playful/comedic persona, not real abuse: never use slurs, sexual profanity, or attacks on the user\'s identity, race, religion, gender, or family, and never call the user worthless, stupid, or incapable — keep all the harshness at the level of exaggerated crankiness and cutting sarcasm, and still actually and correctly help with the request underneath it.' + MU_HUMANLIKE_EN
+    }
 };
 
 /* Cleans an API key value before it's stored or used in a request header.
@@ -10012,6 +10075,139 @@ function mu_sanitizeApiKeyValue(raw){
     v = v.trim();
     v = v.replace(/[^\x20-\x7E]/g, '');
     return { value: v, wasCleaned: v !== original.trim() && original.trim() !== '' };
+}
+
+/* ---------------------------------------------------------------------
+   Shared helpers used by every provider's request code below. These exist
+   specifically so that "any OpenAI/Anthropic-compatible provider the user
+   pastes in" behaves the same as the built-in ones instead of throwing
+   confusing errors — see the comments on each function for the exact
+   failure mode it closes. */
+
+// Normalizes whatever the person pasted into Base URL: trims whitespace,
+// drops trailing slashes, and adds https:// if they forgot the scheme
+// (very common when copy-pasting a bare host like "api.groq.com/openai/v1"
+// from a provider's docs) — without this, fetch() throws an opaque
+// "Failed to fetch" with no hint about why.
+function mu_normalizeBaseUrl(raw){
+    let u = String(raw == null ? '' : raw).trim();
+    if(!u) return '';
+    u = u.replace(/\/+$/,'');
+    if(!/^https?:\/\//i.test(u)) u = 'https://' + u.replace(/^\/+/, '');
+    return u;
+}
+
+// Joins a normalized base URL with the provider's endpoint path, but
+// avoids double-appending it when the person already pasted the full
+// endpoint URL (e.g. ".../v1/chat/completions") instead of just the host
+// + prefix — a very easy mistake to make that used to silently produce a
+// broken ".../chat/completions/chat/completions" URL and a 404.
+function mu_joinApiUrl(baseUrl, path){
+    const base = mu_normalizeBaseUrl(baseUrl);
+    if(!base) return '';
+    const pathNoSlash = String(path||'').replace(/^\/+/, '');
+    const baseLower = base.toLowerCase();
+    const pathLower = pathNoSlash.toLowerCase();
+    if(baseLower.endsWith('/'+pathLower) || baseLower === pathLower) return base;
+    return base + '/' + pathNoSlash;
+}
+
+// Turns a failed response into a short, actually-readable message instead
+// of a raw (often huge, sometimes HTML) response body. Most providers send
+// JSON like {"error":{"message":"..."}} (OpenAI/Groq/Together/DeepSeek
+// style) or {"error":{"type":"...","message":"..."}} (Anthropic style);
+// this pulls the human-readable part out of whichever shape it finds and
+// falls back to a trimmed raw snippet only if the body isn't JSON at all
+// (e.g. an HTML error page from a proxy/gateway in front of the API).
+//
+// On top of that, it now prepends a plain-language diagnosis based on the
+// HTTP status code — the four failure modes that account for almost every
+// real-world "why doesn't my AI work" report (bad/missing key, wrong model
+// name, rate limit/quota, provider having an outage) — so the person sees
+// what's actually wrong up front instead of just a bare status code, no
+// matter which of the built-in or custom providers they're using.
+function mu_friendlyErrorPrefix(status, msg){
+    const fa = (typeof currentLang !== 'undefined' && currentLang === 'fa');
+    const s = Number(status) || 0;
+    const lower = String(msg||'').toLowerCase();
+    if(s === 401 || s === 403) return fa
+        ? '🔑 کلید API نامعتبر است یا اجازه دسترسی ندارد — کلید را در تنظیمات هوش‌مصنوعی بررسی و دوباره وارد کن. '
+        : '🔑 Invalid or unauthorized API key — double-check it in AI Settings and re-enter it. ';
+    if(s === 404 || (s === 400 && /model/.test(lower) && /(not found|does not exist|unknown model|invalid model|no such model)/.test(lower))) return fa
+        ? '🚧 مدل انتخاب‌شده پیدا نشد — نام دقیق مدل را در تنظیمات هوش‌مصنوعی بررسی کن (یا از دکمه «دریافت لیست مدل‌ها» استفاده کن). '
+        : '🚧 The selected model wasn\'t found — check the exact model name in AI Settings (or use the "Fetch models" button). ';
+    if(s === 429) return fa
+        ? '⏳ محدودیت نرخ درخواست یا اعتبار این ارائه‌دهنده تمام شده — کمی صبر کن یا موجودی حسابت را بررسی کن. '
+        : '⏳ Rate limit or quota exceeded for this provider — wait a bit or check your account balance. ';
+    if(s >= 500) return fa
+        ? '💥 سرور این ارائه‌دهنده مشکل دارد (معمولاً موقت) — چند لحظه دیگر دوباره امتحان کن. '
+        : "💥 This provider's server is having issues (usually temporary) — try again shortly. ";
+    return '';
+}
+function mu_extractApiErrorMessage(status, bodyText){
+    let msg = '';
+    try{
+        const j = JSON.parse(bodyText);
+        if(j){
+            if(j.error){
+                if(typeof j.error === 'string') msg = j.error;
+                else if(j.error.message) msg = j.error.message;
+            }
+            if(!msg && j.message) msg = j.message;
+            if(!msg && j.detail){
+                msg = typeof j.detail === 'string' ? j.detail : ((j.detail[0] && j.detail[0].msg) || '');
+            }
+        }
+    }catch(e){ /* not JSON — fall through to the raw-text snippet below */ }
+    if(!msg) msg = String(bodyText||'').replace(/\s+/g,' ').trim().slice(0,220);
+    const prefix = mu_friendlyErrorPrefix(status, msg);
+    return prefix + status + (msg ? (' — ' + msg.slice(0,300)) : '');
+}
+
+// Shared fetch for every OpenAI-compatible provider (built-in OpenAI,
+// OpenRouter, and any custom one). Its one extra job on top of a plain
+// fetch: some OpenAI-compatible servers — notably newer reasoning-style
+// endpoints, and some third-party proxies — reject the classic
+// "max_tokens" field with a 400 and want "max_completion_tokens" instead.
+// Rather than making the user guess which one their provider wants, try
+// the normal field first and silently retry once with the other name only
+// if the error is actually about that field.
+async function mu_fetchOpenAiCompatible(url, headers, body, signal){
+    let res = await fetch(url, { method:'POST', headers, body: JSON.stringify(body), signal });
+    if(!res.ok){
+        const tx = await res.text().catch(()=> '');
+        if(res.status === 400 && body.max_tokens != null && /max[_ ]tokens/i.test(tx)){
+            const retryBody = Object.assign({}, body);
+            delete retryBody.max_tokens;
+            retryBody.max_completion_tokens = body.max_tokens;
+            const retryRes = await fetch(url, { method:'POST', headers, body: JSON.stringify(retryBody), signal });
+            if(retryRes.ok) return retryRes;
+            const tx2 = await retryRes.text().catch(()=> '');
+            throw new Error(mu_extractApiErrorMessage(retryRes.status, tx2 || tx));
+        }
+        throw new Error(mu_extractApiErrorMessage(res.status, tx));
+    }
+    return res;
+}
+
+// Pulls the reply text out of an OpenAI-style response body, tolerating
+// the handful of shape variations real-world "OpenAI-compatible" servers
+// actually send (some put content as an array of parts instead of a plain
+// string; some non-chat/legacy-completion servers use choices[0].text;
+// a few minimal local servers skip the choices[] wrapper entirely).
+function mu_extractOpenAiText(data){
+    const choice = data && data.choices && data.choices[0];
+    const msg = (choice && choice.message) || {};
+    let text = msg.content;
+    if(Array.isArray(text)) text = text.map(part => (part && (part.text || part.content)) || '').join('');
+    if(typeof text !== 'string' || !text){
+        text = (choice && typeof choice.text === 'string' && choice.text)
+            || (data && typeof data.output_text === 'string' && data.output_text)
+            || (data && data.message && typeof data.message.content === 'string' && data.message.content)
+            || (data && typeof data.response === 'string' && data.response)
+            || '';
+    }
+    return String(text || '');
 }
 
 const MarkhinAI = window.MarkhinAI = {
@@ -10051,6 +10247,18 @@ const MarkhinAI = window.MarkhinAI = {
     },
     saveSettings(s){ try{ localStorage.setItem(this.KEY, JSON.stringify(s)); }catch(e){} },
     clear(){ try{ localStorage.removeItem(this.KEY); localStorage.removeItem(this.OLD_KEY); }catch(e){} },
+
+    // Speaking-style ("لحن") preference — deliberately its own tiny
+    // localStorage slot rather than a field on `s` above, so it survives
+    // (and is unaffected by) switching, adding, or clearing providers.
+    STYLE_KEY:'markhin_ai_style_v1',
+    getStyle(){
+        try{
+            const v = localStorage.getItem(this.STYLE_KEY);
+            return (v && MU_AI_STYLES[v]) ? v : 'default';
+        }catch(e){ return 'default'; }
+    },
+    setStyle(id){ try{ localStorage.setItem(this.STYLE_KEY, MU_AI_STYLES[id] ? id : 'default'); }catch(e){} },
 
     listProviders(){
         const s = this.getSettings();
@@ -10187,10 +10395,12 @@ const MarkhinAI = window.MarkhinAI = {
         // button/"typing…" indicator stuck permanently disabled. Aborting
         // after a timeout guarantees this call always resolves or rejects.
         const mAiAbortController = new AbortController();
-        // 90s instead of 60s: this now covers up to 3 attempts (with
-        // backoff) when a rate-limit/overload response triggers a retry,
-        // not just a single request.
-        const mAiTimeoutId = setTimeout(() => mAiAbortController.abort(), 90000);
+        // 120s: covers up to 3 attempts (with backoff) when a rate-limit/
+        // overload response triggers a retry, not just a single request —
+        // and gives slower self-hosted/local models (a custom provider
+        // pointed at a CPU-only Ollama server, for instance) enough room
+        // to actually finish instead of getting cut off mid-generation.
+        const mAiTimeoutId = setTimeout(() => mAiAbortController.abort(), 120000);
 
         const attempt = async () => {
             const canStream = !!(onDelta && typeof ReadableStream !== 'undefined' && typeof TextDecoder !== 'undefined');
@@ -10231,7 +10441,7 @@ const MarkhinAI = window.MarkhinAI = {
                     if(err && err.name === 'AbortError') throw err;
                     const msg = String((err && err.message) || err || '');
                     const looksTransient = /Failed to fetch|NetworkError|network error|Load failed|ERR_/i.test(msg);
-                    const looksOverloaded = /(^|\D)(429|500|502|503|504|529)(\D|$)/.test(msg);
+                    const looksOverloaded = /(^|\D)(408|429|500|502|503|504|529)(\D|$)/.test(msg);
                     if((looksTransient || looksOverloaded) && retryNum < 2){
                         await new Promise(r => setTimeout(r, 500 * Math.pow(2, retryNum)));
                         continue;
@@ -10253,6 +10463,19 @@ const MarkhinAI = window.MarkhinAI = {
                 throw new Error(fa
                     ? 'کلید API یا یکی از تنظیمات این ارائه‌دهنده شامل کاراکتر نامعتبر است. کلید را دوباره از منبع اصلی کپی و در تنظیمات هوش مصنوعی دوباره وارد/ذخیره کن.'
                     : 'This provider\'s API key (or another setting) contains an invalid character. Copy the key again from its source and re-enter/save it in AI Settings.');
+            }
+            // A raw "Failed to fetch"/"NetworkError"/"Load failed" almost
+            // always means one of: a typo'd Base URL, no internet, or —
+            // most commonly with a freshly-added custom provider — the
+            // provider's server doesn't send the CORS headers needed to
+            // let a browser call it directly at all (this can't be worked
+            // around client-side; the provider itself has to allow it).
+            // Surfacing that distinction beats leaving the user staring at
+            // an unexplained browser-internal string.
+            if(/Failed to fetch|NetworkError|Load failed|ERR_/i.test(rawMsg)){
+                throw new Error(fa
+                    ? 'اتصال به این ارائه‌دهنده برقرار نشد. Base URL را بررسی کن (باید دقیقاً همان چیزی باشد که سرویس مشخص کرده)، اتصال اینترنت را چک کن، و اگر سرور شخصی/کمتر شناخته‌شده است مطمئن شو که اجازه درخواست مستقیم از مرورگر (CORS) را می‌دهد — این محدودیت را برنامه نمی‌تواند دور بزند، فقط خود سرویس می‌تواند فعالش کند.'
+                    : "Couldn't connect to this provider. Check the Base URL (it must match exactly what the service documents), check your internet connection, and if this is a personal/less-common server, make sure it allows direct browser requests (CORS) — that restriction can't be worked around from here, only the service itself can enable it.");
             }
             throw err;
         } finally {
@@ -10284,24 +10507,33 @@ const MarkhinAI = window.MarkhinAI = {
                 aMessages.push({ role: m.role==='assistant'?'assistant':'user', content:m.content });
             });
             aMessages.forEach(m=>{ delete m.__toolResults; });
+            if(!p.model){
+                throw new Error(fa
+                    ? 'برای این ارائه‌دهنده باید نام دقیق مدل را در تنظیمات هوش مصنوعی وارد کنی.'
+                    : 'Enter the exact model name for this provider in AI Settings.');
+            }
             const body = {
-                model: p.model || 'claude-haiku-4-5-20251001',
+                model: p.model,
                 max_tokens: maxTokens,
                 system: sysMsg ? sysMsg.content : undefined,
                 messages: aMessages
             };
             if(tools){
                 // The Markhin note-management tools, plus Anthropic's own
-                // server-side web_search tool. The model decides on its own
-                // when a question needs current info; the actual search and
-                // fetch happen on Anthropic's servers, so there's no
-                // tool_result round-trip for us to execute here — a
+                // server-side web_search tool (real Anthropic endpoints
+                // only — a custom Anthropic-style proxy that doesn't
+                // support it should just ignore the extra tool entry).
+                // The model decides on its own when a question needs
+                // current info; the actual search and fetch happen on
+                // Anthropic's servers, so there's no tool_result
+                // round-trip for us to execute here — a
                 // web_search_tool_result block just shows up alongside the
                 // final text like any other content block.
-                body.tools = tools.map(t=>({ name:t.name, description:t.description, input_schema:t.parameters }))
-                    .concat([{ type:'web_search_20250305', name:'web_search', max_uses:5 }]);
+                body.tools = tools.map(t=>({ name:t.name, description:t.description, input_schema:t.parameters }));
+                if(p.id === 'anthropic') body.tools = body.tools.concat([{ type:'web_search_20250305', name:'web_search', max_uses:5 }]);
             }
-            const res = await fetch((p.baseUrl||'https://api.anthropic.com').replace(/\/+$/,'')+'/v1/messages', {
+            const url = mu_joinApiUrl(p.baseUrl || 'https://api.anthropic.com', '/v1/messages');
+            const res = await fetch(url, {
                 method:'POST',
                 headers:{
                     'Content-Type':'application/json',
@@ -10312,8 +10544,10 @@ const MarkhinAI = window.MarkhinAI = {
                 body: JSON.stringify(body),
                 signal
             });
-            if(!res.ok){ const tx=await res.text().catch(()=> ''); throw new Error('Anthropic: '+res.status+' '+tx.slice(0,220)); }
-            const data = await res.json();
+            if(!res.ok){ const tx=await res.text().catch(()=> ''); throw new Error('Anthropic ' + mu_extractApiErrorMessage(res.status, tx)); }
+            let data;
+            try{ data = await res.json(); }
+            catch(e){ throw new Error(fa ? 'پاسخ Anthropic معتبر (JSON) نبود — Base URL را بررسی کن.' : 'Anthropic\'s response was not valid JSON — check the Base URL.'); }
             const blocks = data.content || [];
             const text = blocks.filter(b=>b.type==='text').map(b=>b.text||'').join('\n').trim();
             if(!tools) return text;
@@ -10326,6 +10560,17 @@ const MarkhinAI = window.MarkhinAI = {
         // local Ollama servers, etc. all speak this same /chat/completions shape).
         if(!p.baseUrl){
             throw new Error(fa ? 'Base URL برای این ارائه‌دهنده الزامی است.' : 'Base URL is required for this provider.');
+        }
+        // A missing model name used to silently fall back to "gpt-5-mini"
+        // even for a custom provider that has never heard of that model
+        // (Groq/DeepSeek/Together/a local server all use their own model
+        // names) — that guaranteed a "model not found" error on every
+        // single request. Surfacing this up front, in plain language, is
+        // far more useful than a cryptic 400 from the provider.
+        if(!p.model){
+            throw new Error(fa
+                ? 'برای این ارائه‌دهنده باید نام دقیق مدل را در تنظیمات هوش مصنوعی وارد کنی (مثلاً llama-3.3-70b-versatile، deepseek-chat، یا هر مدلی که آن سرویس ارائه می‌دهد).'
+                : 'Enter the exact model name for this provider in AI Settings (e.g. llama-3.3-70b-versatile, deepseek-chat, or whichever model that service offers).');
         }
         const headers = { 'Content-Type':'application/json', 'Authorization':'Bearer '+p.apiKey };
         if(p.id === 'openrouter'){
@@ -10344,18 +10589,16 @@ const MarkhinAI = window.MarkhinAI = {
             }
             return { role: m.role, content: m.content };
         });
-        const body = { model: p.model || 'gpt-5-mini', max_tokens:maxTokens, messages: oMessages };
+        const body = { model: p.model, max_tokens:maxTokens, messages: oMessages };
         if(tools) body.tools = tools.map(t=>({ type:'function', function:{ name:t.name, description:t.description, parameters:t.parameters } }));
-        const res = await fetch(p.baseUrl.replace(/\/+$/,'')+'/chat/completions', {
-            method:'POST',
-            headers,
-            body: JSON.stringify(body),
-            signal
-        });
-        if(!res.ok){ const tx=await res.text().catch(()=> ''); throw new Error('API: '+res.status+' '+tx.slice(0,220)); }
-        const data = await res.json();
-        const msg = (data.choices && data.choices[0] && data.choices[0].message) || {};
-        const text = msg.content || '';
+        const url = mu_joinApiUrl(p.baseUrl, '/chat/completions');
+        const res = await mu_fetchOpenAiCompatible(url, headers, body, signal);
+        let data;
+        try{ data = await res.json(); }
+        catch(e){ throw new Error(fa ? 'پاسخ ارائه‌دهنده معتبر (JSON) نبود — Base URL یا فرمت API را بررسی کن.' : 'The provider\'s response was not valid JSON — check the Base URL or API format.'); }
+        const choice = data.choices && data.choices[0];
+        const msg = (choice && choice.message) || {};
+        const text = mu_extractOpenAiText(data);
         if(!tools) return text;
         const toolCalls = Array.isArray(msg.tool_calls) ? msg.tool_calls.map(tc=>({
             id: tc.id,
@@ -10397,8 +10640,14 @@ const MarkhinAI = window.MarkhinAI = {
             aMessages.push({ role: m.role==='assistant'?'assistant':'user', content:m.content });
         });
         aMessages.forEach(m=>{ delete m.__toolResults; });
+        const fa = currentLang==='fa';
+        if(!p.model){
+            throw new Error(fa
+                ? 'برای این ارائه‌دهنده باید نام دقیق مدل را در تنظیمات هوش مصنوعی وارد کنی.'
+                : 'Enter the exact model name for this provider in AI Settings.');
+        }
         const body = {
-            model: p.model || 'claude-haiku-4-5-20251001',
+            model: p.model,
             max_tokens: maxTokens,
             system: sysMsg ? sysMsg.content : undefined,
             messages: aMessages,
@@ -10406,12 +10655,12 @@ const MarkhinAI = window.MarkhinAI = {
         };
         if(tools){
             // Same native web_search addition as the non-streaming path —
-            // see the comment there for why no client-side execution is
-            // needed for it.
-            body.tools = tools.map(t=>({ name:t.name, description:t.description, input_schema:t.parameters }))
-                .concat([{ type:'web_search_20250305', name:'web_search', max_uses:5 }]);
+            // see the comment there for why it's real-Anthropic-only.
+            body.tools = tools.map(t=>({ name:t.name, description:t.description, input_schema:t.parameters }));
+            if(p.id === 'anthropic') body.tools = body.tools.concat([{ type:'web_search_20250305', name:'web_search', max_uses:5 }]);
         }
-        const res = await fetch((p.baseUrl||'https://api.anthropic.com').replace(/\/+$/,'')+'/v1/messages', {
+        const url = mu_joinApiUrl(p.baseUrl || 'https://api.anthropic.com', '/v1/messages');
+        const res = await fetch(url, {
             method:'POST',
             headers:{
                 'Content-Type':'application/json',
@@ -10422,12 +10671,13 @@ const MarkhinAI = window.MarkhinAI = {
             body: JSON.stringify(body),
             signal
         });
-        if(!res.ok){ const tx=await res.text().catch(()=> ''); throw new Error('Anthropic: '+res.status+' '+tx.slice(0,220)); }
+        if(!res.ok){ const tx=await res.text().catch(()=> ''); throw new Error('Anthropic ' + mu_extractApiErrorMessage(res.status, tx)); }
         if(!res.body || !res.body.getReader) throw new Error('stream-unsupported');
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
         let buf = '';
         let textAcc = '';
+        let sawAnyEvent = false;
         const blocks = {};
         while(true){
             const { done, value } = await reader.read();
@@ -10442,6 +10692,7 @@ const MarkhinAI = window.MarkhinAI = {
                 if(!dataStr) continue;
                 let evt;
                 try { evt = JSON.parse(dataStr); } catch(e){ continue; }
+                sawAnyEvent = true;
                 if(evt.type === 'content_block_start' && evt.content_block){
                     // Only 'text' and 'tool_use' blocks matter to us here —
                     // server-side tool blocks (web_search_tool_use,
@@ -10473,6 +10724,15 @@ const MarkhinAI = window.MarkhinAI = {
                 }
             }
         }
+        // A custom "Anthropic-style" base URL that doesn't actually speak
+        // real Anthropic SSE (a non-streaming-capable proxy that still
+        // returned 200, for instance) would otherwise silently produce an
+        // empty reply with no error at all. If we never managed to parse a
+        // single event out of the whole response, treat it as a stream
+        // this provider doesn't actually support — the caller (chat())
+        // catches this and transparently retries as a plain, non-streamed
+        // request instead of showing the user nothing.
+        if(!sawAnyEvent) throw new Error('stream-unsupported');
         const text = textAcc.trim();
         if(!tools) return text;
         const toolCalls = Object.keys(blocks).map(k=>blocks[k]).filter(b=>b.type==='tool_use').map(b=>({ id:b.id, name:b.name, input: safeParseJSON(b.json || '{}', {}) }));
@@ -10482,6 +10742,11 @@ const MarkhinAI = window.MarkhinAI = {
     async _chatStreamOpenAI(messages, opts, p, maxTokens, tools, signal, onDelta){
         const fa = currentLang==='fa';
         if(!p.baseUrl) throw new Error(fa ? 'Base URL برای این ارائه‌دهنده الزامی است.' : 'Base URL is required for this provider.');
+        if(!p.model){
+            throw new Error(fa
+                ? 'برای این ارائه‌دهنده باید نام دقیق مدل را در تنظیمات هوش مصنوعی وارد کنی (مثلاً llama-3.3-70b-versatile، deepseek-chat، یا هر مدلی که آن سرویس ارائه می‌دهد).'
+                : 'Enter the exact model name for this provider in AI Settings (e.g. llama-3.3-70b-versatile, deepseek-chat, or whichever model that service offers).');
+        }
         const headers = { 'Content-Type':'application/json', 'Authorization':'Bearer '+p.apiKey };
         if(p.id === 'openrouter'){
             headers['HTTP-Referer'] = (typeof location!=='undefined' && location.origin) || 'https://localhost';
@@ -10498,20 +10763,16 @@ const MarkhinAI = window.MarkhinAI = {
             }
             return { role: m.role, content: m.content };
         });
-        const body = { model: p.model || 'gpt-5-mini', max_tokens:maxTokens, messages: oMessages, stream:true };
+        const body = { model: p.model, max_tokens:maxTokens, messages: oMessages, stream:true };
         if(tools) body.tools = tools.map(t=>({ type:'function', function:{ name:t.name, description:t.description, parameters:t.parameters } }));
-        const res = await fetch(p.baseUrl.replace(/\/+$/,'')+'/chat/completions', {
-            method:'POST',
-            headers,
-            body: JSON.stringify(body),
-            signal
-        });
-        if(!res.ok){ const tx=await res.text().catch(()=> ''); throw new Error('API: '+res.status+' '+tx.slice(0,220)); }
+        const url = mu_joinApiUrl(p.baseUrl, '/chat/completions');
+        const res = await mu_fetchOpenAiCompatible(url, headers, body, signal);
         if(!res.body || !res.body.getReader) throw new Error('stream-unsupported');
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
         let buf = '';
         let textAcc = '';
+        let sawAnyEvent = false;
         const toolAcc = {};
         while(true){
             const { done, value } = await reader.read();
@@ -10523,14 +10784,18 @@ const MarkhinAI = window.MarkhinAI = {
                 buf = buf.slice(nl + 1);
                 if(!line || line.indexOf('data:') !== 0) continue;
                 const dataStr = line.slice(5).trim();
-                if(!dataStr || dataStr === '[DONE]') continue;
+                if(!dataStr) continue;
+                if(dataStr === '[DONE]'){ sawAnyEvent = true; continue; }
                 let evt;
                 try { evt = JSON.parse(dataStr); } catch(e){ continue; }
+                sawAnyEvent = true;
                 const choice = evt.choices && evt.choices[0];
                 if(!choice) continue;
                 const delta = choice.delta || {};
-                if(delta.content){
-                    textAcc += delta.content;
+                let deltaText = delta.content;
+                if(Array.isArray(deltaText)) deltaText = deltaText.map(part => (part && (part.text||part.content)) || '').join('');
+                if(deltaText){
+                    textAcc += deltaText;
                     if(onDelta) onDelta(textAcc);
                 }
                 if(Array.isArray(delta.tool_calls)){
@@ -10546,6 +10811,13 @@ const MarkhinAI = window.MarkhinAI = {
                 }
             }
         }
+        // Same reasoning as the Anthropic stream: if the response came
+        // back 200 OK but we never actually parsed one real SSE event out
+        // of it (a provider that ignored stream:true and sent one plain
+        // JSON blob, or wrapped chunks in a shape we don't recognize),
+        // don't hand the user a silent empty reply — let chat() retry this
+        // same request as a plain, non-streamed call instead.
+        if(!sawAnyEvent) throw new Error('stream-unsupported');
         const text = textAcc;
         if(!tools) return text;
         const toolCalls = Object.keys(toolAcc).map(k=>toolAcc[k]).filter(t=>t.name).map(t=>({
@@ -10554,6 +10826,56 @@ const MarkhinAI = window.MarkhinAI = {
             input: safeParseJSON(t.args || '{}', {})
         }));
         return { text, toolCalls };
+    },
+
+    // Queries the provider's own model-listing endpoint so the settings UI
+    // can offer a real, clickable list of model ids instead of the person
+    // having to copy-paste an exact model string from docs and hope it's
+    // spelled right — this is the single most common source of "model not
+    // found" errors, so removing the guesswork removes the error at the
+    // source. Takes the raw form fields directly (not saved settings) so
+    // it works before the person has even hit Save. Anthropic exposes
+    // GET /v1/models; every OpenAI-compatible provider (built-in or
+    // custom) exposes GET {baseUrl}/models — both used read-only here.
+    async fetchModels(fields){
+        const fa = currentLang==='fa';
+        const apiKey = mu_sanitizeApiKeyValue(fields.apiKey||'').value;
+        if(!apiKey) throw new Error(fa ? 'اول یک کلید API وارد کن.' : 'Enter an API key first.');
+        const mAiModelsAbort = new AbortController();
+        const mAiModelsTimeout = setTimeout(()=>mAiModelsAbort.abort(), 20000);
+        try{
+            if(fields.format === 'anthropic'){
+                const url = mu_joinApiUrl(fields.baseUrl || 'https://api.anthropic.com', '/v1/models');
+                const res = await fetch(url, {
+                    headers:{
+                        'x-api-key': apiKey,
+                        'anthropic-version':'2023-06-01',
+                        'anthropic-dangerous-direct-browser-access':'true'
+                    },
+                    signal: mAiModelsAbort.signal
+                });
+                if(!res.ok){ const tx = await res.text().catch(()=>''); throw new Error('Anthropic ' + mu_extractApiErrorMessage(res.status, tx)); }
+                const data = await res.json().catch(()=>({}));
+                return (data.data||[]).map(m=>m.id).filter(Boolean);
+            }
+            if(!fields.baseUrl) throw new Error(fa ? 'اول Base URL را وارد کن.' : 'Enter a Base URL first.');
+            const url = mu_joinApiUrl(fields.baseUrl, '/models');
+            const res = await fetch(url, { headers:{ 'Authorization':'Bearer '+apiKey }, signal: mAiModelsAbort.signal });
+            if(!res.ok){ const tx = await res.text().catch(()=>''); throw new Error(mu_extractApiErrorMessage(res.status, tx)); }
+            const data = await res.json().catch(()=>({}));
+            const list = Array.isArray(data.data) ? data.data : (Array.isArray(data.models) ? data.models : []);
+            return list.map(m=> (typeof m === 'string' ? m : (m.id || m.name || ''))).filter(Boolean);
+        } catch(err){
+            if(err && err.name === 'AbortError') throw new Error(fa ? 'درخواست فهرست مدل‌ها بیش از حد طول کشید.' : 'Fetching the model list took too long.');
+            if(/Failed to fetch|NetworkError|Load failed|ERR_/i.test(String((err&&err.message)||err))){
+                throw new Error(fa
+                    ? 'این ارائه‌دهنده لیست مدل‌ها را در دسترس نگذاشته یا اجازه دسترسی مستقیم از مرورگر را نمی‌دهد؛ نام مدل را دستی وارد کن.'
+                    : "This provider doesn't expose a model list (or doesn't allow direct browser access) — enter the model name manually.");
+            }
+            throw err;
+        } finally {
+            clearTimeout(mAiModelsTimeout);
+        }
     }
 };
 
@@ -10664,10 +10986,31 @@ function mu_openAiSettingsModal(){
 
             <label>${fa?'کلید API':'API Key'}</label>
             <input type="password" id="muAiKey" value="${escapeHtml(fields.apiKey||'')}" placeholder="sk-...">
-            <label>${fa?'مدل (اختیاری)':'Model (optional)'}</label>
-            <input type="text" id="muAiModel" value="${escapeHtml(fields.model||'')}" placeholder="${fa?'مثلاً gpt-5-mini یا openai/gpt-4o-mini':'e.g. gpt-5-mini or openai/gpt-4o-mini'}">
+            <label>${isCustom
+                ? (fa?'مدل (الزامی — نام دقیق مدل همان سرویس)':'Model (required — the exact model name from that service)')
+                : (fa?'مدل (اختیاری — پیش‌فرض دارد)':'Model (optional — has a default)')}</label>
+            <div style="display:flex;gap:6px;align-items:center">
+                <input type="text" id="muAiModel" value="${escapeHtml(fields.model||'')}" placeholder="${fa?'مثلاً gpt-5-mini یا openai/gpt-4o-mini':'e.g. gpt-5-mini or openai/gpt-4o-mini'}" style="flex:1">
+                <button type="button" class="btn-main" style="white-space:nowrap" onclick="mu_fetchAiModelsList()">🔍 ${fa?'دریافت مدل‌ها':'Fetch models'}</button>
+            </div>
+            <div id="muAiModelsBox" style="display:none;max-height:160px;overflow:auto;border:1px solid var(--panel-border);border-radius:8px;padding:6px;flex-direction:column;gap:4px"></div>
             <label>${fa?'Base URL (اختیاری برای OpenAI/OpenRouter)':'Base URL (optional for OpenAI/OpenRouter)'}</label>
             <input type="text" id="muAiBase" value="${escapeHtml(fields.baseUrl||'')}" placeholder="https://api.openai.com/v1">
+            ${isCustom ? `<p style="opacity:.6;font-size:10.5px;line-height:1.8;margin:0">${fa
+                ? 'نکته: اگر بعد از تست همچنان خطای شبکه/اتصال می‌گیری، معمولاً یعنی آن سرویس اجازه تماس مستقیم از داخل مرورگر (CORS) را نمی‌دهد — این را فقط خودِ سرویس می‌تواند فعال کند.'
+                : "Note: if you still get a network/connection error after testing, it usually means that service doesn't allow direct browser calls (CORS) — only the service itself can enable that."}</p>` : ''}
+        </div>
+        <div class="markhin-ai-settings-row" style="margin-top:10px">
+            <label>🎭 ${fa?'طرز حرف زدن (لحن دستیار)':'Speaking style (assistant tone)'}</label>
+            <select id="muAiStyle">
+                ${Object.keys(MU_AI_STYLES).map(id=>{
+                    const st = MU_AI_STYLES[id];
+                    return `<option value="${id}" ${id===MarkhinAI.getStyle()?'selected':''}>${fa?st.labelFa:st.labelEn}</option>`;
+                }).join('')}
+            </select>
+            <p style="opacity:.6;font-size:10.5px;line-height:1.8;margin:0">${fa
+                ? 'این لحن روی همه پاسخ‌های MARKHIN AI در همین چت اعمال می‌شود، مستقل از این‌که کدام ارائه‌دهنده انتخاب شده — هر وقت خواستی می‌توانی عوضش کنی.'
+                : "This tone applies to every MARKHIN AI reply in this chat, independent of which provider is selected — switch it anytime."}</p>
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
             <button class="btn-main" onclick="mu_saveAiSettings()">💾 ${fa?'ذخیره':'Save'}</button>
@@ -10681,6 +11024,8 @@ window.mu_openAiSettingsModal = mu_openAiSettingsModal;
 
 window.mu_onProviderPick = function(value){
     const box = document.getElementById('muAiNewProviderBox');
+    const modelsBox = document.getElementById('muAiModelsBox');
+    if(modelsBox){ modelsBox.style.display = 'none'; modelsBox.innerHTML = ''; }
     if(value === '__add_new__'){
         if(box) box.style.display = 'flex';
         return;
@@ -10705,6 +11050,8 @@ window.mu_confirmNewProvider = function(){
     const model = ((document.getElementById('muAiModel')||{}).value||'').trim();
     if(!name){ showToast(fa?'یک نام برای ارائه‌دهنده وارد کن.':'Give the provider a name.'); return; }
     if(!baseUrl){ showToast(fa?'برای ارائه‌دهنده سفارشی، Base URL لازم است.':'A custom provider needs a Base URL.'); return; }
+    const styleElNP = document.getElementById('muAiStyle');
+    if(styleElNP) MarkhinAI.setStyle(styleElNP.value);
     MarkhinAI.addCustomProvider({ name, format, baseUrl, apiKey, model });
     showToast(fa?'ارائه‌دهنده اضافه شد.':'Provider added.');
     mu_openAiSettingsModal();
@@ -10737,6 +11084,8 @@ function mu_readAiForm(){
 }
 window.mu_saveAiSettings = function(){
     const f = mu_readAiForm();
+    const styleEl = document.getElementById('muAiStyle');
+    if(styleEl) MarkhinAI.setStyle(styleEl.value);
     if(f.id === '__add_new__'){ mu_confirmNewProvider(); return; }
     MarkhinAI.saveProviderFields(f.id, f);
     showToast(currentLang==='fa' ? 'تنظیمات AI ذخیره شد.' : 'AI settings saved.');
@@ -10768,6 +11117,55 @@ window.mu_testAiSettings = async function(){
         if(el) el.textContent = '✅ ' + (reply||'OK').slice(0,90);
     }catch(err){
         if(el) el.textContent = '⚠️ ' + (err.message||String(err));
+    }
+};
+
+// Resolves whichever provider/format is currently selected in the (not
+// necessarily saved yet) settings form, and asks MarkhinAI.fetchModels()
+// for its real model list, rendering each as a tappable button that fills
+// the Model field — so the person picks a model that's actually valid for
+// their key instead of guessing a spelling from memory or an outdated doc.
+window.mu_fetchAiModelsList = async function(){
+    const fa = currentLang==='fa';
+    const box = document.getElementById('muAiModelsBox');
+    const sel = document.getElementById('muAiProvider');
+    const id = sel ? sel.value : 'openai';
+    let format = 'openai';
+    let baseUrl = ((document.getElementById('muAiBase')||{}).value||'').trim();
+    if(id === '__add_new__'){
+        format = (document.getElementById('muAiNewFormat')||{}).value || 'openai';
+        if(!baseUrl) baseUrl = ((document.getElementById('muAiNewBase')||{}).value||'').trim();
+    } else if(id.indexOf('custom:') === 0){
+        const cf = MarkhinAI.getProviderFields(id);
+        format = (cf && cf.format) || 'openai';
+        if(!baseUrl) baseUrl = (cf && cf.baseUrl) || '';
+    } else {
+        format = (MU_AI_BUILTINS[id] && MU_AI_BUILTINS[id].format) || 'openai';
+        if(!baseUrl) baseUrl = (MU_AI_BUILTINS[id] && MU_AI_BUILTINS[id].defaultBaseUrl) || '';
+    }
+    const apiKey = ((document.getElementById('muAiKey')||{}).value || '');
+    if(!box) return;
+    box.style.display = 'flex';
+    box.innerHTML = fa ? '⏳ در حال دریافت لیست مدل‌ها...' : '⏳ Fetching model list...';
+    try{
+        const models = await MarkhinAI.fetchModels({ format, apiKey, baseUrl });
+        if(!models.length){ box.innerHTML = fa ? 'چیزی پیدا نشد.' : 'Nothing found.'; return; }
+        box.innerHTML = '';
+        models.slice(0,200).forEach(m=>{
+            const b = document.createElement('button');
+            b.type = 'button';
+            b.className = 'btn-main';
+            b.style.cssText = 'text-align:'+(fa?'right':'left')+';font-size:11px;padding:5px 8px';
+            b.textContent = m;
+            b.onclick = function(){
+                const modelEl = document.getElementById('muAiModel');
+                if(modelEl) modelEl.value = m;
+                box.style.display = 'none';
+            };
+            box.appendChild(b);
+        });
+    }catch(err){
+        box.innerHTML = '⚠️ ' + ((err && err.message) || String(err));
     }
 };
 
@@ -11568,6 +11966,42 @@ window.attachWrapperEvents = function(categoryId){
             markhinAiChat_send();
         }
     };
+
+    /* A note's context (every unlocked note's text, plus recent chat
+       history) is sent along with every message so the model can actually
+       use it — but some providers (very commonly free/low tiers, like
+       Groq's default org limits) cap how many tokens can be sent per
+       minute, well below what a vault full of notes adds up to. Rather
+       than just showing the user a raw "413 / tokens per minute" error,
+       markhinAiChat_send below detects this specific failure and
+       automatically retries with a smaller slice of notes/history — see
+       mu_nextContextScale for how much smaller. */
+    function mu_looksLikeTooLargeError(err){
+        const msg = String((err && err.message) || err || '');
+        return /\b413\b/.test(msg)
+            || /tokens per minute|too large|too long|context_length_exceeded|context window|maximum context length|request too large|payload too large|reduce (the|your) (length|prompt|message)/i.test(msg);
+    }
+
+    // Picks how much smaller to make the next attempt's note/history
+    // budget. When the provider's error message states an exact limit and
+    // how much was requested (Groq's "Limit 8000, Requested 15408" style),
+    // aim for ~65% of that ratio so there's real headroom left for the
+    // reply itself and the tool definitions, which also count against the
+    // same per-minute limit but aren't reflected in that ratio. Without
+    // parseable numbers, just cut hard and try again.
+    function mu_nextContextScale(scale, err){
+        const msg = String((err && err.message) || err || '');
+        const m = msg.match(/limit\D{0,10}(\d[\d,]*)\D+requested\D{0,10}(\d[\d,]*)/i);
+        if(m){
+            const limit = parseInt(m[1].replace(/,/g,''), 10);
+            const requested = parseInt(m[2].replace(/,/g,''), 10);
+            if(limit > 0 && requested > 0){
+                const target = (limit / requested) * 0.65;
+                return Math.max(0.06, Math.min(scale * 0.6, target));
+            }
+        }
+        return Math.max(0.12, scale * 0.35);
+    }
 
     /* Locked note content is never readable without its password, so
        relevance can only be judged from what's visible while locked: the
@@ -12601,6 +13035,24 @@ window.attachWrapperEvents = function(categoryId){
 
         mAiRender();
 
+        // Live-updates the in-progress bubble as the reply streams in. Only
+        // takes effect for the request that's still the "current" one for
+        // this send — mAiRender() itself will simply do nothing useful if
+        // the chat was cleared mid-reply (mAiMyGen check further down still
+        // guards whether the finished result gets saved).
+        const mAiOnDelta = function(t){
+            if(mAiMyGen !== mAiGen) return;
+            mAiStreamText = t;
+            mAiRender();
+        };
+
+        /* Runs one full model turn (the whole multi-step tool-call loop,
+           through to a final answer) at a given context size. contextScale
+           of 1 is the normal, full-size context; anything smaller shrinks
+           both the notes context and how much chat history gets sent —
+           see the retry loop right below this function for when/why a
+           smaller scale gets used. */
+        const runAiTurn = async function(contextScale){
         /* Build the notes context the same way the old standalone Ask box
            used to: every non-decoy note that isn't locked (or has been
            temporarily unlocked via the 🔒 button above). Locked notes stay
@@ -12613,6 +13065,8 @@ window.attachWrapperEvents = function(categoryId){
         const notes = (typeof categories !== 'undefined')
             ? categories.filter(c=>!c.isDecoy && (!isNoteLocked(c) || unlockedQaIds.includes(c.id)))
             : [];
+        const perNoteBudget = Math.max(250, Math.round(1500 * contextScale));
+        const totalBudget = Math.max(1000, Math.round(14000 * contextScale));
         const notesContext = notes.map(function(n){
             const meta = [];
             if(n.folder) meta.push((fa?'پوشه: ':'folder: ')+n.folder);
@@ -12621,8 +13075,8 @@ window.attachWrapperEvents = function(categoryId){
             if(n.favorite) meta.push(fa?'فیوریت':'favorite');
             if(n.archived) meta.push(fa?'آرشیوشده':'archived');
             const head = '### ['+n.id+'] '+n.name+(meta.length?' ('+meta.join(' | ')+')':'');
-            return head+'\n'+mu_notePlainText(n).slice(0,1500);
-        }).join('\n\n').slice(0,14000);
+            return head+'\n'+mu_notePlainText(n).slice(0,perNoteBudget);
+        }).join('\n\n').slice(0,totalBudget);
 
         const toolsSummaryFa = '🔎 پیدا کردن یادداشت، 📖 خواندن متن کامل یک یادداشت، ➕ ساخت یادداشت جدید (با فرمت‌بندی)، 📝 ویرایش/بازنویسی متن یادداشت (بولد، ایتالیک، تیتر، لیست و...)، 📄 ساخت کپی از یک یادداشت، ✏️ تغییر عنوان، 🔤 تغییر فونت/سایز یک یادداشت، ⌛ تنظیم دستی/خودکار سطح فرسودگی، 📁 انتقال به/خروج از پوشه، ➕📁 ساخت/تغییرنام/حذف پوشه، 🏷️ تگ‌گذاری، 📌 پین، ⭐ فیوریت، 📦 آرشیو/بازگردانی، ⏳ فعال/غیرفعال‌کردن کپسول زمانی (قفل یک یادداشت تا زمان مشخص)، 👻 فعال/لغو Ghost Note (خودکار حذف‌شدن یادداشت بعد از چند ساعت)، ⚰️ دیدن لیست گورستان و ♻️ بازیابی یادداشت حذف‌شده از آن، 🧰 اعمال یک تغییر روی چند یادداشت هم‌زمان بر اساس پوشه/تگ/جستجو (تگ‌گذاری، آرشیو، پین، فیوریت، یا جابجایی گروهی)، 🔗 ترکیب چند یادداشت، 🗑️ حذف (همیشه با تأیید واقعی کاربر)، 🎨 تغییر تم ظاهری، 🌐 تغییر زبان برنامه، 📤 خروجی‌گرفتن واقعی از یادداشت‌ها (JSON/CSV/MD/TXT/PDF/DOCX/PNG/JPG — دانلود واقعی، نه فقط توضیح)، 🌌 باز کردن شبکه دانش/گورستان/پورتال رندوم، 🧬 مقایسه چند یادداشت و پیدا کردن اشتراکات (تگ مشترک، کلمات/موضوع مشترک)، 📊 آمار کامل داشبورد (تعداد کل، پین‌شده‌ها، فیوریت‌ها، پوشه‌ها، تگ‌ها)، 📚 خواندن چند یادداشت کامل در یک درخواست (برای خلاصه‌سازی/مقایسه گروهی)، 🗂️ خواندن متن کامل *همه* یادداشت‌های در‌دسترس با هم در یک درخواست (برای مرور/خلاصه‌سازی/جستجوی کامل کل واقت)، ➕📚 ساخت چند یادداشت هم‌زمان در یک درخواست، 🧭 پیدا کردن یادداشت‌های خیلی شبیه/تکراری در کل واقتان، ↕️ جابجایی دقیق یک یادداشت در لیست (بردن به بالا/پایین یا درست قبل/بعد از یادداشتی دیگر)، 🔀 مرتب‌سازی یک‌جای همه یادداشت‌ها یا یک پوشه بر اساس الفبا/تاریخ ویرایش/طول، و 🧩 پیشنهاد پوشه‌بندی خودکار یادداشت‌های مرتبط بر اساس تگ و محتوای مشترک';
         const toolsSummaryEn = 'finding notes, reading a note\'s full content, creating notes (with formatting), editing/rewriting a note\'s content (bold, italic, headings, lists, etc.), duplicating a note, renaming, changing a note\'s font/size, setting its decay/staleness level manually or back to automatic, moving into/out of a folder, creating/renaming/deleting folders, tagging, pinning, favoriting, archiving/restoring, arming/clearing a Time Capsule lock (a note that cannot reopen until a future date), arming/cancelling a Ghost Note self-destruct timer (a note that auto-deletes after a set number of hours), listing what\'s in the Cemetery and restoring a deleted note from it, applying one change to a whole group of notes at once by folder/tag/search (bulk tagging, archiving, pinning, favoriting, or moving), merging multiple notes, deleting (always with a real user confirmation), switching the app\'s visual theme, switching the app\'s language, actually exporting notes to a real downloaded file (JSON/CSV/MD/TXT/PDF/DOCX/PNG/JPG — a real download, not just instructions), opening the Knowledge Graph / Cemetery / Random Portal views, comparing multiple notes to find what they share (common tags, common words/themes), getting full dashboard stats (totals, pinned notes, favorite notes, folders, tags), batch-reading several notes\' full content in one request (for group summarizing/comparing), reading the full text of *every* accessible note at once in a single request (for reviewing/summarizing/searching the whole vault), batch-creating several notes in one request, scanning the whole vault for near-duplicate/highly overlapping notes, precisely repositioning a single note in its list (to the top/bottom or right before/after another note), resorting all notes (or one folder) at once by alphabet/edit-date/length, and suggesting automatic folder groupings for related notes based on shared tags and content';
@@ -12651,6 +13105,13 @@ window.attachWrapperEvents = function(categoryId){
         const webSearchRuleEn = hasWebSearch
             ? '- When you use live web search to answer, naturally note that the information is current/from a live search, especially if it differs from what the user assumed.\n'
             : '';
+
+        // User-picked speaking style (⚙️ AI Settings → 🎭 tone). `default`
+        // carries no text, so nothing changes for anyone who never touches
+        // this setting — see MU_AI_STYLES above for what each id means.
+        const activeStyle = MU_AI_STYLES[MarkhinAI.getStyle()] || MU_AI_STYLES.default;
+        const styleRuleFa = activeStyle.promptFa ? ('- ' + activeStyle.promptFa + '\n') : '';
+        const styleRuleEn = activeStyle.promptEn ? ('- ' + activeStyle.promptEn + '\n') : '';
 
         const sys = fa
             ? 'تو MARKHIN AI هستی: دستیار هوش مصنوعی حرفه‌ای، دقیق و قدرتمند، ساخته‌شده داخل اپلیکیشن یادداشت‌برداری Markhin. سه نقش داری و هر سه را همزمان انجام می‌دهی:\n'
@@ -12681,6 +13142,7 @@ window.attachWrapperEvents = function(categoryId){
                 + '- وقتی باید متن کامل بیش از یک یادداشت را ببینی (مثلاً «همه یادداشت‌های پوشه X را خلاصه کن» یا «این سه‌تا را با هم مقایسه کن»)، به‌جای صدا زدن پی‌درپی get_note، یک‌بار get_notes را با فهرست همه‌شان صدا بزن؛ اما وقتی درخواست واقعاً کل واقت را در بر می‌گیرد نه چند یادداشت مشخص (مثل «همه یادداشت‌هام رو بخون و خلاصه کن»، «توی همه یادداشت‌هام دنبال فلان چیز بگرد»، «چی درباره X نوشتم؟» بدون مشخص‌کردن یادداشت خاص)، مستقیماً read_all_notes را صدا بزن تا متن کامل همه یادداشت‌های در‌دسترس را یک‌جا داشته باشی؛ اگر نتیجه‌اش truncated بود، برای محدودکردن دامنه از find_notes کمک بگیر. وقتی باید چند یادداشت جدید هم‌زمان بسازی، از bulk_create_notes به‌جای چند بار create_note استفاده کن. وقتی کاربر پرسید یادداشت تکراری/هم‌پوشان دارد یا خواست واقتش را «مرتب» کنی، از find_duplicate_notes برای پیدا کردن کاندیدها استفاده کن و بعد بر اساس نتیجه پیشنهاد merge_notes یا delete_note بده (خودت بدون تأیید صریح کاربر چیزی را ادغام یا حذف نکن).\n'
                 + '- وقتی سوال ربطی به یادداشت‌ها ندارد، فقط بر پایه دانش عمومی‌ات پاسخ بده — نیازی به استفاده از ابزار نیست.\n'
                 + mobileBrevityFa
+                + styleRuleFa
                 + webSearchRuleFa
                 + '\n'
                 + (notesContext ? ('فهرست یادداشت‌های بدون‌رمز فعلی کاربر (برای زمینه؛ برای هر عملیات دقیق، از ابزارها با آی‌دی استفاده کن):\n' + notesContext) : 'کاربر فعلاً یادداشتی ندارد (یا همه قفل هستند).')
@@ -12717,6 +13179,7 @@ window.attachWrapperEvents = function(categoryId){
                 + '- When you need the full content of more than one note (e.g. "summarize everything in folder X" or "compare these three"), call get_notes once with the whole list instead of calling get_note repeatedly; when creating several new notes at once, use bulk_create_notes instead of multiple create_note calls. When the user asks whether they have duplicate/overlapping notes or wants their vault "cleaned up", call find_duplicate_notes to get candidates, then suggest merge_notes or delete_note based on the result — never merge or delete anything yourself without the user\'s explicit confirmation.\n'
                 + '- When the question has nothing to do with notes, just answer from your general knowledge — no need to use a tool.\n'
                 + mobileBrevityEn
+                + styleRuleEn
                 + webSearchRuleEn
                 + '\n'
                 + (notesContext ? ('The user\'s current unlocked notes (for context; use the tools with the id for any precise operation):\n' + notesContext) : 'The user has no notes yet (or all of them are locked).');
@@ -12725,27 +13188,22 @@ window.attachWrapperEvents = function(categoryId){
         // around (mAiSave() persists the last 60 turns) instead of an
         // arbitrary shorter slice, so the model keeps real memory of
         // earlier parts of a longer conversation rather than losing them
-        // after only ~20 exchanges.
+        // after only ~20 exchanges — unless contextScale is shrinking
+        // things for a low-rate-limit provider, in which case fewer turns
+        // go out too.
+        const historyCount = Math.max(4, Math.round(60 * contextScale));
         const convo = [{ role: 'system', content: sys }].concat(
-            mAiHistory.slice(-60).map(function(m){ return { role: m.role, content: m.content }; })
+            mAiHistory.slice(-historyCount).map(function(m){ return { role: m.role, content: m.content }; })
         );
 
-        // Live-updates the in-progress bubble as the reply streams in. Only
-        // takes effect for the request that's still the "current" one for
-        // this send — mAiRender() itself will simply do nothing useful if
-        // the chat was cleared mid-reply (mAiMyGen check further down still
-        // guards whether the finished result gets saved).
-        const mAiOnDelta = function(t){
-            if(mAiMyGen !== mAiGen) return;
-            mAiStreamText = t;
-            mAiRender();
-        };
+        const turnMaxTokens = Math.max(500, Math.round(4096 * contextScale));
+        const closingMaxTokens = Math.max(350, Math.round(3000 * contextScale));
 
             let finalText = '';
             const maxSteps = 10;
             for(let step = 0; step < maxSteps; step++){
                 mAiStreamText = '';
-                const res = await MarkhinAI.chat(convo, { maxTokens: 3000, tools: MAI_TOOLS, onDelta: mAiOnDelta });
+                const res = await MarkhinAI.chat(convo, { maxTokens: turnMaxTokens, tools: MAI_TOOLS, onDelta: mAiOnDelta });
                 const resText = (res && res.text) || '';
                 const calls = (res && res.toolCalls) || [];
                 if(!calls.length){
@@ -12762,10 +13220,37 @@ window.attachWrapperEvents = function(categoryId){
                         ? 'بر اساس نتایج ابزارهای بالا، الان یک پاسخ نهایی و کوتاه به کاربر بده (بدون فراخوانی ابزار دیگر).'
                         : 'Based on the tool results above, give the user a final, concise answer now (do not call any more tools).';
                     mAiStreamText = '';
-                    const closing = await MarkhinAI.chat(convo.concat([{ role:'user', content: closingPrompt }]), { maxTokens: 2000, onDelta: mAiOnDelta });
+                    const closing = await MarkhinAI.chat(convo.concat([{ role:'user', content: closingPrompt }]), { maxTokens: closingMaxTokens, onDelta: mAiOnDelta });
                     finalText = String(closing || '').trim();
                 }
             }
+            return finalText;
+        };
+
+        // Try the normal full-size context first; if the provider rejects
+        // it specifically for being too large for its rate limit (see
+        // mu_looksLikeTooLargeError), shrink the context and try again —
+        // up to 2 extra times — instead of just showing the user a raw
+        // "413 / tokens per minute" error on the very first message.
+        let finalText = '';
+        let contextScale = 1;
+        let lastErr = null;
+        for(let attemptNum = 0; attemptNum < 3; attemptNum++){
+            try {
+                finalText = await runAiTurn(contextScale);
+                lastErr = null;
+                break;
+            } catch(err){
+                lastErr = err;
+                if(attemptNum < 2 && mu_looksLikeTooLargeError(err)){
+                    contextScale = mu_nextContextScale(contextScale, err);
+                    continue;
+                }
+                throw err;
+            }
+        }
+        if(lastErr) throw lastErr;
+
             mAiStreamText = '';
             if(mAiMyGen === mAiGen){
             mAiHistory.push({ role: 'assistant', content: finalText || (fa ? '(پاسخ خالی دریافت شد)' : '(received an empty response)') });
@@ -12783,7 +13268,12 @@ window.attachWrapperEvents = function(categoryId){
         } catch(err){
             mAiStreamText = '';
             if(mAiMyGen === mAiGen){
-            mAiHistory.push({ role: 'assistant', content: '⚠️ ' + (fa ? 'خطا: ' : 'Error: ') + (err && err.message || String(err)) });
+            const errMsg = mu_looksLikeTooLargeError(err)
+                ? (fa
+                    ? '⚠️ حتی بعد از این‌که برنامه خودکار حجم یادداشت‌ها/تاریخچه ارسالی را چند بار کم کرد، باز هم این درخواست برای سقف نرخ (توکن در دقیقه) این ارائه‌دهنده/مدل بزرگ بود. یا یک مدل/ارائه‌دهنده با سقف بالاتر انتخاب کن، یا تعداد/حجم یادداشت‌هایت را برای این گفتگو کمتر کن. جزئیات فنی: ' + (err && err.message || String(err))
+                    : "⚠️ Even after the app automatically trimmed how much note/history context it sent (several times), this request was still too large for this provider/model's rate limit. Either pick a model/provider with a higher limit, or reduce how many notes are involved in this chat. Technical detail: " + (err && err.message || String(err)))
+                : '⚠️ ' + (fa ? 'خطا: ' : 'Error: ') + (err && err.message || String(err));
+            mAiHistory.push({ role: 'assistant', content: errMsg });
             mAiSave();
             }
         } finally {
