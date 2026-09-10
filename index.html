@@ -889,36 +889,10 @@
             box-sizing: border-box;
         }
 
-        .search-box {
-            width: min(100%, 390px);
-            max-width: 390px;
-            padding: 10px 18px;
-            border-radius: 28px;
-            border: 1px solid var(--panel-border);
-            background: rgba(0, 0, 0, 0.22);
-            font-size: 13px;
-            outline: none;
-            box-sizing: border-box;
-            margin: 0 auto 16px;
-            transition: var(--transition-smooth);
-            text-align: center;
-            font-family: inherit;
-            text-overflow: ellipsis;
-        }
-
         .search-tools-row{display:flex;justify-content:center;align-items:center;gap:12px;flex-wrap:nowrap;margin-bottom:4px;width:100%}
         .search-tools-row #btnSmartSearch{flex:0 0 auto;min-width:180px;position:static;z-index:5;white-space:nowrap}
 
         @media (max-width: 520px){.search-tools-row{gap:8px}.search-tools-row #btnSmartSearch{min-width:0;padding:10px 12px;font-size:12px}}
-
-        .search-box:focus {
-            box-shadow: 0 0 18px rgba(255,255,255,0.04);
-            transform: scale(1.01);
-            background: rgba(0, 0, 0, 0.35);
-            border-color: var(--text-color);
-        }
-
-        .search-box::placeholder { color: rgba(255,255,255,0.3); }
 
         .toolbar-section-box {
             background: rgba(0, 0, 0, 0.12);
@@ -2633,7 +2607,6 @@ window.mu_syncHtmlBg = function(){
 
     <div class="control-panel">
         <div class="search-tools-row">
-            <input type="text" id="searchInput" class="search-box" placeholder="جستجو..." autocomplete="off" oninput="debounceSearch()">
             <button class="btn-main" id="btnSmartSearch" onclick="runSmartSearch()">جستجو</button>
         </div>
 
@@ -3611,13 +3584,6 @@ window.mu_syncHtmlBg = function(){
             updateLockBtnState();
             restoreStartupScroll();
         });
-
-        function debounceSearch() {
-            if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
-            searchDebounceTimer = setTimeout(() => {
-                onSearchChange();
-            }, 250);
-        }
 
         function updateLockBtnState() {
             const lockedItems = categories.filter(isNoteLocked);
@@ -8604,7 +8570,73 @@ window.addNewFolder=async function(){
  // instead of leaving the person to hunt for it in the folder row.
  setTimeout(()=>{ const target=document.querySelector('.folder-wrapper[data-folder="'+CSS.escape(clean)+'"]'); if(target) target.scrollIntoView({behavior:'smooth', block:'nearest', inline:'nearest'}); }, 60);
 };
-function mdToHtml(md){let x=escapeHtml(String(md||''));x=x.replace(/```([\s\S]*?)```/g,'<pre><code>$1</code></pre>');x=x.replace(/^>\s?(.*)$/gm,'<blockquote>$1</blockquote>');x=x.replace(/^###\s+(.*)$/gm,'<h3>$1</h3>').replace(/^##\s+(.*)$/gm,'<h2>$1</h2>').replace(/^#\s+(.*)$/gm,'<h1>$1</h1>');x=x.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,'<a href="$2">$1</a>');x=x.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/__(.+?)__/g,'<strong>$1</strong>').replace(/\*(.+?)\*/g,'<em>$1</em>').replace(/_(.+?)_/g,'<em>$1</em>');x=x.replace(/^[-*]\s+(.*)$/gm,'<li>$1</li>').replace(/(<li>.*<\/li>\n?)+/g,m=>'<ul>'+m+'</ul>');return x.split(/\n\n+/).map(p=>/^<(h\d|ul|pre|blockquote)/.test(p)?p:'<p>'+p.replace(/\n/g,'<br>')+'</p>').join('');}
+function mdToHtml(md){
+    // This used to be one dense one-liner. Rewritten (same inputs/outputs
+    // for normal text) to fix three real formatting bugs that were live in
+    // production:
+    //  1) "> quote" never actually became a blockquote — escapeHtml() turns
+    //     ">" into "&gt;" before the blockquote regex ever runs, so the old
+    //     regex (matching a literal ">") could never match anything.
+    //  2) *italic*/_italic_ fired on ANY asterisk/underscore pair, including
+    //     ones in the middle of a word — snake_case_names, file_names.txt,
+    //     usernames, or Persian/Farsi words joined with "_" (extremely
+    //     common in real note text that was never meant as markdown) all
+    //     got a chunk silently italicized and the underscore eaten.
+    //  3) A list not preceded by a blank line (e.g. "خرید:\n- نان\n- شیر",
+    //     which is how most people actually type a list) ended up with its
+    //     <ul> nested inside a <p> tag (invalid HTML) and stray <br> tags
+    //     injected between its <li> items, because the old code only ever
+    //     checked whether a whole paragraph *started* with a block tag.
+    const raw = String(md || '');
+
+    // Pull fenced code blocks out first so nothing below can reach inside
+    // and mangle code content (e.g. "**kwargs" or "a_b" in a code sample).
+    const codeBlocks = [];
+    let x = raw.replace(/```([\s\S]*?)```/g, function(_, code){
+        codeBlocks.push('<pre><code>' + escapeHtml(code) + '</code></pre>');
+        return '\u0000CB' + (codeBlocks.length - 1) + '\u0000';
+    });
+
+    x = escapeHtml(x);
+
+    x = x.replace(/^&gt;\s?(.*)$/gm, '<blockquote>$1</blockquote>');
+    x = x.replace(/^###\s+(.*)$/gm, '<h3>$1</h3>')
+         .replace(/^##\s+(.*)$/gm, '<h2>$1</h2>')
+         .replace(/^#\s+(.*)$/gm, '<h1>$1</h1>');
+    x = x.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2">$1</a>');
+    x = x.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+         .replace(/__(.+?)__/g, '<strong>$1</strong>');
+    // Word-boundary-aware italics: only treat * or _ as emphasis when
+    // they're not glued to a letter/digit/underscore (Latin or Persian) on
+    // the outside, so real prose with underscores/asterisks in it is left
+    // alone.
+    const wordChar = 'A-Za-z0-9_\\u0600-\\u06FF';
+    x = x.replace(new RegExp('(^|[^' + wordChar + '])\\*(?!\\*)([^*\\n]+?)\\*(?![' + wordChar + '])', 'g'), '$1<em>$2</em>');
+    x = x.replace(new RegExp('(^|[^' + wordChar + '])_(?!_)([^_\\n]+?)_(?![' + wordChar + '])', 'g'), '$1<em>$2</em>');
+
+    x = x.replace(/^[-*]\s+(.*)$/gm, '<li>$1</li>');
+    x = x.replace(/(<li>.*<\/li>\n?)+/g, m => '<ul>' + m.replace(/\n/g, '') + '</ul>');
+
+    // Restore code blocks to real <pre> HTML now, before paragraph
+    // splitting, so they're recognized as block-level content.
+    x = x.replace(/\u0000CB(\d+)\u0000/g, (_, i) => codeBlocks[Number(i)]);
+
+    const blockRe = /^<(h1|h2|h3|ul|pre|blockquote)/;
+    const midSplitRe = /(<ul>[\s\S]*?<\/ul>|<pre>[\s\S]*?<\/pre>|<h1>.*?<\/h1>|<h2>.*?<\/h2>|<h3>.*?<\/h3>|<blockquote>.*?<\/blockquote>)/;
+    return x.split(/\n\n+/).map(p => {
+        // A chunk can contain a block element (list/heading/quote) that isn't
+        // at the very start — split on block boundaries so it never ends up
+        // nested inside a <p>, and its own internal newlines never turn into
+        // stray <br>s.
+        return p.split(midSplitRe).map(seg => {
+            if (!seg) return '';
+            if (blockRe.test(seg)) return seg;
+            const trimmedSeg = seg.replace(/^\n+|\n+$/g, '');
+            if (!trimmedSeg) return '';
+            return '<p>' + trimmedSeg.replace(/\n/g, '<br>') + '</p>';
+        }).join('');
+    }).join('');
+}
 // Exposed on window for the same reason as ensureItem above — the MARKHIN
 // AI chat's create_note/edit_note_content tools call this by bare name
 // from a different <script> tag.
@@ -11613,10 +11645,50 @@ window.attachWrapperEvents = function(categoryId){
         if(!norm) return null;
         item = items.find(c => normalizeText(c.name || '') === norm);
         if(item) return item;
-        return items.find(c => {
+        /* Fuzzy fallback. Several notes can legitimately share the same
+           substring (e.g. "خرید" matches both "لیست خرید" and "لیست خرید
+           قدیمی"), and just grabbing whichever happened to come first in
+           array order — the old behavior — meant the AI could silently act
+           on the wrong note with no way for anyone to notice until after
+           the fact. Score every partial match instead, so the most likely
+           intended note wins on purpose: a whole-word match beats a
+           mid-word substring, a name whose length is closer to what the
+           user actually typed beats a much longer/shorter one, and the
+           most recently edited note wins any remaining tie (it's the one
+           most likely to be on the user's mind right now). */
+        const candidates = items.filter(c => {
             const n = normalizeText(c.name || '');
             return n && (n.includes(norm) || norm.includes(n));
-        }) || null;
+        });
+        if(!candidates.length) return null;
+        if(candidates.length === 1) return candidates[0];
+        const scored = candidates.map(c => {
+            const n = normalizeText(c.name || '');
+            let score = 0;
+            if(n.split(' ').includes(norm)) score += 5;
+            if(n.startsWith(norm)) score += 2;
+            score -= Math.abs(n.length - norm.length) * 0.05;
+            return { c, score, t: Date.parse(c.lastEdited || '') || 0 };
+        });
+        scored.sort((a, b) => (b.score - a.score) || (b.t - a.t));
+        return scored[0].c;
+    }
+
+    /* Matches a folder name against the app's real folder list the same
+       way a person would recognize it — ignoring case, extra spaces, and
+       Arabic/Persian letter variants (ي vs ی, ك vs ک, etc.) via
+       normalizeText. Every place that lets the AI create-or-use a folder
+       used to compare with plain folders.includes(name), which is exact
+       string equality: the model saying "کار" when the real folder is
+       "Kar " (trailing space) or "کاری" would silently spawn a duplicate
+       folder instead of filing into the one the user meant. Returns the
+       folder's real, already-stored spelling so callers keep using it
+       consistently instead of whatever variant the model happened to type. */
+    function mAiFindExistingFolder(name){
+        if(typeof folders === 'undefined' || !name) return null;
+        const norm = normalizeText(String(name));
+        if(!norm) return null;
+        return folders.find(f => normalizeText(f) === norm) || null;
     }
 
     function mAiIsLockedForAi(item){
@@ -11686,7 +11758,9 @@ window.attachWrapperEvents = function(categoryId){
                     const contentText = String(input.content || '');
                     let folderName = String(input.folder || '').trim();
                     if(folderName && folderName !== DEFAULT_FOLDER){
-                        if(!folders.includes(folderName)){ folders.push(folderName); saveFoldersToLocalStorage(); }
+                        const existing = mAiFindExistingFolder(folderName);
+                        if(existing){ folderName = existing; }
+                        else { folders.push(folderName); saveFoldersToLocalStorage(); }
                     } else {
                         folderName = '';
                     }
@@ -11745,7 +11819,9 @@ window.attachWrapperEvents = function(categoryId){
                     if(isNone){
                         item.folder = '';
                     } else {
-                        if(!folders.includes(folderName)){ folders.push(folderName); saveFoldersToLocalStorage(); }
+                        const existing = mAiFindExistingFolder(folderName);
+                        if(existing){ folderName = existing; }
+                        else { folders.push(folderName); saveFoldersToLocalStorage(); }
                         item.folder = folderName;
                     }
                     saveToLocalStorage();
@@ -12102,10 +12178,15 @@ window.attachWrapperEvents = function(categoryId){
                 }
                 case 'manage_folder': {
                     const action = String(input.action || '').toLowerCase();
-                    const folderName = String(input.folder || '').trim();
+                    let folderName = String(input.folder || '').trim();
                     if(!folderName || folderName === DEFAULT_FOLDER) return { ok:false, error: fa ? 'نام پوشه معتبر نیست.' : 'Invalid folder name.' };
+                    // Resolve against the real, already-stored folder name (case/space/
+                    // letter-variant insensitive) wherever the folder is expected to
+                    // already exist, so a near-miss spelling from the model can't
+                    // silently miss the real folder or spawn a duplicate.
                     if(action === 'create'){
-                        if(folders.includes(folderName)) return { ok:false, error: fa ? 'این پوشه از قبل وجود دارد.' : 'That folder already exists.' };
+                        const existing = mAiFindExistingFolder(folderName);
+                        if(existing) return { ok:false, error: fa ? `این پوشه از قبل با نام «${existing}» وجود دارد.` : `That folder already exists as "${existing}".` };
                         folders.push(folderName);
                         saveFoldersToLocalStorage();
                         renderApp(activeOpenId);
@@ -12113,10 +12194,13 @@ window.attachWrapperEvents = function(categoryId){
                         return { ok:true, data:{ folder:folderName } };
                     }
                     if(action === 'rename'){
-                        const newName = String(input.new_name || '').trim();
+                        let newName = String(input.new_name || '').trim();
                         if(!newName || newName === DEFAULT_FOLDER) return { ok:false, error: fa ? 'نام جدید معتبر نیست.' : 'Invalid new name.' };
-                        if(!folders.includes(folderName)) return { ok:false, error: fa ? 'پوشه‌ای با این نام پیدا نشد.' : 'No folder with that name was found.' };
-                        if(folders.includes(newName)) return { ok:false, error: fa ? 'پوشه‌ای با نام جدید از قبل وجود دارد.' : 'A folder with the new name already exists.' };
+                        const existingSource = mAiFindExistingFolder(folderName);
+                        if(!existingSource) return { ok:false, error: fa ? 'پوشه‌ای با این نام پیدا نشد.' : 'No folder with that name was found.' };
+                        folderName = existingSource;
+                        const existingTarget = mAiFindExistingFolder(newName);
+                        if(existingTarget && existingTarget !== folderName) return { ok:false, error: fa ? `پوشه‌ای با نام «${existingTarget}» از قبل وجود دارد.` : `A folder named "${existingTarget}" already exists.` };
                         folders = folders.map(f => f === folderName ? newName : f);
                         categories.forEach(c => { if(c.folder === folderName) c.folder = newName; });
                         if(currentFolder === folderName) currentFolder = newName;
@@ -12127,7 +12211,9 @@ window.attachWrapperEvents = function(categoryId){
                         return { ok:true, data:{ old_name:folderName, new_name:newName } };
                     }
                     if(action === 'delete'){
-                        if(!folders.includes(folderName)) return { ok:false, error: fa ? 'پوشه‌ای با این نام پیدا نشد.' : 'No folder with that name was found.' };
+                        const existingSource = mAiFindExistingFolder(folderName);
+                        if(!existingSource) return { ok:false, error: fa ? 'پوشه‌ای با این نام پیدا نشد.' : 'No folder with that name was found.' };
+                        folderName = existingSource;
                         categories.forEach(c => { if(c.folder === folderName) c.folder = ''; });
                         folders = folders.filter(f => f !== folderName);
                         if(currentFolder === folderName) currentFolder = DEFAULT_FOLDER;
@@ -12178,10 +12264,12 @@ window.attachWrapperEvents = function(categoryId){
                     const by = String(input.by || '').toLowerCase();
                     if(!['name','edited','length'].includes(by)) return { ok:false, error: fa ? 'معیار مرتب‌سازی باید یکی از name/edited/length باشد.' : 'by must be one of name/edited/length.' };
                     const direction = String(input.direction || 'asc').toLowerCase() === 'desc' ? -1 : 1;
-                    const folderName = String(input.folder || '').trim();
+                    let folderName = String(input.folder || '').trim();
                     let base = categories.filter(c => !c.isDecoy && (!isNoteLocked(c) || unlockedQaIds.includes(c.id)));
                     if(folderName && folderName !== DEFAULT_FOLDER){
-                        if(!folders.includes(folderName)) return { ok:false, error: fa ? 'پوشه‌ای با این نام پیدا نشد.' : 'No folder with that name was found.' };
+                        const existingFolder = mAiFindExistingFolder(folderName);
+                        if(!existingFolder) return { ok:false, error: fa ? 'پوشه‌ای با این نام پیدا نشد.' : 'No folder with that name was found.' };
+                        folderName = existingFolder;
                         base = base.filter(c => c.folder === folderName);
                     }
                     if(base.length < 2) return { ok:false, error: fa ? 'برای مرتب‌سازی حداقل به دو یادداشت نیاز است.' : 'At least two notes are needed to sort.' };
@@ -12327,7 +12415,11 @@ window.attachWrapperEvents = function(categoryId){
                         destFolder = String(input.value || '').trim();
                         const isNone = !destFolder || destFolder === DEFAULT_FOLDER || normalizeText(destFolder) === normalizeText('none') || normalizeText(destFolder) === normalizeText('هیچ');
                         if(isNone){ destFolder = ''; }
-                        else if(!folders.includes(destFolder)){ folders.push(destFolder); saveFoldersToLocalStorage(); }
+                        else {
+                            const existingDest = mAiFindExistingFolder(destFolder);
+                            if(existingDest){ destFolder = existingDest; }
+                            else { folders.push(destFolder); saveFoldersToLocalStorage(); }
+                        }
                     }
                     matches.forEach(item => {
                         ensureItem(item);
@@ -12400,7 +12492,9 @@ window.attachWrapperEvents = function(categoryId){
                         const contentText = String((n && n.content) || '');
                         let folderName = String((n && n.folder) || '').trim();
                         if(folderName && folderName !== DEFAULT_FOLDER){
-                            if(!folders.includes(folderName)) folders.push(folderName);
+                            const existingFolder = mAiFindExistingFolder(folderName);
+                            if(existingFolder){ folderName = existingFolder; }
+                            else { folders.push(folderName); }
                         } else {
                             folderName = '';
                         }
@@ -12575,6 +12669,7 @@ window.attachWrapperEvents = function(categoryId){
                 + '- درخواست‌های چندمرحله‌ای را کامل انجام بده: مثلاً اگر گفت «یک پوشه بساز و فلان یادداشت رو بذار توش» یا «یک یادداشت جدید بساز و توش با بولد بنویس سلام»، لازم نیست از کاربر تأیید مرحله‌به‌مرحله بگیری — همه ابزارهای لازم را پشت‌سرهم صدا بزن (مثلاً create_note برای یادداشت جدید، بعد move_note_to_folder برای انتقال، یا edit_note_content برای نوشتن/فرمت‌کردن متن) تا کل کار یک‌جا انجام شود.\n'
                 + '- برای فرمت‌بندی متن یادداشت (بولد، ایتالیک، تیتر، لیست، نقل‌قول، لینک) از ابزارهای create_note و edit_note_content با نشانه‌گذاری مارک‌داون استفاده کن: **بولد**، *ایتالیک*، `کد`، # تا ### برای تیتر، > برای نقل‌قول، خط شروع‌شده با - برای لیست، و [متن](URL) برای لینک — این‌ها به‌صورت خودکار به فرمت واقعی تبدیل می‌شوند.\n'
                 + '- اگر مطمئن نیستی منظور کاربر کدام یادداشت است یا آی‌دی دقیقش را نداری، اول با ابزار find_notes جستجو کن؛ اگر چند نتیجه مشابه بود، از کاربر بپرس کدام‌یک را می‌خواهد.\n'
+                + '- خیلی مهم — جلوگیری از عمل روی یادداشت اشتباه: تطبیقِ نام یادداشت‌ها تقریبی/فازی است، پس وقتی یادداشتی را با نام ناقص یا تقریبی (نه آی‌دی دقیق) صدا می‌زنی و به‌خصوص وقتی عملیات حساس/غیرقابل‌بازگشتِ آسان است (حذف، ادغام، جایگزینی کامل محتوا، آرشیو، فعال‌کردن Ghost Note/Time Capsule)، همیشه در پاسخت دقیقاً بگو روی کدام عنوانِ یادداشت عمل کردی، تا اگر یادداشتِ مشابهِ اشتباهی انتخاب شده، کاربر فوراً متوجه شود. اگر حدس می‌زنی ممکن است چند یادداشتِ هم‌نام یا خیلی شبیه‌به‌هم وجود داشته باشد، پیش از انجام عملیاتِ حساس، اول find_notes بزن و مطمئن شو.\n'
                 + '- برای حذف، فقط کافی‌ست delete_note را صدا بزنی؛ خودِ ابزار یک تأیید واقعی و قابل‌لغو از کاربر می‌گیرد، ولی هرگز آن را بدون درخواست صریح کاربر صدا نزن.\n'
                 + '- بسیار مهم — تشخیص پوشه از یادداشت: اینکه درخواست کاربر مربوط به «پوشه» است یا مربوط به «یادداشت»، فقط از روی چیزی که خودِ کاربر گفته تعیین می‌شود (کلمه «پوشه» در برابر عنوان یک یادداشت)، نه از روی اینکه کدام اسم از قبل جایی وجود دارد. اگر گفت «پوشه‌ی X رو بساز/تغییرنام بده/حذف کن» یا واضح بود که منظورش همان پوشه‌ای است که یادداشت‌ها داخلش دسته‌بندی می‌شوند، همیشه باید manage_folder صدا زده شود — هرگز create_note یا delete_note — حتی اگر یک یادداشت هم دقیقاً همین اسم را داشته باشد. اگر برعکس، منظورش یک یادداشت مشخص بود، از ابزارهای یادداشت استفاده کن. اگر واقعاً معلوم نبود منظورش کدام است، به‌جای حدس‌زدن یک سوال کوتاه بپرس، چون حذف پوشه و حذف یادداشت اصلاً جای هم را نمی‌گیرند.\n'
                 + '- برای یک درخواست جابجایی دستیِ یک‌باره — مثل «فلان یادداشت رو ببر بالای فلان»، «اینو اول لیست کن»، «اینو ببر ته لیست» — از move_note_position استفاده کن (position: top/bottom/before/after). این فقط درباره جای یادداشت در لیست است، نه پوشه؛ برای این‌ها manage_folder یا move_note_to_folder را صدا نزن، و برعکس، برای درخواست جابجایی بین پوشه‌ها هم move_note_position را به‌کار نبر.\n'
@@ -12605,6 +12700,7 @@ window.attachWrapperEvents = function(categoryId){
                 + '- Fully carry out multi-step requests: e.g. "make a folder and put note X in it" or "create a new note and write Hello in bold" — don\'t ask for step-by-step confirmation, just call every tool needed in sequence (e.g. create_note, then move_note_to_folder, or edit_note_content to write/format the text) so the whole thing gets done in one go.\n'
                 + '- For text formatting inside a note (bold, italic, headings, lists, quotes, links), use create_note and edit_note_content with lightweight markdown: **bold**, *italic*, `code`, # through ### for headings, > for a quote, a line starting with - for a list item, and [text](url) for a link — these render as real formatting automatically.\n'
                 + '- If you\'re not sure which note the user means, or you don\'t already have its exact id, search first with find_notes; if several notes look like a match, ask the user which one they meant.\n'
+                + '- CRITICAL — avoiding action on the wrong note: note-name matching is approximate/fuzzy, so whenever you reference a note by a partial or approximate name (not its exact id) — especially for sensitive or hard-to-reverse actions (delete, merge, replacing a note\'s whole content, archive, arming Ghost Note/Time Capsule) — always state the exact note title you acted on in your reply, so the user can immediately catch it if a similarly-named note got picked by mistake. If you suspect several notes could share a very similar name, call find_notes to confirm before a sensitive action rather than guessing.\n'
                 + '- find_notes only returns a short snippet of each note\'s content — call get_note whenever you actually need the full text (to read it back in full, summarize accurately, translate, or quote exact details). When the request spans the whole vault rather than a specific note or a small named group ("read all my notes and summarize them", "search everything I\'ve written for X", "what have I written about Y?" with no specific note named), call read_all_notes directly to get the full text of every accessible note in one shot; if its result comes back truncated, narrow the scope with find_notes instead.\n'
                 + '- Time Capsule locks a note until its unlock time; Ghost Note deletes a note once its timer runs out, but — like every deletion in this app — that still lands the note in the recoverable Cemetery, not gone for good. Even so, only call set_time_capsule or set_ghost_note when the user has clearly and specifically asked for that, never speculatively, and confirm back in plain language what you just set (when it unlocks, or in how many hours it disappears).\n'
                 + '- For a change that should apply to a whole group of notes at once (a folder, a tag, or a search match) — e.g. "archive everything in Old Stuff" or "tag all my draft notes as done" — use bulk_update_notes instead of calling a single-note tool over and over.\n'
