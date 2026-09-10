@@ -2412,11 +2412,11 @@ html, body, button, input, textarea, select, [contenteditable="true"] {
    stays a normal flex sibling in the row for alignment. */
 .mAi-col { display: flex; flex-direction: column; min-width: 0; }
 .mAi-bubble { cursor: pointer; }
-/* Tap-to-reveal exact send time (see mAi_toggleTimestamp): both the
-   Persian and English single-line readings, shown together in one
-   compact, low-opacity line under the bubble. A plain class toggle on
-   the ancestor .mAi-msg, not a re-render, so it can never disturb
-   scroll position. */
+/* Tap-to-reveal exact send time (see mAi_toggleTimestamp): the Persian
+   (Jalali-date) reading on its own first line, the English (Gregorian-
+   date) reading on its own second line right below it, low-opacity,
+   under the bubble. A plain class toggle on the ancestor .mAi-msg, not
+   a re-render, so it can never disturb scroll position. */
 .mAi-ts-detail {
   display: none;
   font-size: 10.5px;
@@ -2425,11 +2425,11 @@ html, body, button, input, textarea, select, [contenteditable="true"] {
   padding: 4px 4px 0;
   letter-spacing: .1px;
 }
-.mAi-msg.mAi-ts-open .mAi-ts-detail { display: block; animation: mAiTsIn .18s ease; }
-.mAi-user .mAi-ts-detail { text-align: end; }
-.mAi-assistant .mAi-ts-detail { text-align: start; }
+.mAi-msg.mAi-ts-open .mAi-ts-detail { display: flex; flex-direction: column; animation: mAiTsIn .18s ease; }
+.mAi-user .mAi-ts-detail { align-items: flex-end; text-align: end; }
+.mAi-assistant .mAi-ts-detail { align-items: flex-start; text-align: start; }
+.mAi-ts-fa { direction: rtl; unicode-bidi: isolate; }
 .mAi-ts-en { direction: ltr; unicode-bidi: isolate; }
-.mAi-ts-sep { margin: 0 6px; opacity: .55; }
 @keyframes mAiTsIn { from { opacity: 0; transform: translateY(-3px); } to { opacity: .55; transform: translateY(0); } }
 /* Reply button: a small circular affordance next to every bubble (both
    the user's own messages and the assistant's). Always visible rather
@@ -3335,7 +3335,7 @@ window.mu_syncHtmlBg = function(){
             { id: 'autumn', emoji: '🍂', nameFa: 'تم پاییزی', nameEn: 'Autumn', class: 'theme-autumn' },
             { id: 'anonymous', emoji: '👤', nameFa: 'تم انانیموس', nameEn: 'Anonymous', class: 'theme-anonymous' },
             { id: 'terminal', emoji: '💻', nameFa: 'تم ترمینال', nameEn: 'Terminal', class: 'theme-terminal' },
-            { id: 'darkweb', emoji: '🕸️', nameFa: 'تم دارک وب', nameEn: 'Dark Web', class: 'theme-darkweb' },
+            { id: 'darkweb', emoji: '??️', nameFa: 'تم دارک وب', nameEn: 'Dark Web', class: 'theme-darkweb' },
             { id: 'acid', emoji: '🧪', nameFa: 'تم اسید', nameEn: 'Acid', class: 'theme-acid' }
         ];
 
@@ -11917,6 +11917,24 @@ window.attachWrapperEvents = function(categoryId){
        --------------------------------------------------------------- */
     const MAI_HISTORY_KEY = 'markhinAiChatHistory_v1';
     let mAiHistory = [];
+    // Marker the model is told (in the system prompt) to place on its own
+    // line whenever the user explicitly asked for the reply to arrive as
+    // several separate chat messages/bubbles (e.g. "send two messages, in
+    // one say X and in the other say Y"). Distinctive enough that normal
+    // prose will never contain it by accident. mAi_splitReply() below is
+    // the single place that turns one model turn into 1+ mAiHistory
+    // entries, used both for the final push and for the live streaming
+    // preview so the split shows up while it's still typing, not only
+    // after it finishes.
+    const MAI_MSG_SPLIT = '[[MAI_NEXT_MESSAGE]]';
+    // Splits raw model output on the marker into a clean array of
+    // non-empty message chunks (trimmed, empties dropped). Always
+    // returns at least one element — [''] for genuinely empty input —
+    // so callers never need a separate empty-array special case.
+    function mAi_splitReply(text){
+        const parts = String(text || '').split(MAI_MSG_SPLIT).map(function(s){ return s.trim(); }).filter(Boolean);
+        return parts.length ? parts : [String(text || '').trim()];
+    }
     // Number of replies currently in flight (0, 1, or more — the user
     // is always allowed to send another message even while a previous
     // one is still being answered). The "typing…" bubble is rendered
@@ -11963,20 +11981,19 @@ window.attachWrapperEvents = function(categoryId){
             (mAiExecuteTool),
          3) the precise "current date/time" line already given to the
             model in every system prompt (markhinAiChat_send).
-       Hand-rolled rather than leaning entirely on
-       Intl.DateTimeFormat('fa-IR', ...)'s own output, because that
-       locale defaults to the Persian (Jalali) calendar — which would
-       make the Persian line describe a different day/month/year than
-       the English one for the same instant. The app already treats
-       the Gregorian calendar as canonical elsewhere (labelled "تاریخ
-       میلادی"), so both languages here describe the same Gregorian
-       date, just with proper Persian vocabulary for weekday/month/
-       season names.
+       The Persian line reports the actual Jalali (Shamsi) calendar
+       date — e.g. "8 آبان 1403" — via a hand-rolled Gregorian→Jalali
+       conversion (mAiGregorianToJalali, below), since that's the
+       calendar a Persian-speaking user actually reads dates in. The
+       English line reports the plain Gregorian date. Both lines
+       describe the *same instant*, just each in its own calendar and
+       language, with proper Persian vocabulary for weekday/season
+       names either way.
        --------------------------------------------------------------- */
     const MAI_WEEKDAYS_FA = ['یکشنبه','دوشنبه','سه‌شنبه','چهارشنبه','پنجشنبه','جمعه','شنبه']; // indexed by Date#getDay(): 0=Sunday
     const MAI_WEEKDAYS_EN = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
-    const MAI_MONTHS_FA = ['ژانویه','فوریه','مارس','آوریل','مه','ژوئن','ژوئیه','اوت','سپتامبر','اکتبر','نوامبر','دسامبر']; // Persian names for the Gregorian months
     const MAI_MONTHS_EN = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    const MAI_MONTHS_JALALI_FA = ['فروردین','اردیبهشت','خرداد','تیر','مرداد','شهریور','مهر','آبان','آذر','دی','بهمن','اسفند'];
     const MAI_SEASONS_FA = ['بهار','تابستان','پاییز','زمستان'];
     const MAI_SEASONS_EN = ['Spring','Summer','Autumn','Winter'];
     // Season boundaries follow the astronomical/Iranian convention (the
@@ -11989,6 +12006,28 @@ window.attachWrapperEvents = function(categoryId){
         if((month === 9 && day >= 22) || month === 10 || month === 11 || (month === 12 && day < 21)) return 2; // autumn
         return 3; // winter
     }
+    // Standard Gregorian→Jalali (Shamsi) calendar conversion (the
+    // well-known div/mod algorithm, accurate across the modern era).
+    // gy/gm/gd are the Gregorian year/month(1-12)/day; returns
+    // [jy, jm, jd] in the Jalali calendar.
+    function mAiGregorianToJalali(gy, gm, gd){
+        const g_d_m = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334];
+        let jy = (gy <= 1600) ? 0 : 979;
+        gy -= (gy <= 1600) ? 621 : 1600;
+        const gy2 = (gm > 2) ? (gy + 1) : gy;
+        let days = (365 * gy) + Math.floor((gy2 + 3) / 4) - Math.floor((gy2 + 99) / 100) + Math.floor((gy2 + 399) / 400) - 80 + gd + g_d_m[gm - 1];
+        jy += 33 * Math.floor(days / 12053);
+        days %= 12053;
+        jy += 4 * Math.floor(days / 1461);
+        days %= 1461;
+        if (days > 365) {
+            jy += Math.floor((days - 1) / 365);
+            days = (days - 1) % 365;
+        }
+        const jm = (days < 186) ? 1 + Math.floor(days / 31) : 7 + Math.floor((days - 186) / 30);
+        const jd = 1 + ((days < 186) ? (days % 31) : ((days - 186) % 30));
+        return [jy, jm, jd];
+    }
     // Rich bilingual detail for a specific instant, in the *device's own*
     // local time zone — used for per-message timestamps and the
     // system-prompt "now" line.
@@ -11998,12 +12037,14 @@ window.attachWrapperEvents = function(categoryId){
         const time = pad2(d.getHours()) + ':' + pad2(d.getMinutes()) + ':' + pad2(d.getSeconds());
         const day = d.getDate(), month = d.getMonth() + 1, year = d.getFullYear();
         const weekdayFa = MAI_WEEKDAYS_FA[d.getDay()], weekdayEn = MAI_WEEKDAYS_EN[d.getDay()];
-        const monthFa = MAI_MONTHS_FA[month - 1], monthEn = MAI_MONTHS_EN[month - 1];
+        const monthEn = MAI_MONTHS_EN[month - 1];
         const seasonIdx = mAiSeasonIndex(month, day);
         const seasonFa = MAI_SEASONS_FA[seasonIdx], seasonEn = MAI_SEASONS_EN[seasonIdx];
+        const [jYear, jMonth, jDay] = mAiGregorianToJalali(year, month, day);
+        const monthFa = MAI_MONTHS_JALALI_FA[jMonth - 1];
         return {
-            time, day, month, year, weekdayFa, weekdayEn, monthFa, monthEn, seasonFa, seasonEn,
-            lineFa: weekdayFa + '، ' + day + ' ' + monthFa + ' ' + year + ' (' + seasonFa + ') — ساعت ' + time,
+            time, day, month, year, jYear, jMonth, jDay, weekdayFa, weekdayEn, monthFa, monthEn, seasonFa, seasonEn,
+            lineFa: weekdayFa + '، ' + jDay + ' ' + monthFa + ' ' + jYear + ' (' + seasonFa + ') — ساعت ' + time,
             lineEn: weekdayEn + ', ' + monthEn + ' ' + day + ', ' + year + ' (' + seasonEn + ') — ' + time
         };
     }
@@ -12023,9 +12064,11 @@ window.attachWrapperEvents = function(categoryId){
         const weekdayIdx = MAI_WEEKDAYS_EN.indexOf(parts.weekday);
         const weekdayFa = weekdayIdx >= 0 ? MAI_WEEKDAYS_FA[weekdayIdx] : parts.weekday;
         const weekdayEn = parts.weekday;
-        const monthFa = MAI_MONTHS_FA[month - 1] || parts.month, monthEn = MAI_MONTHS_EN[month - 1] || parts.month;
+        const monthEn = MAI_MONTHS_EN[month - 1] || parts.month;
         const seasonIdx = mAiSeasonIndex(month, day);
         const seasonFa = MAI_SEASONS_FA[seasonIdx], seasonEn = MAI_SEASONS_EN[seasonIdx];
+        const [jYear, jMonth, jDay] = mAiGregorianToJalali(year, month, day);
+        const monthFa = MAI_MONTHS_JALALI_FA[jMonth - 1] || parts.month;
         let utcOffset = '';
         try {
             const offParts = new Intl.DateTimeFormat('en-US', { timeZone: tz, timeZoneName: 'shortOffset' }).formatToParts(d);
@@ -12033,9 +12076,9 @@ window.attachWrapperEvents = function(categoryId){
             utcOffset = offPart ? offPart.value : '';
         } catch(e){}
         return {
-            time, day, month, year, weekdayFa, weekdayEn, monthFa, monthEn, seasonFa, seasonEn, utcOffset,
+            time, day, month, year, jYear, jMonth, jDay, weekdayFa, weekdayEn, monthFa, monthEn, seasonFa, seasonEn, utcOffset,
             dateIso: parts.year + '-' + parts.month + '-' + parts.day,
-            lineFa: weekdayFa + '، ' + day + ' ' + monthFa + ' ' + year + ' (' + seasonFa + ') — ساعت ' + time + (utcOffset ? (' (' + utcOffset + ')') : ''),
+            lineFa: weekdayFa + '، ' + jDay + ' ' + monthFa + ' ' + jYear + ' (' + seasonFa + ') — ساعت ' + time + (utcOffset ? (' (' + utcOffset + ')') : ''),
             lineEn: weekdayEn + ', ' + monthEn + ' ' + day + ', ' + year + ' (' + seasonEn + ') — ' + time + (utcOffset ? (' ' + utcOffset) : '')
         };
     }
@@ -12201,7 +12244,7 @@ window.attachWrapperEvents = function(categoryId){
             // a made-up time.
             const ts = m.ts ? mAiRichTimestamp(m.ts) : null;
             const tsHtml = '<div class="mAi-ts-detail">' + (ts
-                ? ('<span class="mAi-ts-fa">' + escapeHtml(ts.lineFa) + '</span><span class="mAi-ts-sep">•</span><span class="mAi-ts-en">' + escapeHtml(ts.lineEn) + '</span>')
+                ? ('<span class="mAi-ts-fa">' + escapeHtml(ts.lineFa) + '</span><span class="mAi-ts-en">' + escapeHtml(ts.lineEn) + '</span>')
                 : escapeHtml(fa ? 'زمان دقیق این پیام ثبت نشده' : 'Exact time not recorded for this message')
             ) + '</div>';
             return '<div class="mAi-msg ' + cls + '" data-mid="' + m.id + '">' + replyBtn +
@@ -12211,8 +12254,16 @@ window.attachWrapperEvents = function(categoryId){
             if(mAiStreamText){
                 // Partial text has started arriving — show it live, with a
                 // small blinking cursor so it still reads as "in progress"
-                // rather than a finished, possibly cut-off message.
-                html += '<div class="mAi-msg mAi-assistant"><div class="mAi-bubble">' + mAiFormat(mAiStreamText) + '<span class="mAi-cursor">▍</span></div></div>';
+                // rather than a finished, possibly cut-off message. If the
+                // model has already emitted the multi-message marker (see
+                // MAI_MSG_SPLIT), preview it as the separate bubbles it
+                // will actually become once the turn finishes — only the
+                // last (still-arriving) one gets the cursor.
+                const streamParts = mAi_splitReply(mAiStreamText);
+                html += streamParts.map(function(part, i){
+                    const cursor = (i === streamParts.length - 1) ? '<span class="mAi-cursor">▍</span>' : '';
+                    return '<div class="mAi-msg mAi-assistant"><div class="mAi-bubble">' + mAiFormat(part) + cursor + '</div></div>';
+                }).join('');
             } else {
                 html += '<div class="mAi-msg mAi-assistant"><div class="mAi-bubble mAi-typing"><span></span><span></span><span></span></div></div>';
             }
@@ -13618,11 +13669,11 @@ window.attachWrapperEvents = function(categoryId){
         const mAiDateTimeFa = 'اطلاع زمانیِ دقیقِ فعلی (بر اساس ساعت همین دستگاه، همین لحظه): ' + mAiRichNow.lineFa
             + ' — یعنی روز هفته ' + mAiRichNow.weekdayFa + '، ' + mAiRichNow.day + ' ' + mAiRichNow.monthFa + ' ' + mAiRichNow.year
             + '، فصل ' + mAiRichNow.seasonFa + '، ساعت (با ثانیه) ' + mAiRichNow.time
-            + ' (فرمِ کاملِ قابل‌پارس همین لحظه: ' + mAiNowLocalIso + '). هر وقت کاربر به تاریخ/زمانِ نسبی اشاره کرد (فردا، پس‌فردا، جمعه بعدی، تا آخر همین هفته، ۳ روز دیگر، امشب و مانند آن)، همیشه دقیقاً همین لحظه را به‌عنوان «الان/امروز» مبنای محاسبه بگیر — هرگز از دانش قبلی یا حدسِ خودت درباره تاریخ امروز استفاده نکن. برای مقدارِ unlock_at در set_time_capsule یا until در set_ghost_note، همیشه یک تاریخ کامل و قابل‌پارس با ارقام لاتین بساز (مثل 2026-09-20T18:00:00)، نه توصیف نسبی خام. این تاریخ/ساعت فقط برای منطقه‌زمانیِ خودِ دستگاه کاربر است؛ اگر کاربر پرسید همین الان در جای دیگری از دنیا (کشور/شهر/استان/ایالت دیگر) یا ساعت جهانی (UTC) چند است، هرگز حدس نزن — از ابزار get_world_time استفاده کن.\n\n';
+            + ' (فرمِ کاملِ قابل‌پارس همین لحظه: ' + mAiNowLocalIso + '). هر وقت کاربر به تاریخ/زمانِ نسبی اشاره کرد (فردا، پس‌فردا، جمعه بعدی، تا آخر همین هفته، ۳ روز دیگر، امشب و مانند آن)، همیشه دقیقاً همین لحظه را به‌عنوان «الان/امروز» مبنای محاسبه بگیر — هرگز از دانش قبلی یا حدسِ خودت درباره تاریخ امروز استفاده نکن. برای مقدارِ unlock_at در set_time_capsule یا until در set_ghost_note، همیشه یک تاریخ کامل و قابل‌پارس با ارقام لاتین بساز (مثل 2026-09-20T18:00:00)، نه توصیف نسبی خام. این تاریخ/ساعت فقط برای منطقه‌زمانیِ خودِ دستگاه کاربر است؛ اگر کاربر پرسید همین الان در جای دیگری از دنیا (کشور/شهر/استان/ایالت دیگر) یا ساعت جهانی (UTC) چند است، هرگز حدس نزن — از ابزار get_world_time استفاده کن. همچنین جلوی متنِ هر پیام در همین گفتگو (چه از کاربر چه از خودت) یک برچسب با زمان دقیق ارسال همان پیام آمده (به‌شکل «[زمان این پیام: ...]»)؛ هر وقت کاربر پرسید فلان پیام دقیقاً کِی فرستاده شده یا تو کِی جواب دادی، همیشه از همان برچسب استفاده کن، نه از حدس یا محاسبه بر پایه «الان». پیام‌های قدیمی‌تر که از قبل از وجود این قابلیت باقی مانده‌اند ممکن است این برچسب را نداشته باشند — در آن صورت صادقانه بگو زمان دقیق آن پیام ثبت نشده.\n\n';
         const mAiDateTimeEn = 'Exact current date/time (this device\'s own clock, right now): ' + mAiRichNow.lineEn
             + ' — that is: ' + mAiRichNow.weekdayEn + ', ' + mAiRichNow.monthEn + ' ' + mAiRichNow.day + ', ' + mAiRichNow.year
             + ', ' + mAiRichNow.seasonEn + ', ' + mAiRichNow.time + ' (with seconds)'
-            + ' (full parseable form of this exact moment: ' + mAiNowLocalIso + '). Whenever the user refers to a relative date/time (tomorrow, next Friday, by the end of this week, in 3 days, tonight, etc.), always compute from this exact moment as "now/today" — never guess today\'s date from training data. For unlock_at in set_time_capsule or until in set_ghost_note, always build a full, parseable date string (e.g. 2026-09-20T18:00:00), never a raw relative phrase. This date/time is only for the user\'s own device time zone; if the user asks what time/date it currently is somewhere else in the world (another country/city/state/province) or asks for the world/UTC time, never guess — use the get_world_time tool.\n\n';
+            + ' (full parseable form of this exact moment: ' + mAiNowLocalIso + '). Whenever the user refers to a relative date/time (tomorrow, next Friday, by the end of this week, in 3 days, tonight, etc.), always compute from this exact moment as "now/today" — never guess today\'s date from training data. For unlock_at in set_time_capsule or until in set_ghost_note, always build a full, parseable date string (e.g. 2026-09-20T18:00:00), never a raw relative phrase. This date/time is only for the user\'s own device time zone; if the user asks what time/date it currently is somewhere else in the world (another country/city/state/province) or asks for the world/UTC time, never guess — use the get_world_time tool. Also, every message\'s text in this conversation (yours and the user\'s) is preceded by a tag giving that exact message\'s send time (formatted "[Timestamp of this message: ...]"); whenever the user asks exactly when a given message was sent, or when you replied, always read that tag rather than guessing or estimating from "now". Older messages saved before this feature existed may lack the tag — if so, say honestly that the exact time was not recorded for that message.\n\n';
 
         const sys = fa
             ? 'تو MARKHIN AI هستی: دستیار هوش مصنوعی حرفه‌ای، دقیق و قدرتمند، ساخته‌شده داخل اپلیکیشن یادداشت‌برداری Markhin. (تلفظ صحیح فارسیِ نام MARKHIN «مارخین» است — هر جا لازم شد نام برنامه یا خودت را با حروف فارسی بنویسی یا تلفظش کنی، همیشه «مارخین» بگو/بنویس، نه شکل‌های دیگر مثل «مارکین».) سه نقش داری و هر سه را همزمان انجام می‌دهی:\n'
@@ -13644,6 +13695,7 @@ window.attachWrapperEvents = function(categoryId){
                 + '- اگر یک ابزار نتیجه‌ی غیرمنتظره داد، خطا داد، یا چیزی پیدا نکرد، بلافاصله تسلیم نشو و به کاربر نگو «نشد» — اول با پارامتر متفاوت یا روش جایگزین دوباره تلاش کن (مثلاً جستجوی گسترده‌تر با find_notes، یا نام دیگری از همان یادداشت/پوشه)؛ فقط بعد از چند تلاش منطقی، اگر واقعاً راهی نبود، شفاف و صادقانه به کاربر بگو که چه مشکلی پیش آمد.\n'
                 + '- هرگاه کاربر خواست کاری روی یادداشت‌هایش انجام شود، بلافاصله از ابزار مناسب استفاده کن؛ توضیح ندهی که «چطور خودش انجام دهد».\n'
                 + '- درخواست‌های چندمرحله‌ای را کامل انجام بده: مثلاً اگر گفت «یک پوشه بساز و فلان یادداشت رو بذار توش» یا «یک یادداشت جدید بساز و توش با بولد بنویس سلام»، لازم نیست از کاربر تأیید مرحله‌به‌مرحله بگیری — همه ابزارهای لازم را پشت‌سرهم صدا بزن (مثلاً create_note برای یادداشت جدید، بعد move_note_to_folder برای انتقال، یا edit_note_content برای نوشتن/فرمت‌کردن متن) تا کل کار یک‌جا انجام شود.\n'
+                + '- ارسال چند پیامِ جداگانه: اگر کاربر صریحاً خواست پاسخ به‌صورت چند پیام/حباب جدا از هم فرستاده شود (مثلاً «دو تا پیام بفرست، تو یکی فلان و تو یکی دیگه فلان چیزو بگو»، «هر کدوم رو جدا بفرست»، «سه تا پیام پشت‌سرهم بده»)، محتوای هر پیام را همان‌جا که می‌خواهی پیام بعدی شروع شود، دقیقاً با این نشانه در یک خط جدا بنویس: ' + MAI_MSG_SPLIT + ' — این نشانه هرگز داخل خودِ متنِ یک پیام قرار نگیرد، فقط دقیقاً بینِ دو پیامِ جدا. اگر کاربر صریحاً چند پیامِ جدا نخواسته بود، هرگز از این نشانه استفاده نکن و پاسخت را عادی و یکپارچه بنویس.\n'
                 + '- برای فرمت‌بندی متن یادداشت (بولد، ایتالیک، تیتر، لیست، نقل‌قول، لینک) از ابزارهای create_note و edit_note_content با نشانه‌گذاری مارک‌داون استفاده کن: **بولد**، *ایتالیک*، `کد`، # تا ### برای تیتر، > برای نقل‌قول، خط شروع‌شده با - برای لیست، و [متن](URL) برای لینک — این‌ها به‌صورت خودکار به فرمت واقعی تبدیل می‌شوند.\n'
                 + '- اگر مطمئن نیستی منظور کاربر کدام یادداشت است یا آی‌دی دقیقش را نداری، اول با ابزار find_notes جستجو کن؛ اگر چند نتیجه مشابه بود، از کاربر بپرس کدام‌یک را می‌خواهد.\n'
                 + '- خیلی مهم — جلوگیری از عمل روی یادداشت اشتباه: تطبیقِ نام یادداشت‌ها تقریبی/فازی است، پس وقتی یادداشتی را با نام ناقص یا تقریبی (نه آی‌دی دقیق) صدا می‌زنی و به‌خصوص وقتی عملیات حساس/غیرقابل‌بازگشتِ آسان است (حذف، ادغام، جایگزینی کامل محتوا، آرشیو، فعال‌کردن Ghost Note/Time Capsule)، همیشه در پاسخت دقیقاً بگو روی کدام عنوانِ یادداشت عمل کردی، تا اگر یادداشتِ مشابهِ اشتباهی انتخاب شده، کاربر فوراً متوجه شود. اگر حدس می‌زنی ممکن است چند یادداشتِ هم‌نام یا خیلی شبیه‌به‌هم وجود داشته باشد، پیش از انجام عملیاتِ حساس، اول find_notes بزن و مطمئن شو.\n'
@@ -13686,6 +13738,7 @@ window.attachWrapperEvents = function(categoryId){
                 + '- If a tool returns something unexpected, errors out, or finds nothing, don\'t give up immediately or tell the user it "didn\'t work" — first retry with different parameters or an alternative approach (e.g. a broader find_notes search, or another likely name for the same note/folder); only after a few reasonable attempts, if it genuinely can\'t be done, tell the user plainly and honestly what went wrong.\n'
                 + '- Whenever the user asks for something to be done to their notes, call the matching tool right away instead of explaining how they could do it themselves.\n'
                 + '- Fully carry out multi-step requests: e.g. "make a folder and put note X in it" or "create a new note and write Hello in bold" — don\'t ask for step-by-step confirmation, just call every tool needed in sequence (e.g. create_note, then move_note_to_folder, or edit_note_content to write/format the text) so the whole thing gets done in one go.\n'
+                + '- Sending several separate messages: if the user explicitly asks for the reply to arrive as multiple separate messages/bubbles (e.g. "send two messages, say X in one and Y in the other", "send each as its own message", "give me three messages in a row"), write each message\'s content, and put this exact marker on its own line exactly where the next message should start: ' + MAI_MSG_SPLIT + ' — never put this marker inside a message\'s own text, only strictly between two separate messages. If the user did not explicitly ask for separate messages, never use this marker — just write one normal, unified reply.\n'
                 + '- For text formatting inside a note (bold, italic, headings, lists, quotes, links), use create_note and edit_note_content with lightweight markdown: **bold**, *italic*, `code`, # through ### for headings, > for a quote, a line starting with - for a list item, and [text](url) for a link — these render as real formatting automatically.\n'
                 + '- If you\'re not sure which note the user means, or you don\'t already have its exact id, search first with find_notes; if several notes look like a match, ask the user which one they meant.\n'
                 + '- CRITICAL — avoiding action on the wrong note: note-name matching is approximate/fuzzy, so whenever you reference a note by a partial or approximate name (not its exact id) — especially for sensitive or hard-to-reverse actions (delete, merge, replacing a note\'s whole content, archive, arming Ghost Note/Time Capsule) — always state the exact note title you acted on in your reply, so the user can immediately catch it if a similarly-named note got picked by mistake. If you suspect several notes could share a very similar name, call find_notes to confirm before a sensitive action rather than guessing.\n'
@@ -13724,6 +13777,17 @@ window.attachWrapperEvents = function(categoryId){
         const historyCount = Math.max(4, Math.round(60 * contextScale));
         const convo = [{ role: 'system', content: sys }].concat(
             mAiHistory.filter(function(m){ return !m.synthetic; }).slice(-historyCount).map(function(m){
+                // Precise bilingual send-time tag prepended to every
+                // message's content sent to the model — not to the
+                // stored/displayed m.content itself — so the model can
+                // accurately answer "what time did I send that?" / "what
+                // time did you reply?" instead of guessing. Reuses the
+                // same rich Persian(Jalali)/English(Gregorian) formatting
+                // shown when the user taps a bubble in the UI. Messages
+                // saved before per-message timestamps existed have no
+                // m.ts — the tag is simply omitted for those, matching
+                // the "زمان دقیق این پیام ثبت نشده" shown in the UI.
+                const tsTag = m.ts ? ('[' + (fa ? 'زمان این پیام' : 'Timestamp of this message') + ': ' + mAiRichTimestamp(m.ts).lineFa + ' | ' + mAiRichTimestamp(m.ts).lineEn + ']\n') : '';
                 // If this message was sent as a reply (via the ↩ button),
                 // let the model see what it was quoting too — not just
                 // display it — by prefixing a short quoted-context line
@@ -13731,9 +13795,9 @@ window.attachWrapperEvents = function(categoryId){
                 // m.content itself is left untouched.
                 if(m.replyTo && m.replyTo.preview){
                     const qLabel = fa ? 'در پاسخ به' : 'In reply to';
-                    return { role: m.role, content: '[' + qLabel + ': "' + m.replyTo.preview + '"]\n' + m.content };
+                    return { role: m.role, content: tsTag + '[' + qLabel + ': "' + m.replyTo.preview + '"]\n' + m.content };
                 }
-                return { role: m.role, content: m.content };
+                return { role: m.role, content: tsTag + m.content };
             })
         );
 
@@ -13803,7 +13867,21 @@ window.attachWrapperEvents = function(categoryId){
             mAiStreamText = '';
             if(mAiMyGen === mAiGen){
             const mAiGotEmpty = !finalText || !finalText.trim();
-            mAiHistory.push({ id: mAiNextId(), ts: Date.now(), role: 'assistant', synthetic: mAiGotEmpty, content: finalText || (fa ? '(پاسخ خالی دریافت شد)' : '(received an empty response)') });
+            // Split into 1+ separate mAiHistory entries whenever the model
+            // used the multi-message marker (see MAI_MSG_SPLIT) — this is
+            // what actually turns "send that as two messages" into two
+            // real, independently-timestamped chat bubbles instead of one
+            // bubble with a literal marker sitting in the text. A plain
+            // single-part reply (the overwhelming majority of turns) goes
+            // through exactly as before. Each split part gets its own
+            // send time, a second apart, so they read in the natural
+            // order they represent and the timestamp/"Nth message" tools
+            // described in the system prompt keep working correctly.
+            const replyParts = mAiGotEmpty ? [finalText || (fa ? '(پاسخ خالی دریافت شد)' : '(received an empty response)')] : mAi_splitReply(finalText);
+            const mAiPushTs = Date.now();
+            replyParts.forEach(function(part, i){
+                mAiHistory.push({ id: mAiNextId(), ts: mAiPushTs + i * 1000, role: 'assistant', synthetic: mAiGotEmpty, content: part });
+            });
             /* Deterministic, app-generated notice — not left up to the model to
                remember to mention. Appears every time the question touches a
                locked note's title, telling the person exactly what to tap.
