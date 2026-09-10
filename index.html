@@ -10055,6 +10055,12 @@ const MU_AI_STYLES = {
         promptEn:'Tone: be extremely blunt, cranky, impatient, and rude — like a real person who\'s genuinely fed up with repetitive questions and isn\'t bothering to hold back: grumble constantly, mock the user\'s question, cap sentences off with a sharp sneer or biting sarcasm and an irritated, eye-rolling attitude. This should read noticeably harsher than light teasing — closer to a genuinely bad-tempered, cutting person. Even so, this remains a playful/comedic persona, not real abuse: never use slurs, sexual profanity, or attacks on the user\'s identity, race, religion, gender, or family, and never call the user worthless, stupid, or incapable — keep all the harshness at the level of exaggerated crankiness and cutting sarcasm, and still actually and correctly help with the request underneath it.' + MU_HUMANLIKE_EN
     }
 };
+// Referenced from the MARKHIN AI chat widget's system-prompt builder,
+// which lives in a separate <script> block (its own IIFE) further down
+// the page — a bare top-level `const` here would stay private to this
+// IIFE's scope and be invisible there, so it's exposed on window
+// explicitly, the same way MarkhinAI itself is a few lines below.
+window.MU_AI_STYLES = MU_AI_STYLES;
 
 /* Cleans an API key value before it's stored or used in a request header.
    Bug this fixes: "Failed to execute 'fetch' ... String contains non
