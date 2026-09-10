@@ -22,6 +22,83 @@
     <link rel="stylesheet" href="https://fonts.cdnfonts.com/css/cyberpunk" media="print" onload="this.media='all';window.__muFontSwapRestore&&window.__muFontSwapRestore();">
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=VT323&family=Orbitron:wght@700&family=Cinzel:wght@700&family=Share+Tech+Mono&family=Creepster&family=Poller+One&family=Dancing+Script:wght@700&family=Quicksand:wght@500;700&family=Pacifico&display=swap" media="print" onload="this.media='all';window.__muFontSwapRestore&&window.__muFontSwapRestore();">
     <script>
+        /* -----------------------------------------------------------------
+           Cross-environment compatibility shims. This app runs inside all
+           sorts of hosts — Telegram's in-app WebView, other messenger
+           in-app browsers, regular mobile/desktop browsers, sometimes in
+           private/incognito modes — and almost every feature in it assumes
+           a few browser APIs just exist. When one of those is missing or
+           blocked, code elsewhere would throw and could take the whole app
+           down before it even renders. These run first, before anything
+           else, so every other script can keep using the plain
+           localStorage/CSS.escape/AbortController APIs unchanged. */
+        (function(){
+            // Some restrictive in-app WebViews and privacy-hardened
+            // browsers block storage so aggressively that merely touching
+            // window.localStorage throws (not just calling a method on
+            // it) — e.g. storage explicitly disabled at the OS level, or
+            // a "block all cookies/storage" browser setting. Since nearly
+            // every feature here reads/writes localStorage directly, an
+            // unguarded throw at load time would break the entire app. If
+            // real localStorage doesn't work, swap in an in-memory
+            // stand-in with the same get/set/remove/clear/key API so
+            // nothing else needs to change — it just won't persist
+            // between reloads there.
+            try {
+                var probeKey = '__mu_ls_probe__';
+                window.localStorage.setItem(probeKey, '1');
+                window.localStorage.removeItem(probeKey);
+            } catch (e) {
+                var mem = {};
+                var memoryStorage = {
+                    getItem: function(k){ return Object.prototype.hasOwnProperty.call(mem, k) ? mem[k] : null; },
+                    setItem: function(k, v){ mem[k] = String(v); },
+                    removeItem: function(k){ delete mem[k]; },
+                    clear: function(){ mem = {}; },
+                    key: function(i){ return Object.keys(mem)[i] || null; }
+                };
+                Object.defineProperty(memoryStorage, 'length', { get: function(){ return Object.keys(mem).length; } });
+                try { Object.defineProperty(window, 'localStorage', { value: memoryStorage, configurable: true }); }
+                catch (e2) { try { window.localStorage = memoryStorage; } catch(e3){} }
+            }
+
+            // CSS.escape() is used for safely building attribute selectors
+            // (folder/note lookups). It's been standard for years, but a
+            // handful of older embedded WebViews still lack it — this is
+            // the standard polyfill shape, just enough to not throw and to
+            // handle the plain ids/names this app actually generates.
+            if (typeof window.CSS === 'undefined') window.CSS = {};
+            if (typeof window.CSS.escape !== 'function') {
+                window.CSS.escape = function(value){
+                    return String(value).replace(/([\0-\x1f\x7f]|^-?\d)|(^-$)|[^a-zA-Z0-9_-]/g, function(match){
+                        if (match === '\0') return '\uFFFD';
+                        if (/^[\0-\x1f\x7f]$|^-?\d/.test(match)) return '\\' + match;
+                        return '\\' + match;
+                    });
+                };
+            }
+
+            // AbortController backs the chat request timeout and a couple
+            // of cancellable flows. It's near-universal now, but this keeps
+            // any environment missing it from throwing at construction —
+            // callers already check for it before wiring up a signal.
+            if (typeof window.AbortController === 'undefined') {
+                window.AbortController = function(){
+                    this.signal = { aborted: false, addEventListener: function(){}, removeEventListener: function(){} };
+                };
+                window.AbortController.prototype.abort = function(){ this.signal.aborted = true; };
+            }
+            // document.execCommand is deprecated and a few newer/locked-down
+            // WebViews have started dropping it entirely. It's still used
+            // here for bold/insert-text/legacy copy-fallback — none of
+            // which are essential, so if it's gone, make it a harmless
+            // no-op that returns false (its normal "command not supported"
+            // signal) instead of letting every caller throw.
+            if (typeof document.execCommand !== 'function') {
+                document.execCommand = function(){ return false; };
+            }
+        })();
+
         /* Bug fix (page/options "jump" once a web font finishes loading):
            the two <link> tags above intentionally load fonts non-blocking
            (media="print" -> onload swap) so first paint isn't delayed on a
@@ -1927,6 +2004,9 @@
         .markhin-filename-row{display:flex;gap:8px;align-items:center;margin:14px 0;flex-wrap:wrap}
         .markhin-filename-input{flex:1;min-width:160px;padding:11px 13px;border-radius:12px;border:1px solid var(--panel-border);background:rgba(0,0,0,.28);color:var(--text-color);font-size:14px;font-family:inherit;outline:none;text-align:center;transition:border-color .16s ease,box-shadow .16s ease}
         .markhin-filename-input:focus{border-color:rgba(120,170,255,.65);box-shadow:0 0 0 3px rgba(120,170,255,.15)}
+        .markhin-eye-toggle{flex:0 0 auto;width:42px;height:42px;display:flex;align-items:center;justify-content:center;border-radius:12px;border:1px solid var(--panel-border);background:rgba(0,0,0,.28);color:var(--text-color);font-size:16px;line-height:1;cursor:pointer;transition:background .16s ease,border-color .16s ease,transform .12s ease}
+        .markhin-eye-toggle:hover{background:rgba(255,255,255,.14);border-color:var(--text-color)}
+        .markhin-eye-toggle:active{transform:scale(.9)}
         .markhin-filename-ext{opacity:.55;font-size:13px;white-space:nowrap;font-weight:700}
         .markhin-filename-actions{text-align:center;display:flex;gap:8px;justify-content:center;margin-top:12px;flex-wrap:wrap}
         .markhin-filename-hint{margin:5px 0 0;opacity:.55;font-size:10.5px}
@@ -5372,8 +5452,19 @@ window.mu_syncHtmlBg = function(){
             const t = i18n[currentLang];
             const item = categories.find(c => c.id === id);
             if (!item) return;
-            hiddenState[id] = !hiddenState[id];
             const textEl = document.getElementById(`text-${id}`);
+            // Masking/unmasking swaps the full note text for a short fixed
+            // placeholder (or back), which changes the box's height a lot.
+            // scrollTop never moves on its own when that happens, so the
+            // sudden height change shifts everything below the note up or
+            // down under a fixed viewport — that's what reads as the page
+            // "jumping down" instead of just toggling the note in place.
+            // Recording the note's on-screen position beforehand and
+            // correcting the scroll by however much it moved keeps it
+            // pinned exactly where the person was looking.
+            const anchorEl = document.getElementById(`container-${id}`) || textEl;
+            const beforeTop = anchorEl ? anchorEl.getBoundingClientRect().top : null;
+            hiddenState[id] = !hiddenState[id];
             if (hiddenState[id]) {
                 textEl.innerText = generateMask();
                 textEl.classList.add('masked');
@@ -5383,6 +5474,11 @@ window.mu_syncHtmlBg = function(){
                 textEl.classList.remove('masked');
                 textEl.setAttribute('contenteditable', (!item.isDecoy).toString());
                 setTimeout(() => attachWrapperEvents(id), 50);
+            }
+            if (anchorEl && beforeTop !== null) {
+                const afterTop = anchorEl.getBoundingClientRect().top;
+                const delta = afterTop - beforeTop;
+                if (delta) window.scrollBy(0, delta);
             }
         }
 
@@ -5418,6 +5514,7 @@ window.mu_syncHtmlBg = function(){
                     </div>
                     <div class="markhin-filename-row">
                         <input type="password" id="${uid}_input" class="markhin-filename-input" placeholder="${escapeHtml(placeholder)}" maxlength="512" autocomplete="current-password" spellcheck="false">
+                        <button class="markhin-eye-toggle" type="button" id="${uid}_eye" title="${fa ? 'نمایش رمز' : 'Show password'}" aria-label="${fa ? 'نمایش رمز' : 'Show password'}">👁️</button>
                     </div>
                     <div class="markhin-filename-actions">
                         <button class="btn-main" type="button" id="${uid}_cancel">${fa ? 'انصراف' : 'Cancel'}</button>
@@ -5429,12 +5526,21 @@ window.mu_syncHtmlBg = function(){
                     const ok = document.getElementById(uid + '_ok');
                     const cancel = document.getElementById(uid + '_cancel');
                     const x = document.getElementById(uid + '_x');
+                    const eye = document.getElementById(uid + '_eye');
                     if (input) input.focus();
                     const submit = () => finish(input ? input.value : '');
                     if (input) input.addEventListener('keydown', e => {
                         if (e.key === 'Enter') { e.preventDefault(); submit(); }
                         else if (e.key === 'Escape') { e.preventDefault(); finish(null); }
                     });
+                    if (eye) eye.onclick = () => {
+                        if (!input) return;
+                        const showing = input.type === 'text';
+                        input.type = showing ? 'password' : 'text';
+                        eye.textContent = showing ? '👁️' : '🙈';
+                        eye.title = showing ? (fa ? 'نمایش رمز' : 'Show password') : (fa ? 'مخفی کردن رمز' : 'Hide password');
+                        input.focus();
+                    };
                     if (ok) ok.onclick = submit;
                     if (cancel) cancel.onclick = () => finish(null);
                     if (x) x.onclick = () => finish(null);
@@ -5467,6 +5573,7 @@ window.mu_syncHtmlBg = function(){
                 const outsideClick = e => { if (e.target === modalEl) finish(null); };
                 if (modalEl) modalEl.addEventListener('click', outsideClick, true);
                 const defaultValue = opts.defaultValue || '';
+                const isPassword = !multiline && opts.type === 'password';
                 const inputHtml = multiline
                     ? `<textarea id="${uid}_input" class="markhin-filename-input" style="min-height:110px;resize:vertical" placeholder="${escapeHtml(opts.placeholder || '')}" maxlength="8000" spellcheck="false">${escapeHtml(defaultValue)}</textarea>`
                     : `<input type="${escapeHtml(opts.type || 'text')}" id="${uid}_input" class="markhin-filename-input" placeholder="${escapeHtml(opts.placeholder || '')}" value="${escapeHtml(defaultValue)}" maxlength="512" autocomplete="off" spellcheck="false">`;
@@ -5480,6 +5587,7 @@ window.mu_syncHtmlBg = function(){
                     </div>
                     <div class="markhin-filename-row">
                         ${inputHtml}
+                        ${isPassword ? `<button class="markhin-eye-toggle" type="button" id="${uid}_eye" title="${fa ? 'نمایش رمز' : 'Show password'}" aria-label="${fa ? 'نمایش رمز' : 'Show password'}">👁️</button>` : ''}
                     </div>
                     <div class="markhin-filename-actions">
                         <button class="btn-main" type="button" id="${uid}_cancel">${escapeHtml(opts.cancelText || (fa ? 'انصراف' : 'Cancel'))}</button>
@@ -5491,12 +5599,21 @@ window.mu_syncHtmlBg = function(){
                     const ok = document.getElementById(uid + '_ok');
                     const cancel = document.getElementById(uid + '_cancel');
                     const x = document.getElementById(uid + '_x');
+                    const eye = document.getElementById(uid + '_eye');
                     if (input) { input.focus(); if (!multiline && input.select) input.select(); }
                     const submit = () => finish(input ? input.value : '');
                     if (input) input.addEventListener('keydown', e => {
                         if (e.key === 'Enter' && !multiline) { e.preventDefault(); submit(); }
                         else if (e.key === 'Escape') { e.preventDefault(); finish(null); }
                     });
+                    if (eye) eye.onclick = () => {
+                        if (!input) return;
+                        const showing = input.type === 'text';
+                        input.type = showing ? 'password' : 'text';
+                        eye.textContent = showing ? '👁️' : '🙈';
+                        eye.title = showing ? (fa ? 'نمایش رمز' : 'Show password') : (fa ? 'مخفی کردن رمز' : 'Hide password');
+                        input.focus();
+                    };
                     if (ok) ok.onclick = submit;
                     if (cancel) cancel.onclick = () => finish(null);
                     if (x) x.onclick = () => finish(null);
@@ -9945,6 +10062,28 @@ const MarkhinAI = window.MarkhinAI = {
         const maxTokens = opts.maxTokens || 500;
         const tools = Array.isArray(opts.tools) && opts.tools.length ? opts.tools : null;
 
+        // Without a hard cap, a request that never settles — a dropped
+        // connection, or (inside Telegram's in-app browser) the WebView
+        // getting backgrounded mid-request — leaves the caller's await
+        // suspended forever, which is exactly what left the chat's send
+        // button/"typing…" indicator stuck permanently disabled. Aborting
+        // after a timeout guarantees this call always resolves or rejects.
+        const mAiAbortController = new AbortController();
+        const mAiTimeoutId = setTimeout(() => mAiAbortController.abort(), 60000);
+        try {
+            return await this._chatRequest(messages, opts, p, maxTokens, tools, mAiAbortController.signal);
+        } catch(err){
+            if(err && err.name === 'AbortError'){
+                throw new Error(fa ? 'درخواست بیش از حد طول کشید و لغو شد. دوباره امتحان کن.' : 'The request took too long and was cancelled. Please try again.');
+            }
+            throw err;
+        } finally {
+            clearTimeout(mAiTimeoutId);
+        }
+    },
+
+    async _chatRequest(messages, opts, p, maxTokens, tools, signal){
+        const fa = currentLang==='fa';
         if(p.format === 'anthropic'){
             const sysMsg = messages.find(m=>m.role==='system');
             const rest = messages.filter(m=>m.role!=='system');
@@ -9982,7 +10121,8 @@ const MarkhinAI = window.MarkhinAI = {
                     'anthropic-version':'2023-06-01',
                     'anthropic-dangerous-direct-browser-access':'true'
                 },
-                body: JSON.stringify(body)
+                body: JSON.stringify(body),
+                signal
             });
             if(!res.ok){ const tx=await res.text().catch(()=> ''); throw new Error('Anthropic: '+res.status+' '+tx.slice(0,220)); }
             const data = await res.json();
@@ -10021,7 +10161,8 @@ const MarkhinAI = window.MarkhinAI = {
         const res = await fetch(p.baseUrl.replace(/\/+$/,'')+'/chat/completions', {
             method:'POST',
             headers,
-            body: JSON.stringify(body)
+            body: JSON.stringify(body),
+            signal
         });
         if(!res.ok){ const tx=await res.text().catch(()=> ''); throw new Error('API: '+res.status+' '+tx.slice(0,220)); }
         const data = await res.json();
@@ -10855,6 +10996,12 @@ window.attachWrapperEvents = function(categoryId){
        --------------------------------------------------------------- */
     const MAI_HISTORY_KEY = 'markhinAiChatHistory_v1';
     let mAiHistory = [];
+    // Single source of truth for whether a reply is currently in flight.
+    // The "typing…" bubble is rendered from this flag every time mAiRender()
+    // runs (rather than being a one-off DOM node appended by hand), so
+    // closing and reopening the chat mid-reply always shows the right
+    // state instead of losing/duplicating the indicator.
+    let mAiSending = false;
     try { mAiHistory = JSON.parse(localStorage.getItem(MAI_HISTORY_KEY) || '[]'); if(!Array.isArray(mAiHistory)) mAiHistory = []; } catch(e){ mAiHistory = []; }
 
     function mAiSave(){
@@ -10922,10 +11069,14 @@ window.attachWrapperEvents = function(categoryId){
                 '</div>';
             return;
         }
-        box.innerHTML = mAiHistory.map(function(m){
+        let html = mAiHistory.map(function(m){
             const cls = m.role === 'user' ? 'mAi-user' : 'mAi-assistant';
             return '<div class="mAi-msg ' + cls + '"><div class="mAi-bubble">' + mAiFormat(m.content) + '</div></div>';
         }).join('');
+        if(mAiSending){
+            html += '<div class="mAi-msg mAi-assistant"><div class="mAi-bubble mAi-typing"><span></span><span></span><span></span></div></div>';
+        }
+        box.innerHTML = html;
         box.scrollTop = box.scrollHeight;
     }
 
@@ -11458,6 +11609,11 @@ window.attachWrapperEvents = function(categoryId){
         const fa = currentLang === 'fa';
         const text = input ? input.value.trim() : '';
         if(!text) return;
+        // Guard against a second send firing while one is still in flight —
+        // e.g. the Enter key doesn't check the send button's disabled state,
+        // so typing a new message and hitting Enter while the first reply is
+        // still pending used to fire a second, overlapping call here.
+        if(mAiSending) return;
 
         if(!MarkhinAI.isConfigured()){
             mAiHistory.push({ role: 'assistant', content: fa
@@ -11478,6 +11634,7 @@ window.attachWrapperEvents = function(categoryId){
         input.blur();
 
         if(btn) btn.disabled = true;
+        mAiSending = true;
 
         /* Just detect whether the question looks related to a locked note —
            no password prompt here. The person asked for the flow to be:
@@ -11487,10 +11644,7 @@ window.attachWrapperEvents = function(categoryId){
            just the first time a note comes up. */
         const relevantLocked = mAiFindRelevantLockedNotes(text);
 
-        const typingEl = document.createElement('div');
-        typingEl.className = 'mAi-msg mAi-assistant';
-        typingEl.innerHTML = '<div class="mAi-bubble mAi-typing"><span></span><span></span><span></span></div>';
-        if(box){ box.appendChild(typingEl); box.scrollTop = box.scrollHeight; }
+        mAiRender();
 
         /* Build the notes context the same way the old standalone Ask box
            used to: every non-decoy note that isn't locked (or has been
@@ -11590,7 +11744,7 @@ window.attachWrapperEvents = function(categoryId){
                     finalText = String(closing || '').trim();
                 }
             }
-            typingEl.remove();
+            mAiSending = false;
             mAiHistory.push({ role: 'assistant', content: finalText || (fa ? '(پاسخ خالی دریافت شد)' : '(received an empty response)') });
             /* Deterministic, app-generated notice — not left up to the model to
                remember to mention. Appears every time the question touches a
@@ -11604,11 +11758,15 @@ window.attachWrapperEvents = function(categoryId){
             mAiSave();
             mAiRender();
         } catch(err){
-            typingEl.remove();
+            mAiSending = false;
             mAiHistory.push({ role: 'assistant', content: '⚠️ ' + (fa ? 'خطا: ' : 'Error: ') + (err && err.message || String(err)) });
             mAiSave();
             mAiRender();
         } finally {
+            // Safety net: whichever branch ran above already cleared this,
+            // but forcing it false here too guarantees the send button and
+            // "typing…" bubble can never stay stuck once we get here.
+            mAiSending = false;
             if(btn) btn.disabled = false;
             // No re-focus here on purpose — see the blur() above; the keyboard
             // should stay down until the person taps the input themselves.
