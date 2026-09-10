@@ -12209,6 +12209,33 @@ window.attachWrapperEvents = function(categoryId){
         };
     }
 
+    // Bug fix (wrong Jalali/Gregorian conversion for note dates, e.g. the
+    // model reporting "4 September" as "4 Shahrivar" instead of the
+    // correct 13 Shahrivar): every note's lastEdited timestamp is stored
+    // as a plain Gregorian string (new Date().toUTCString()) and, until
+    // now, was sent to the AI model completely raw via the get_note/
+    // get_notes/read_all_notes/compare_notes tool results. The model was
+    // left to convert that Gregorian date to Jalali (Shamsi) itself when
+    // asked "when was this last edited" in Persian — and, like any LLM
+    // doing calendar math in its head, it would often just translate the
+    // month name 1:1 (September -> Shahrivar) and keep the same day
+    // number, which is wrong: the two calendars are offset by several
+    // months and ~621 years, so "4 September" is actually "13 Shahrivar",
+    // not "4 Shahrivar". The current-date/time line already avoided this
+    // exact mistake by pre-computing the Jalali date in code
+    // (mAiRichTimestamp, above) instead of asking the model to convert
+    // it — this helper applies the same fix to every other date the
+    // model sees, so it never has to do calendar conversion itself again.
+    function mAiDualDateLabel(dateStr){
+        if(!dateStr) return '';
+        const ms = Date.parse(dateStr);
+        if(!ms || isNaN(ms)) return String(dateStr);
+        const r = mAiRichTimestamp(ms);
+        // Both calendars, spelled out together, so the model can just
+        // read the answer off instead of converting anything itself.
+        return r.jDay + ' ' + r.monthFa + ' ' + r.jYear + ' / ' + r.monthEn + ' ' + r.day + ', ' + r.year + ', ' + r.time;
+    }
+
     // Cap for how many turns are kept in storage at all. This used to be
     // 60, which meant anything older (e.g. the user's very first message)
     // was permanently gone — not just left out of the model's context —
@@ -13216,7 +13243,7 @@ window.attachWrapperEvents = function(categoryId){
                             pinned: !!it.pinned, favorite: !!it.favorite, archived: !!it.archived,
                             wordCount: text.trim() ? text.trim().split(/\s+/).length : 0,
                             charCount: text.length,
-                            lastEdited: it.lastEdited || '',
+                            lastEdited: mAiDualDateLabel(it.lastEdited),
                             words: mAiSignificantWords(text + ' ' + it.name)
                         };
                     });
@@ -13265,7 +13292,7 @@ window.attachWrapperEvents = function(categoryId){
                     return { ok:true, data:{
                         id:item.id, name:item.name, folder:item.folder || '', tags:item.tags || [],
                         pinned:!!item.pinned, favorite:!!item.favorite, archived:!!item.archived,
-                        lastEdited:item.lastEdited || '', content: mu_notePlainText(item),
+                        lastEdited:mAiDualDateLabel(item.lastEdited), content: mu_notePlainText(item),
                         titleHistory: Array.isArray(item.titleHistory) ? item.titleHistory.slice() : []
                     } };
                 }
@@ -13675,7 +13702,7 @@ window.attachWrapperEvents = function(categoryId){
                         if(mAiIsLockedForAi(item)) return { query: String(ref), found:false, reason: fa ? 'قفل است' : 'locked', name:item.name };
                         return { query: String(ref), found:true, id:item.id, name:item.name, folder:item.folder || '', tags:item.tags || [],
                             pinned:!!item.pinned, favorite:!!item.favorite, archived:!!item.archived,
-                            lastEdited:item.lastEdited || '', content: mu_notePlainText(item),
+                            lastEdited:mAiDualDateLabel(item.lastEdited), content: mu_notePlainText(item),
                             titleHistory: Array.isArray(item.titleHistory) ? item.titleHistory.slice() : [] };
                     });
                     return { ok:true, data:{ notes: results } };
@@ -13702,7 +13729,7 @@ window.attachWrapperEvents = function(categoryId){
                         totalChars += piece.length;
                         notesOut.push({ id:c.id, name:c.name, folder:c.folder || '', tags:c.tags || [],
                             pinned:!!c.pinned, favorite:!!c.favorite, archived:!!c.archived,
-                            lastEdited:c.lastEdited || '', content: piece });
+                            lastEdited:mAiDualDateLabel(c.lastEdited), content: piece });
                     }
                     return { ok:true, data:{
                         notes: notesOut, totalNotes: list.length, returnedNotes: notesOut.length,
@@ -14145,6 +14172,7 @@ window.attachWrapperEvents = function(categoryId){
                 + '- برای حذف، فقط کافی‌ست delete_note را صدا بزنی؛ خودِ ابزار یک تأیید واقعی و قابل‌لغو از کاربر می‌گیرد، ولی هرگز آن را بدون درخواست صریح کاربر صدا نزن.\n'
                 + '- خیلی مهم — امنیت رمز: وقتی کاربر خواست یادداشتی را قفل/رمزدار کند، هرگز خودت در همین چت از او رمز یا حتی راهنمای رمز نپرس و هرگز رمزی که در چت تایپ می‌کند را در جایی ثبت نکن — فقط بلافاصله lock_note را صدا بزن؛ خودِ ابزار همان دیالوگ امن رمزگذاریِ برنامه را باز می‌کند و کاربر رمز و راهنمای رمز (اختیاری) را مستقیماً و امن در همان دیالوگ وارد می‌کند، نه در چت. اگر نتیجه نشان داد کاربر دیالوگ را لغو کرده، به‌سادگی و بدون سرزنش به او بگو که رمزگذاری انجام نشد.\n'
                 + '- خیلی مهم — پیش از تغییرنام یا حذف یک پوشه، اگر مطمئن نیستی آن پوشه دقیقاً با همین املا وجود دارد (مثلاً همین الان در همین گفتگو آن را ندیده‌ای)، اول ابزار list_folders را صدا بزن، نه اینکه فقط از روی یادداشت‌ها/پوشه‌هایی که در زمینه‌ی پس‌زمینه به تو داده شده حدس بزنی — چون آن زمینه ممکن است پوشه‌های کاملاً خالی (بدون هیچ یادداشتی) را اصلاً نشان ندهد، و عمل‌کردن روی پوشه‌ای که واقعاً وجود ندارد یا روی یک املای مشابهِ اشتباه، دقیقاً همان خطایی است که این کار جلویش را می‌گیرد.\n'
+                + '- خیلی مهم — تاریخ آخرین ویرایش: مقدار lastEdited که ابزارهایی مثل get_note/get_notes/read_all_notes/compare_notes برمی‌گردانند از قبل و به‌صورت دقیق به هر دو تقویم تبدیل شده و به این شکل است: «۴ شهریور ۱۴۰۵ / September 4, 2026, 14:32» (روز/ماه/سال شمسی، سپس روز/ماه/سال میلادی، سپس ساعت). هرگز خودت این تاریخ را بین شمسی و میلادی تبدیل نکن یا حدس نزن — همیشه همان مقداری که ابزار داده را عیناً (یا فقط بخش مربوط به زبان پاسخت را از همان رشته) به کاربر بگو. تبدیل تقویم با ذهن مدل زبانی قابل‌اعتماد نیست و باعث خطاهایی مثل گفتن «۴ شهریور» به‌جای روز درست می‌شود؛ این مقدار همیشه از قبل توسط خودِ برنامه به‌درستی محاسبه شده است.\n'
                 + '- بسیار مهم — تشخیص پوشه از یادداشت: اینکه درخواست کاربر مربوط به «پوشه» است یا مربوط به «یادداشت»، فقط از روی چیزی که خودِ کاربر گفته تعیین می‌شود (کلمه «پوشه» در برابر عنوان یک یادداشت)، نه از روی اینکه کدام اسم از قبل جایی وجود دارد. اگر گفت «پوشه‌ی X رو بساز/تغییرنام بده/حذف کن» یا واضح بود که منظورش همان پوشه‌ای است که یادداشت‌ها داخلش دسته‌بندی می‌شوند، همیشه باید manage_folder صدا زده شود — هرگز create_note یا delete_note — حتی اگر یک یادداشت هم دقیقاً همین اسم را داشته باشد. اگر برعکس، منظورش یک یادداشت مشخص بود، از ابزارهای یادداشت استفاده کن. اگر واقعاً معلوم نبود منظورش کدام است، به‌جای حدس‌زدن یک سوال کوتاه بپرس، چون حذف پوشه و حذف یادداشت اصلاً جای هم را نمی‌گیرند.\n'
                 + '- برای یک درخواست جابجایی دستیِ یک‌باره — مثل «فلان یادداشت رو ببر بالای فلان»، «اینو اول لیست کن»، «اینو ببر ته لیست» — از move_note_position استفاده کن (position: top/bottom/before/after). این فقط درباره جای یادداشت در لیست است، نه پوشه؛ برای این‌ها manage_folder یا move_note_to_folder را صدا نزن، و برعکس، برای درخواست جابجایی بین پوشه‌ها هم move_note_position را به‌کار نبر.\n'
                 + '- برای مرتب‌کردن یک‌جای کل لیست (یا یک پوشه) بر اساس یک قاعده — الفبا، تاریخ آخرین ویرایش، یا طول متن — به‌جای جابجا‌کردن تک‌تک یادداشت‌ها با move_note_position، از sort_notes استفاده کن.\n'
@@ -14195,6 +14223,7 @@ window.attachWrapperEvents = function(categoryId){
                 + '- For a change that should apply to a whole group of notes at once (a folder, a tag, or a search match) — e.g. "archive everything in Old Stuff" or "tag all my draft notes as done" — use bulk_update_notes instead of calling a single-note tool over and over.\n'
                 + '- Deleting a folder (manage_folder with action "delete") never deletes the notes inside it — they just become unfiled, exactly like the app\'s own folder-delete button. Renaming a folder moves every note inside it along with the new name automatically.\n'
                 + '- CRITICAL — before renaming or deleting a folder, if you are not already certain it exists and is spelled exactly right (e.g. you have not just seen it in this same conversation), call list_folders first rather than guessing from the notes/folders mentioned in your background context — that context can miss folders that have zero notes in them, and acting on a folder that does not really exist, or on the wrong near-miss spelling, is exactly the kind of mistake this is meant to prevent.\n'
+                + '- CRITICAL — last-edited dates: the lastEdited value returned by tools like get_note/get_notes/read_all_notes/compare_notes is already precisely converted to both calendars for you, formatted like "4 Shahrivar 1405 / September 26, 2026, 14:32" (Jalali day/month/year, then Gregorian month/day/year, then time). Never convert this date between Jalali and Gregorian yourself, or guess at the equivalent in the other calendar — always relay exactly the value the tool gave you (or just the part in the language you\'re replying in). Doing calendar conversion in your own reasoning is unreliable and produces wrong answers (e.g. reporting the wrong Jalali day); this value has always already been computed correctly by the app itself.\n'
                 + '- If the user asks to get back a note they deleted, call list_cemetery to find it (or restore_note_from_cemetery directly by name if you\'re confident which one they mean), then restore_note_from_cemetery.\n'
                 + '- For deletions, just call delete_note — it shows the user a real, cancellable confirmation dialog itself — but never call it unless the user has clearly asked to delete something.\n'
                 + '- CRITICAL — password security: when the user wants a note locked/password-protected, never ask them for the password (or even a password hint) here in chat, and never record a password they type into the chat — just call lock_note right away. The tool itself opens the app\'s own real, secure encryption dialog, where the user types the password and an optional hint directly and safely into that dialog, not into the chat. If the result shows the user cancelled the dialog, just tell them plainly that the note wasn\'t locked, with no blame.\n'
