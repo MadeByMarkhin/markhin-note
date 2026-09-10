@@ -10996,12 +10996,21 @@ window.attachWrapperEvents = function(categoryId){
        --------------------------------------------------------------- */
     const MAI_HISTORY_KEY = 'markhinAiChatHistory_v1';
     let mAiHistory = [];
-    // Single source of truth for whether a reply is currently in flight.
-    // The "typing…" bubble is rendered from this flag every time mAiRender()
-    // runs (rather than being a one-off DOM node appended by hand), so
-    // closing and reopening the chat mid-reply always shows the right
-    // state instead of losing/duplicating the indicator.
-    let mAiSending = false;
+    // Number of replies currently in flight (0, 1, or more — the user
+    // is always allowed to send another message even while a previous
+    // one is still being answered). The "typing…" bubble is rendered
+    // from this counter every time mAiRender() runs (rather than being a
+    // one-off DOM node appended by hand), so closing and reopening the
+    // chat mid-reply always shows the right state instead of
+    // losing/duplicating the indicator, and it can never get stuck at
+    // "still sending" — see the finally block in markhinAiChat_send.
+    let mAiPending = 0;
+    // Bumped every time the conversation is cleared. Each in-flight
+    // request captures this value before it starts; if the value has
+    // changed by the time that request finishes, the user cleared the
+    // chat in the meantime, so the (now stale) reply is dropped instead
+    // of reappearing in the conversation the user just emptied.
+    let mAiGen = 0;
     try { mAiHistory = JSON.parse(localStorage.getItem(MAI_HISTORY_KEY) || '[]'); if(!Array.isArray(mAiHistory)) mAiHistory = []; } catch(e){ mAiHistory = []; }
 
     function mAiSave(){
@@ -11073,7 +11082,7 @@ window.attachWrapperEvents = function(categoryId){
             const cls = m.role === 'user' ? 'mAi-user' : 'mAi-assistant';
             return '<div class="mAi-msg ' + cls + '"><div class="mAi-bubble">' + mAiFormat(m.content) + '</div></div>';
         }).join('');
-        if(mAiSending){
+        if(mAiPending > 0){
             html += '<div class="mAi-msg mAi-assistant"><div class="mAi-bubble mAi-typing"><span></span><span></span><span></span></div></div>';
         }
         box.innerHTML = html;
@@ -11134,6 +11143,9 @@ window.attachWrapperEvents = function(categoryId){
         const fa = currentLang === 'fa';
         if(mAiHistory.length && !confirm(fa ? 'کل گفتگو پاک شود؟' : 'Clear the entire conversation?')) return;
         mAiHistory = [];
+        // Invalidate any reply still in flight so it cannot land back in
+        // the conversation that was just cleared once it finishes.
+        mAiGen++;
         mAiSave();
         mAiRender();
     };
@@ -11609,11 +11621,11 @@ window.attachWrapperEvents = function(categoryId){
         const fa = currentLang === 'fa';
         const text = input ? input.value.trim() : '';
         if(!text) return;
-        // Guard against a second send firing while one is still in flight —
-        // e.g. the Enter key doesn't check the send button's disabled state,
-        // so typing a new message and hitting Enter while the first reply is
-        // still pending used to fire a second, overlapping call here.
-        if(mAiSending) return;
+        // The user can now send while a previous reply is still pending —
+        // there is no "still sending" guard here anymore (see mAiPending
+        // below). input.value is cleared synchronously right below, before
+        // any other event can run, so a stray double Enter/click on the
+        // same text still can't fire this twice for the same message.
 
         if(!MarkhinAI.isConfigured()){
             mAiHistory.push({ role: 'assistant', content: fa
@@ -11633,8 +11645,15 @@ window.attachWrapperEvents = function(categoryId){
         // only an explicit tap on the input should bring it back.
         input.blur();
 
-        if(btn) btn.disabled = true;
-        mAiSending = true;
+        // Capture the current "generation" before any async or
+        // potentially-throwing work starts. If the user clears the chat
+        // while this request is still in flight, mAiGen is bumped and this
+        // reply is dropped below instead of landing back in the (now
+        // cleared) conversation. The user can now always send another
+        // message — including while a previous reply is still pending —
+        // so there is no disabling of the input/button here anymore.
+        const mAiMyGen = mAiGen;
+        mAiPending++;
 
         /* Just detect whether the question looks related to a locked note —
            no password prompt here. The person asked for the flow to be:
@@ -11642,6 +11661,7 @@ window.attachWrapperEvents = function(categoryId){
            chat which note is locked and to go unlock it themselves via the
            🔒 button before asking again. This runs on every message, not
            just the first time a note comes up. */
+        try {
         const relevantLocked = mAiFindRelevantLockedNotes(text);
 
         mAiRender();
@@ -11720,7 +11740,6 @@ window.attachWrapperEvents = function(categoryId){
             mAiHistory.slice(-30).map(function(m){ return { role: m.role, content: m.content }; })
         );
 
-        try {
             let finalText = '';
             const maxSteps = 6;
             for(let step = 0; step < maxSteps; step++){
@@ -11744,7 +11763,7 @@ window.attachWrapperEvents = function(categoryId){
                     finalText = String(closing || '').trim();
                 }
             }
-            mAiSending = false;
+            if(mAiMyGen === mAiGen){
             mAiHistory.push({ role: 'assistant', content: finalText || (fa ? '(پاسخ خالی دریافت شد)' : '(received an empty response)') });
             /* Deterministic, app-generated notice — not left up to the model to
                remember to mention. Appears every time the question touches a
@@ -11756,18 +11775,20 @@ window.attachWrapperEvents = function(categoryId){
                     : `🔒 This question also looks related to the locked note "${names}", but I couldn't use it since I don't have its password. Tap the 🔒 button above this chat to unlock it, then ask me again.` });
             }
             mAiSave();
-            mAiRender();
+            }
         } catch(err){
-            mAiSending = false;
+            if(mAiMyGen === mAiGen){
             mAiHistory.push({ role: 'assistant', content: '⚠️ ' + (fa ? 'خطا: ' : 'Error: ') + (err && err.message || String(err)) });
             mAiSave();
-            mAiRender();
+            }
         } finally {
-            // Safety net: whichever branch ran above already cleared this,
-            // but forcing it false here too guarantees the send button and
-            // "typing…" bubble can never stay stuck once we get here.
-            mAiSending = false;
-            if(btn) btn.disabled = false;
+            // Runs whether the request succeeded or failed, and whether
+            // it resolved normally or (like a synchronous bug in the setup
+            // code above) threw immediately: this is what guarantees the
+            // "typing…" indicator and the ability to send another message
+            // can never get stuck.
+            mAiPending--;
+            mAiRender();
             // No re-focus here on purpose — see the blur() above; the keyboard
             // should stay down until the person taps the input themselves.
         }
