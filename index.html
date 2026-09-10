@@ -3342,6 +3342,12 @@ window.mu_syncHtmlBg = function(){
         let DEFAULT_FOLDER = i18n[currentLang].allFolders;
         let categories = [];
         let folders = [DEFAULT_FOLDER];
+        // Maps a normalized OLD folder name -> the folder's current real
+        // name, so the AI (and anything else) can still resolve a folder
+        // the user refers to by a name it used to have before being
+        // renamed. Rebuilt/chained on every rename in mAiRecordFolderRename
+        // below — see mAiFindExistingFolder for where it's consulted.
+        let folderRenameHistory = {};
         let currentFolder = DEFAULT_FOLDER;
         let isDeleteFolderMode = false;
         let hiddenState = {};
@@ -3625,7 +3631,10 @@ window.mu_syncHtmlBg = function(){
 
             const savedData = localStorage.getItem('app_categories_v13');
             const savedFolders = localStorage.getItem('app_folders_v13');
+            const savedFolderHistory = localStorage.getItem('app_folder_rename_history_v1');
             const savedThemeIdx = localStorage.getItem('app_theme_index_v13');
+            folderRenameHistory = safeParseJSON(savedFolderHistory, {});
+            if(!folderRenameHistory || typeof folderRenameHistory !== 'object' || Array.isArray(folderRenameHistory)) folderRenameHistory = {};
 
             if (savedData) {
                 const parsed = safeParseJSON(savedData, []);
@@ -3902,6 +3911,7 @@ window.mu_syncHtmlBg = function(){
             const customF = folders.filter(f => f !== DEFAULT_FOLDER);
             try {
                 localStorage.setItem('app_folders_v13', JSON.stringify(customF));
+                localStorage.setItem('app_folder_rename_history_v1', JSON.stringify(folderRenameHistory || {}));
                 scheduleCloudBackup();
                 return true;
             } catch (error) {
@@ -7337,11 +7347,24 @@ window.mu_syncHtmlBg = function(){
                     okText: fa ? '✔️ ذخیره' : '✔️ Save'
                 });
                 if (newName && newName.trim() !== '') {
-                    item.name = newName.trim();
+                    mu_recordTitleHistory(item, newName.trim());
                     saveToLocalStorage();
                     renderApp(id);
                 }
             }
+        }
+
+        // Shared by every rename path (this manual dialog and the AI's
+        // rename_note tool) so a note's title history is always complete
+        // regardless of how it was renamed. Keeps every previous title,
+        // most recent last.
+        function mu_recordTitleHistory(item, newName) {
+            const oldName = item.name;
+            if (oldName && oldName !== newName) {
+                if (!Array.isArray(item.titleHistory)) item.titleHistory = [];
+                item.titleHistory.push(oldName);
+            }
+            item.name = newName;
         }
 
         function changeCategoryFolder(id, folderName) {
@@ -10921,7 +10944,23 @@ const MarkhinAI = window.MarkhinAI = {
         if(!sawAnyEvent) throw new Error('stream-unsupported');
         const text = textAcc.trim();
         if(!tools) return text;
-        const toolCalls = Object.keys(blocks).map(k=>blocks[k]).filter(b=>b.type==='tool_use').map(b=>({ id:b.id, name:b.name, input: safeParseJSON(b.json || '{}', {}) }));
+        // Bug fix: a tool call's arguments can legitimately be long (e.g. a
+        // whole poem/note body embedded as a JSON string), and if the
+        // reply gets cut off mid-argument — hitting max_tokens, a dropped
+        // connection, etc — b.json is left truncated/invalid JSON. This
+        // used to silently fall back to {} (an EMPTY input object), so the
+        // tool still ran but with none of its real arguments — e.g.
+        // create_note firing with no name/content at all, making it look
+        // like "sometimes it just doesn't create the note". Tag a parse
+        // failure instead of masking it, so the caller (runAiTurn) can
+        // tell the model its own call got cut off and have it retry,
+        // rather than silently executing it with garbage input.
+        const toolCalls = Object.keys(blocks).map(k=>blocks[k]).filter(b=>b.type==='tool_use').map(b=>{
+            let input;
+            try { input = JSON.parse(b.json || '{}'); }
+            catch(e){ input = { __mai_malformed__: true, __mai_raw__: String(b.json || '').slice(0, 300) }; }
+            return { id:b.id, name:b.name, input };
+        });
         const thinkingBlocks = Object.keys(blocks).map(k=>blocks[k]).filter(b=>b.type==='thinking').map(b=>({ type:'thinking', thinking:b.thinking||'', signature:b.signature||'' }));
         return { text, toolCalls, thinkingBlocks };
     },
@@ -11007,11 +11046,19 @@ const MarkhinAI = window.MarkhinAI = {
         if(!sawAnyEvent) throw new Error('stream-unsupported');
         const text = textAcc;
         if(!tools) return text;
-        const toolCalls = Object.keys(toolAcc).map(k=>toolAcc[k]).filter(t=>t.name).map(t=>({
-            id: t.id || ('call_' + Math.random().toString(36).slice(2)),
-            name: t.name,
-            input: safeParseJSON(t.args || '{}', {})
-        }));
+        // Same truncated-tool-call-arguments fix as the Anthropic stream
+        // above (see the comment there) — don't silently mask a cut-off
+        // argument string as an empty {} input.
+        const toolCalls = Object.keys(toolAcc).map(k=>toolAcc[k]).filter(t=>t.name).map(t=>{
+            let input;
+            try { input = JSON.parse(t.args || '{}'); }
+            catch(e){ input = { __mai_malformed__: true, __mai_raw__: String(t.args || '').slice(0, 300) }; }
+            return {
+                id: t.id || ('call_' + Math.random().toString(36).slice(2)),
+                name: t.name,
+                input
+            };
+        });
         return { text, toolCalls };
     },
 
@@ -12633,29 +12680,30 @@ window.attachWrapperEvents = function(categoryId){
     const MAI_TOOLS = [
         { name:'find_notes', description:'Search the user\'s unlocked notes by keyword (matches title, body text, or tags). Call this first whenever the user refers to a note by name/topic and you do not already know its exact id, or whenever asked to list/find notes. Returns id, name, folder, tags, pinned, favorite, archived, and a short content snippet for every match. Locked (password-protected) notes are never included.', parameters:{ type:'object', properties:{ query:{ type:'string', description:'Keyword or phrase to search for. Leave empty to list all unlocked notes.' } } } },
         { name:'create_note', description:'Create a brand-new note in the app. If a folder is given that does not exist yet, it is created automatically — so "make a note X in a new folder Y" is a single call.', parameters:{ type:'object', properties:{ name:{ type:'string', description:'Title of the new note.' }, content:{ type:'string', description:'Body of the new note. Supports lightweight markdown that gets rendered to real formatting: **bold**, *italic*, `code`, # / ## / ### headings, > quote, - list items, [text](url) links. Use it whenever the user asks for bold/italic/headings/lists/etc.' }, folder:{ type:'string', description:'Folder to place the note in. Leave empty for no folder. A folder that does not exist yet will be created automatically.' } }, required:['name'] } },
-        { name:'edit_note_content', description:'Change the body text of an existing note — replace it entirely or append to it. Supports the same lightweight markdown as create_note (**bold**, *italic*, `code`, headings, quotes, lists, links) rendered to real formatting. Use this whenever the user asks to write/add/format something inside a note that already exists (including making existing text bold, adding a bullet list, appending a paragraph, etc.).', parameters:{ type:'object', properties:{ note:{ type:'string', description:'The id or title of the note to edit.' }, content:{ type:'string', description:'The new text (markdown allowed).' }, mode:{ type:'string', enum:['replace','append'], description:'"replace" overwrites the whole body (default). "append" adds this content after the existing body.' } }, required:['note','content'] } },
-        { name:'rename_note', description:'Rename an existing note.', parameters:{ type:'object', properties:{ note:{ type:'string', description:'The id or current title of the note.' }, new_name:{ type:'string', description:'The new title.' } }, required:['note','new_name'] } },
+        { name:'edit_note_content', description:'Change the body text of an existing note — replace it entirely or append to it. This is also the correct (and only) tool for removing/trimming PART of a note\'s content — e.g. "delete the second verse", "remove that last paragraph", "take out the part about X" — NEVER call delete_note for these; delete_note destroys the whole note, which is not what a partial-removal request means. To remove part of the content: first call get_note to read the note\'s real current full text (never guess or rely on a version you generated earlier in the conversation, since the user may have edited it since, or your own memory of long text can be imprecise), then call this tool with mode "replace" and the full remaining text with just the requested part taken out. Supports the same lightweight markdown as create_note (**bold**, *italic*, `code`, headings, quotes, lists, links) rendered to real formatting. Use this whenever the user asks to write/add/remove/format something inside a note that already exists (including making existing text bold, adding a bullet list, appending a paragraph, deleting a section, etc.).', parameters:{ type:'object', properties:{ note:{ type:'string', description:'The id or title of the note to edit.' }, content:{ type:'string', description:'The new text (markdown allowed). For mode "replace", this must be the note\'s FULL intended body afterward, not just the part being changed.' }, mode:{ type:'string', enum:['replace','append'], description:'"replace" overwrites the whole body (default) — use this for partial removals/edits too, with the full remaining text. "append" adds this content after the existing body.' } }, required:['note','content'] } },
+        { name:'rename_note', description:'Rename an existing note. The app remembers every past title (see get_note\'s titleHistory), so a later reference to this note by an old title — here or in any other tool — still resolves to it automatically.', parameters:{ type:'object', properties:{ note:{ type:'string', description:'The id or current title of the note.' }, new_name:{ type:'string', description:'The new title.' } }, required:['note','new_name'] } },
         { name:'move_note_to_folder', description:'Move a note into a folder, or take it out of its folder.', parameters:{ type:'object', properties:{ note:{ type:'string', description:'The id or title of the note.' }, folder:{ type:'string', description:'Target folder name. Pass an empty string or "none" to remove the note from any folder. A folder that does not exist yet will be created automatically.' } }, required:['note','folder'] } },
         { name:'tag_note', description:'Add and/or remove tags on a note.', parameters:{ type:'object', properties:{ note:{ type:'string', description:'The id or title of the note.' }, add_tags:{ type:'array', items:{type:'string'}, description:'Tags to add.' }, remove_tags:{ type:'array', items:{type:'string'}, description:'Tags to remove.' } }, required:['note'] } },
         { name:'set_pinned', description:'Pin or unpin a note.', parameters:{ type:'object', properties:{ note:{ type:'string' }, pinned:{ type:'boolean' } }, required:['note','pinned'] } },
         { name:'set_favorite', description:'Add or remove a note from favorites.', parameters:{ type:'object', properties:{ note:{ type:'string' }, favorite:{ type:'boolean' } }, required:['note','favorite'] } },
         { name:'archive_note', description:'Archive or unarchive (restore) a note.', parameters:{ type:'object', properties:{ note:{ type:'string' }, archived:{ type:'boolean' } }, required:['note','archived'] } },
         { name:'merge_notes', description:'Combine two or more existing notes into one brand-new note, each source note under its own heading. Never deletes anything by itself unless delete_originals is explicitly set — and even then it always shows the user a real confirmation dialog first.', parameters:{ type:'object', properties:{ notes:{ type:'array', items:{type:'string'}, description:'Ids or titles of the notes to merge — at least two.' }, new_name:{ type:'string', description:'Title for the merged note. If omitted, one is generated from the source titles.' }, delete_originals:{ type:'boolean', description:'If true, ask the user to confirm deleting the original notes right after merging.' } }, required:['notes'] } },
-        { name:'delete_note', description:'Permanently delete a note. This always pops a native confirmation dialog for the user and only actually deletes if they accept it, so it is safe to call as soon as the user has clearly asked to delete a specific note — but never call it just to be helpful when deletion was not requested.', parameters:{ type:'object', properties:{ note:{ type:'string', description:'The id or title of the note to delete.' } }, required:['note'] } },
+        { name:'delete_note', description:'Permanently delete an ENTIRE note. This always pops a native confirmation dialog for the user and only actually deletes if they accept it, so it is safe to call as soon as the user has clearly asked to delete a specific note — but never call it just to be helpful when deletion was not requested. CRITICAL — do not confuse this with removing content FROM a note: "delete/remove/take out part of this note", "delete the second stanza of this poem", "پاک کن بخشی از این یادداشت/شعر" all mean editing the note\'s text, not destroying the note — those go to edit_note_content (mode "replace" with the trimmed full text), never here. Only call delete_note when the user wants the note itself, as a whole, gone.', parameters:{ type:'object', properties:{ note:{ type:'string', description:'The id or title of the note to delete.' } }, required:['note'] } },
         { name:'set_theme', description:'Switch the app\'s visual theme. Available themes: oceanic, phantom, aurora, aurora-phantom, spider, dreamy, galaxy, cloudy, cyberpunk, love, snowy, rainy, autumn, anonymous, terminal, darkweb, acid. Matches loosely against the theme id or its Persian/English display name, so close/misspelled names (e.g. "شفق قطبی", "aurora", "قطبی") still resolve.', parameters:{ type:'object', properties:{ theme:{ type:'string', description:'Theme id or name the user asked for, e.g. "aurora" or "شفق قطبی".' } }, required:['theme'] } },
         { name:'set_language', description:'Switch the app\'s interface language between Persian (fa) and English (en).', parameters:{ type:'object', properties:{ language:{ type:'string', enum:['fa','en'] } }, required:['language'] } },
         { name:'export_notes', description:'Export note(s) to a real downloadable file — this actually triggers the download, the same as tapping the app\'s own export buttons, with no extra menus for the user to click through. Formats: "json" (full structured backup), "csv", "md" (Markdown), "txt" (plain text), "pdf", "docx" (Word), "png" or "jpg" (an image of one note\'s content). Locked notes are always excluded unless already unlocked this session.', parameters:{ type:'object', properties:{ format:{ type:'string', enum:['json','csv','md','txt','pdf','docx','png','jpg'], description:'Export file format.' }, note:{ type:'string', description:'Id or title of a single note to export. Omit to export every exportable note at once (not available for png/jpg — those are always a single note).' }, filename:{ type:'string', description:'Optional file name, without extension. A sensible default is generated if omitted.' } }, required:['format'] } },
         { name:'open_app_view', description:'Open one of the app\'s special full-screen views for the user, exactly like tapping its button. Recognize this even when the user names it phonetically/in Finglish or with an approximate translation — e.g. "نولدج گراف", "نالج گراف", "knowledge graf", "شبکه دانش", or "گراف" all mean knowledge_graph; "سیمیتری"/"سمتری"/"قبرستان" mean cemetery; "رندوم پرتال"/"پرتال تصادفی" mean random_portal.', parameters:{ type:'object', properties:{ view:{ type:'string', enum:['knowledge_graph','cemetery','random_portal'], description:'knowledge_graph = the graph view of how notes connect to each other. cemetery = the list of deleted notes. random_portal = jumps to a random note.' } }, required:['view'] } },
         { name:'compare_notes', description:'Compare two or more notes and get structured facts about what they share and how they differ: common tags, common significant words (the closest thing to shared "DNA"/theme between them), whether they\'re in the same folder, and each note\'s pinned/favorite/archived status, word count, and last-edited date. Use this whenever the user asks to compare notes or find what they have in common. This tool only gathers the facts — write the actual comparison for the user yourself, in your own words, from the returned data.', parameters:{ type:'object', properties:{ notes:{ type:'array', items:{ type:'string' }, description:'Ids or titles of the notes to compare — at least two.' } }, required:['notes'] } },
         { name:'get_dashboard_stats', description:'Get an overview of the user\'s whole notes vault: total/archived/locked note counts, total word count, per-folder note counts, per-tag note counts, and the actual lists (names) of which notes are currently pinned and which are favorite. Use this whenever the user asks something like which notes are favorite/pinned, wants stats about their notes as a whole, or asks what the dashboard shows.', parameters:{ type:'object', properties:{} } },
-        { name:'get_note', description:'Get a single note\'s full, complete body text plus its metadata (folder, tags, pinned/favorite/archived, last-edited). find_notes only returns a short 180-character snippet — call this instead whenever you actually need the whole content: to read it back in full, summarize it accurately, translate it, quote exact figures/steps from it, or otherwise reason over the real text rather than a preview.', parameters:{ type:'object', properties:{ note:{ type:'string', description:'The id or title of the note.' } }, required:['note'] } },
+        { name:'get_note', description:'Get a single note\'s full, complete body text plus its metadata (folder, tags, pinned/favorite/archived, last-edited, titleHistory). find_notes only returns a short 180-character snippet — call this instead whenever you actually need the whole content: to read it back in full, summarize it accurately, translate it, quote exact figures/steps from it, or otherwise reason over the real text rather than a preview. The returned titleHistory array lists every title this note has ever had, oldest first — use it to answer "what was this note\'s title before?"/"what have I called this note?"; you never need it just to reference the note by an old title, since the note reference argument on every tool already resolves past titles automatically.', parameters:{ type:'object', properties:{ note:{ type:'string', description:'The id or title of the note.' } }, required:['note'] } },
         { name:'duplicate_note', description:'Create an exact copy of an existing note (same content, folder, and tags) under a new title. The original note is left completely untouched. Use this for "duplicate/clone/copy this note" requests, or as a safe first step before heavily rewriting a note the user wants to keep a backup of.', parameters:{ type:'object', properties:{ note:{ type:'string', description:'The id or title of the note to duplicate.' }, new_name:{ type:'string', description:'Title for the new copy. If omitted, "<original name> (copy)" is used.' } }, required:['note'] } },
         { name:'lock_note', description:'Password-lock (encrypt) a note by opening the app\'s own real password dialog for the user — the exact same dialog the 🔒 button uses. The user types their password, and optionally a password hint, directly into that dialog; you never see, ask for, or receive the actual password yourself, since typing a real password into this chat would be insecure. Call this as soon as the user asks to lock, password-protect, or encrypt a specific note — do not ask them for the password in chat first. Returns ok:false (without error) if the user cancels the dialog instead of completing it, and a clear error if the note is already locked.', parameters:{ type:'object', properties:{ note:{ type:'string', description:'The id or title of the note to lock.' } }, required:['note'] } },
         { name:'set_time_capsule', description:'Arm or clear the app\'s Time Capsule feature on a note: the note stays visible in the list but cannot be opened again until a future date/time you set, showing a countdown until then. Use this whenever the user asks to "lock this note until X", set a time capsule, or remove one they already set.', parameters:{ type:'object', properties:{ note:{ type:'string', description:'The id or title of the note.' }, unlock_at:{ type:'string', description:'A future date/time when the note should unlock, in any form JavaScript\'s Date.parse can read (e.g. "2026-12-31 18:00", "2027-01-01T09:00:00"). Required unless clear is true.' }, clear:{ type:'boolean', description:'If true, remove any existing time capsule lock on the note instead of setting a new one; unlock_at is ignored.' } }, required:['note'] } },
         { name:'set_ghost_note', description:'Arm or cancel the app\'s Ghost Note feature on a note: the note automatically self-deletes (into the recoverable Cemetery) once its timer runs out. Give either hours (a relative countdown) or until (an absolute future date/time) — not both. Use this whenever the user asks a note to "disappear/self-destruct/auto-delete after X hours" or "delete itself on/at <a specific date or time>", or asks to cancel a timer they already set.', parameters:{ type:'object', properties:{ note:{ type:'string', description:'The id or title of the note.' }, hours:{ type:'number', description:'Hours from now until the note is automatically deleted. Give this OR until, not both. Required unless clear or until is given.' }, until:{ type:'string', description:'An absolute future date/time for the note to self-delete at, in any format Date.parse can read (e.g. "2026-09-20 18:00", "2026-12-31T23:59:00"). Give this OR hours, not both. Required unless clear or hours is given.' }, clear:{ type:'boolean', description:'If true, cancel any existing ghost timer on the note instead of setting a new one; hours/until are ignored.' } }, required:['note'] } },
         { name:'list_cemetery', description:'List the notes currently sitting in the Cemetery (deleted notes that are still recoverable), each with its index, name, folder, and deletion time. Use this whenever the user asks what\'s in the cemetery/trash, or before restoring a deleted note so you can find the right one.', parameters:{ type:'object', properties:{} } },
         { name:'restore_note_from_cemetery', description:'Restore a previously deleted note out of the Cemetery back into the user\'s normal notes. Identify the note either by its cemetery index (from list_cemetery) or by its name.', parameters:{ type:'object', properties:{ note:{ type:'string', description:'The name of the deleted note to restore. Omit if using index instead.' }, index:{ type:'number', description:'The exact cemetery index of the note to restore, from list_cemetery. Omit if using note (name) instead.' } } } },
-        { name:'manage_folder', description:'Create a brand-new empty folder, rename an existing folder (every note inside moves with it), or delete a folder (its notes are kept but become unfiled, exactly like the app\'s own folder-delete button — nothing inside is lost).', parameters:{ type:'object', properties:{ action:{ type:'string', enum:['create','rename','delete'], description:'Which folder operation to perform.' }, folder:{ type:'string', description:'For create: the new folder\'s name. For rename/delete: the existing folder\'s current name.' }, new_name:{ type:'string', description:'The folder\'s new name. Required when action is "rename", ignored otherwise.' } }, required:['action','folder'] } },
+        { name:'list_folders', description:'List every folder that actually exists in the vault, including completely empty folders that contain zero notes. This is the only reliable way to see empty folders — get_dashboard_stats\' folderCounts is built only from notes that already have a folder, so a folder with no notes in it never appears there at all. Always call this before manage_folder with action "rename" or "delete" whenever you are not already certain (from something earlier in this conversation) that the folder you are about to act on really exists and is spelled the way the user means — this avoids silently failing on, or mismatching, a folder the user can see in the app but you cannot otherwise know about. Returns each folder\'s name along with its note count (0 for empty folders), how many of those notes are archived or locked, and previousNames (any name(s) this folder used to have before being renamed — you never need this to act on the folder, since the app already resolves an old name to the current one automatically everywhere a folder name is expected, but use it if the user asks what a folder used to be called).', parameters:{ type:'object', properties:{} } },
+        { name:'manage_folder', description:'Create a brand-new empty folder, rename an existing folder (every note inside moves with it), or delete a folder (its notes are kept but become unfiled, exactly like the app\'s own folder-delete button — nothing inside is lost). If you are not sure a folder exists (including an empty one), call list_folders first instead of guessing. The app remembers folder renames, so if the user later refers to a folder by a name it used to have before being renamed, any folder-name input anywhere (here or in create_note/move_note_to_folder/bulk_update_notes/etc.) still resolves to the right folder automatically — you do not need to track old names yourself.', parameters:{ type:'object', properties:{ action:{ type:'string', enum:['create','rename','delete'], description:'Which folder operation to perform.' }, folder:{ type:'string', description:'For create: the new folder\'s name. For rename/delete: the existing folder\'s current name.' }, new_name:{ type:'string', description:'The folder\'s new name. Required when action is "rename", ignored otherwise.' } }, required:['action','folder'] } },
         { name:'set_note_style', description:'Change a single note\'s display font family and/or font size — a per-note cosmetic style, separate from the app\'s overall visual theme.', parameters:{ type:'object', properties:{ note:{ type:'string', description:'The id or title of the note.' }, font_family:{ type:'string', description:'A CSS font-family value to apply, e.g. "Georgia", "monospace", "Tahoma". Omit to leave unchanged.' }, font_size:{ type:'number', description:'Font size in pixels (roughly 10-32 is sensible). Omit to leave unchanged.' } }, required:['note'] } },
         { name:'set_decay_level', description:'Manually set a note\'s "decay" staleness badge (Active/Dormant/Forgotten/Ancient — a purely cosmetic indicator of how old/untouched a note looks), or reset it back to automatic so the app derives it from how long the note has gone unedited again.', parameters:{ type:'object', properties:{ note:{ type:'string', description:'The id or title of the note.' }, level:{ type:'integer', enum:[0,1,2,3], description:'0=Active, 1=Dormant, 2=Forgotten, 3=Ancient. Required unless reset_to_automatic is true.' }, reset_to_automatic:{ type:'boolean', description:'If true, remove the manual override and let the app compute the decay level automatically from the note\'s last-edited date; level is ignored.' } }, required:['note'] } },
         { name:'bulk_update_notes', description:'Apply one change to every note matching a filter at once, instead of calling a single-note tool repeatedly — e.g. "archive all notes in Old Stuff", "add the tag done to every note tagged draft", "pin every note about budgets". At least one filter (folder, tag, or query) is required, precisely to avoid accidentally hitting the entire vault; filters combine with AND when more than one is given. Locked notes are never affected.', parameters:{ type:'object', properties:{ folder:{ type:'string', description:'Only match notes in this folder.' }, tag:{ type:'string', description:'Only match notes that already have this tag.' }, query:{ type:'string', description:'Only match notes whose title or body contains this text.' }, action:{ type:'string', enum:['add_tag','remove_tag','archive','unarchive','pin','unpin','favorite','unfavorite','move_to_folder'], description:'The change to apply to every matching note.' }, value:{ type:'string', description:'Required for add_tag/remove_tag (the tag text) and move_to_folder (destination folder name, or empty/"none" to unfile). Not used for the other actions.' } }, required:['action'] } },
@@ -12700,18 +12748,36 @@ window.attachWrapperEvents = function(categoryId){
             const n = normalizeText(c.name || '');
             return n && (n.includes(norm) || norm.includes(n));
         });
-        if(!candidates.length) return null;
-        if(candidates.length === 1) return candidates[0];
-        const scored = candidates.map(c => {
-            const n = normalizeText(c.name || '');
-            let score = 0;
-            if(n.split(' ').includes(norm)) score += 5;
-            if(n.startsWith(norm)) score += 2;
-            score -= Math.abs(n.length - norm.length) * 0.05;
-            return { c, score, t: Date.parse(c.lastEdited || '') || 0 };
-        });
-        scored.sort((a, b) => (b.score - a.score) || (b.t - a.t));
-        return scored[0].c;
+        if(candidates.length){
+            if(candidates.length === 1) return candidates[0];
+            const scored = candidates.map(c => {
+                const n = normalizeText(c.name || '');
+                let score = 0;
+                if(n.split(' ').includes(norm)) score += 5;
+                if(n.startsWith(norm)) score += 2;
+                score -= Math.abs(n.length - norm.length) * 0.05;
+                return { c, score, t: Date.parse(c.lastEdited || '') || 0 };
+            });
+            scored.sort((a, b) => (b.score - a.score) || (b.t - a.t));
+            return scored[0].c;
+        }
+        // Still nothing — the reference might be a title this note used to
+        // have before being renamed (see mu_recordTitleHistory /
+        // titleHistory). Match against every note's past titles the same
+        // way as the current name above, so the user (or the AI relaying
+        // for them) can keep referring to a note by an old title even
+        // after it's been renamed. Exact match wins outright; for a
+        // partial/substring match against old titles, the most recently
+        // edited note wins ties, same reasoning as the current-name path.
+        const exactHistoryMatch = items.find(c => Array.isArray(c.titleHistory) && c.titleHistory.some(t => normalizeText(t || '') === norm));
+        if(exactHistoryMatch) return exactHistoryMatch;
+        const historyCandidates = items.filter(c => Array.isArray(c.titleHistory) && c.titleHistory.some(t => {
+            const n = normalizeText(t || '');
+            return n && (n.includes(norm) || norm.includes(n));
+        }));
+        if(!historyCandidates.length) return null;
+        historyCandidates.sort((a, b) => (Date.parse(b.lastEdited || '') || 0) - (Date.parse(a.lastEdited || '') || 0));
+        return historyCandidates[0];
     }
 
     /* Matches a folder name against the app's real folder list the same
@@ -12728,7 +12794,43 @@ window.attachWrapperEvents = function(categoryId){
         if(typeof folders === 'undefined' || !name) return null;
         const norm = normalizeText(String(name));
         if(!norm) return null;
-        return folders.find(f => normalizeText(f) === norm) || null;
+        const direct = folders.find(f => normalizeText(f) === norm);
+        if(direct) return direct;
+        // Not found under its current name — check whether this is a name
+        // the folder used to have before being renamed (see
+        // mAiRecordFolderRename). This is what lets the AI still resolve
+        // "the X folder" after the user has renamed X to something else,
+        // instead of reporting it as not found or spawning a duplicate.
+        if(folderRenameHistory && typeof folderRenameHistory === 'object'){
+            const entry = folderRenameHistory[norm];
+            const mapped = entry && entry.to;
+            if(mapped){
+                const current = folders.find(f => normalizeText(f) === normalizeText(mapped));
+                if(current) return current;
+            }
+        }
+        return null;
+    }
+
+    /* Records that `oldName` was just renamed to `newName`, so a later
+       reference to the old name (by the user, relayed through the AI) can
+       still be resolved — see mAiFindExistingFolder. Handles chained
+       renames (A -> B -> C) by repointing every existing alias that
+       currently resolves to oldName so it resolves to newName instead,
+       rather than only remembering the single most recent hop. Each entry
+       keeps both the resolution target (`to`, used for matching) and the
+       original display text of the old name (`label`, used when listing
+       previous names back to the user). */
+    function mAiRecordFolderRename(oldName, newName){
+        if(!folderRenameHistory || typeof folderRenameHistory !== 'object') folderRenameHistory = {};
+        const oldNorm = normalizeText(String(oldName || ''));
+        const newNorm = normalizeText(String(newName || ''));
+        if(!oldNorm || !newNorm || oldNorm === newNorm) return;
+        Object.keys(folderRenameHistory).forEach(k => {
+            const entry = folderRenameHistory[k];
+            if(entry && normalizeText(entry.to) === oldNorm) entry.to = newName;
+        });
+        folderRenameHistory[oldNorm] = { to: newName, label: String(oldName || '').trim() };
     }
 
     function mAiIsLockedForAi(item){
@@ -12844,11 +12946,16 @@ window.attachWrapperEvents = function(categoryId){
                     const newName = String(input.new_name || '').trim();
                     if(!newName) return { ok:false, error: fa ? 'نام جدید لازم است.' : 'A new name is required.' };
                     const oldName = item.name;
-                    item.name = newName;
+                    // Keep every title this note has ever had, most recent
+                    // last, so a later "what was this note called before?"
+                    // (or a reference to it by an old title) can still be
+                    // answered/resolved — see get_note's titleHistory field
+                    // and the titleHistory fallback in mAiResolveNote.
+                    mu_recordTitleHistory(item, newName);
                     saveToLocalStorage();
                     renderApp(activeOpenId);
                     showToast(fa ? '✏️ تغییر نام به: ' + newName : '✏️ Renamed to: ' + newName);
-                    return { ok:true, data:{ id:item.id, old_name:oldName, new_name:newName } };
+                    return { ok:true, data:{ id:item.id, old_name:oldName, new_name:newName, title_history:item.titleHistory.slice() } };
                 }
                 case 'move_note_to_folder': {
                     const item = mAiResolveNote(input.note);
@@ -13130,7 +13237,8 @@ window.attachWrapperEvents = function(categoryId){
                     return { ok:true, data:{
                         id:item.id, name:item.name, folder:item.folder || '', tags:item.tags || [],
                         pinned:!!item.pinned, favorite:!!item.favorite, archived:!!item.archived,
-                        lastEdited:item.lastEdited || '', content: mu_notePlainText(item)
+                        lastEdited:item.lastEdited || '', content: mu_notePlainText(item),
+                        titleHistory: Array.isArray(item.titleHistory) ? item.titleHistory.slice() : []
                     } };
                 }
                 case 'duplicate_note': {
@@ -13235,6 +13343,36 @@ window.attachWrapperEvents = function(categoryId){
                     showToast(fa ? '♻️ یادداشت بازیابی شد' : '♻️ Note restored');
                     return { ok:true, data:{ name:restoredName } };
                 }
+                case 'list_folders': {
+                    // Every real folder, straight from the `folders` array itself
+                    // rather than derived from the notes list — this is what makes
+                    // empty folders (zero notes inside) visible at all, since
+                    // get_dashboard_stats' folderCounts only ever sees folders that
+                    // already have at least one note in them.
+                    const realFolders = folders.filter(f => f !== DEFAULT_FOLDER);
+                    const nonDecoy = categories.filter(c => !c.isDecoy);
+                    const data = realFolders.map(f => {
+                        const inFolder = nonDecoy.filter(c => c.folder === f);
+                        // Every old name that currently resolves (through one or
+                        // more renames) to this folder — see mAiRecordFolderRename.
+                        const previousNames = folderRenameHistory && typeof folderRenameHistory === 'object'
+                            ? Object.keys(folderRenameHistory)
+                                .map(k => folderRenameHistory[k])
+                                .filter(entry => entry && normalizeText(entry.to) === normalizeText(f))
+                                .map(entry => entry.label)
+                                .filter(Boolean)
+                            : [];
+                        return {
+                            folder: f,
+                            previousNames: previousNames,
+                            noteCount: inFolder.length,
+                            archivedCount: inFolder.filter(c => isArchived(c)).length,
+                            lockedCount: inFolder.filter(c => isNoteLocked(c) && !unlockedQaIds.includes(c.id)).length,
+                            isEmpty: inFolder.length === 0
+                        };
+                    });
+                    return { ok:true, data };
+                }
                 case 'manage_folder': {
                     const action = String(input.action || '').toLowerCase();
                     let folderName = String(input.folder || '').trim();
@@ -13263,6 +13401,7 @@ window.attachWrapperEvents = function(categoryId){
                         folders = folders.map(f => f === folderName ? newName : f);
                         categories.forEach(c => { if(c.folder === folderName) c.folder = newName; });
                         if(currentFolder === folderName) currentFolder = newName;
+                        mAiRecordFolderRename(folderName, newName);
                         saveToLocalStorage();
                         saveFoldersToLocalStorage();
                         renderApp(activeOpenId);
@@ -13508,7 +13647,8 @@ window.attachWrapperEvents = function(categoryId){
                         if(mAiIsLockedForAi(item)) return { query: String(ref), found:false, reason: fa ? 'قفل است' : 'locked', name:item.name };
                         return { query: String(ref), found:true, id:item.id, name:item.name, folder:item.folder || '', tags:item.tags || [],
                             pinned:!!item.pinned, favorite:!!item.favorite, archived:!!item.archived,
-                            lastEdited:item.lastEdited || '', content: mu_notePlainText(item) };
+                            lastEdited:item.lastEdited || '', content: mu_notePlainText(item),
+                            titleHistory: Array.isArray(item.titleHistory) ? item.titleHistory.slice() : [] };
                     });
                     return { ok:true, data:{ notes: results } };
                 }
@@ -13613,7 +13753,16 @@ window.attachWrapperEvents = function(categoryId){
                     const capCount = function(n){ const v = Math.round(Number(n)); return Math.max(1, Math.min(20, Number.isFinite(v) && v > 0 ? v : 1)); };
                     function pack(list){
                         return list.map(function(m){
-                            return { index: full.indexOf(m), role: m.role, content: String(m.content == null ? '' : m.content).slice(0, 800) };
+                            // Real send time for every message, user or
+                            // assistant, from the stored m.ts — this is how
+                            // "what time did you reply to my Nth message"
+                            // gets answered now, instead of the old inline
+                            // timestamp tag that used to be baked into every
+                            // message's content sent to the model (removed
+                            // because the model started copying that literal
+                            // tag text into its own new replies).
+                            const rich = m.ts ? mAiRichTimestamp(m.ts) : null;
+                            return { index: full.indexOf(m), role: m.role, content: String(m.content == null ? '' : m.content).slice(0, 800), timestamp: rich ? (rich.lineFa + ' | ' + rich.lineEn) : null };
                         });
                     }
                     let results;
@@ -13929,11 +14078,11 @@ window.attachWrapperEvents = function(categoryId){
         const mAiDateTimeFa = 'اطلاع زمانیِ دقیقِ فعلی (بر اساس ساعت همین دستگاه، همین لحظه): ' + mAiRichNow.lineFa
             + ' — یعنی روز هفته ' + mAiRichNow.weekdayFa + '، ' + mAiRichNow.day + ' ' + mAiRichNow.monthFa + ' ' + mAiRichNow.year
             + '، فصل ' + mAiRichNow.seasonFa + '، ساعت (با ثانیه) ' + mAiRichNow.time
-            + ' (فرمِ کاملِ قابل‌پارس همین لحظه: ' + mAiNowLocalIso + '). هر وقت کاربر به تاریخ/زمانِ نسبی اشاره کرد (فردا، پس‌فردا، جمعه بعدی، تا آخر همین هفته، ۳ روز دیگر، امشب و مانند آن)، همیشه دقیقاً همین لحظه را به‌عنوان «الان/امروز» مبنای محاسبه بگیر — هرگز از دانش قبلی یا حدسِ خودت درباره تاریخ امروز استفاده نکن. برای مقدارِ unlock_at در set_time_capsule یا until در set_ghost_note، همیشه یک تاریخ کامل و قابل‌پارس با ارقام لاتین بساز (مثل 2026-09-20T18:00:00)، نه توصیف نسبی خام. این تاریخ/ساعت فقط برای منطقه‌زمانیِ خودِ دستگاه کاربر است؛ اگر کاربر پرسید همین الان در جای دیگری از دنیا (کشور/شهر/استان/ایالت دیگر) یا ساعت جهانی (UTC) چند است، هرگز حدس نزن — از ابزار get_world_time استفاده کن. همچنین جلوی متنِ هر پیام در همین گفتگو (چه از کاربر چه از خودت) یک برچسب با زمان دقیق ارسال همان پیام آمده (به‌شکل «[زمان این پیام: ...]»)؛ هر وقت کاربر پرسید فلان پیام دقیقاً کِی فرستاده شده یا تو کِی جواب دادی، همیشه از همان برچسب استفاده کن، نه از حدس یا محاسبه بر پایه «الان». پیام‌های قدیمی‌تر که از قبل از وجود این قابلیت باقی مانده‌اند ممکن است این برچسب را نداشته باشند — در آن صورت صادقانه بگو زمان دقیق آن پیام ثبت نشده. این برچسب فقط و فقط برای استفاده‌ی داخلی خودت است و به‌طور خودکار توسط خودِ برنامه به ابتدای هر پیام اضافه می‌شود؛ هرگز این برچسب — یا هر تاریخ/ساعتی با همین شکل — را در متنِ پاسخی که به کاربر نشان داده می‌شود ننویس، مگر آنکه کاربر صراحتاً زمان دقیق یک پیام را از تو پرسیده باشد (که در آن صورت فقط همان زمان را به‌صورت طبیعی در جمله بیاور، نه با کپی‌کردن فرمتِ براکت‌دارِ برچسب).\n\n';
+            + ' (فرمِ کاملِ قابل‌پارس همین لحظه: ' + mAiNowLocalIso + '). هر وقت کاربر به تاریخ/زمانِ نسبی اشاره کرد (فردا، پس‌فردا، جمعه بعدی، تا آخر همین هفته، ۳ روز دیگر، امشب و مانند آن)، همیشه دقیقاً همین لحظه را به‌عنوان «الان/امروز» مبنای محاسبه بگیر — هرگز از دانش قبلی یا حدسِ خودت درباره تاریخ امروز استفاده نکن. برای مقدارِ unlock_at در set_time_capsule یا until در set_ghost_note، همیشه یک تاریخ کامل و قابل‌پارس با ارقام لاتین بساز (مثل 2026-09-20T18:00:00)، نه توصیف نسبی خام. این تاریخ/ساعت فقط برای منطقه‌زمانیِ خودِ دستگاه کاربر است؛ اگر کاربر پرسید همین الان در جای دیگری از دنیا (کشور/شهر/استان/ایالت دیگر) یا ساعت جهانی (UTC) چند است، هرگز حدس نزن — از ابزار get_world_time استفاده کن. همچنین جلوی متنِ هر پیامِ کاربر (فقط پیام‌های خودِ کاربر، نه پیام‌های خودت) در همین گفتگو یک برچسب با زمان دقیق ارسال همان پیام آمده (به‌شکل «[زمان این پیام: ...]»)؛ هر وقت کاربر پرسید یکی از پیام‌های خودش دقیقاً کِی فرستاده شده، همیشه از همان برچسب استفاده کن، نه از حدس یا محاسبه بر پایه «الان». این برچسب فقط و فقط برای استفاده‌ی داخلی خودت است و به‌طور خودکار توسط خودِ برنامه فقط به ابتدای پیام‌های کاربر اضافه می‌شود؛ هرگز این برچسب — یا هر تاریخ/ساعتی با همین شکل — را در متنِ پاسخی که به کاربر نشان داده می‌شود ننویس، مگر آنکه کاربر صراحتاً زمان دقیق یک پیام را از تو پرسیده باشد (که در آن صورت فقط همان زمان را به‌صورت طبیعی و فقط در همان یک مورد خاص در جمله بیاور، نه با کپی‌کردن فرمتِ براکت‌دارِ برچسب، و هرگز به‌طور پیش‌فرض یک پاسخ را با خطِ زمان شروع نکن). پیام‌های خودِ تو (assistant) هرگز چنین برچسبی ندارند — نه در پیام‌های قبلی‌ات و نه در پاسخ فعلی‌ات — پس چیزی برای تقلیدکردن از آن‌جا وجود ندارد. اگر کاربر پرسید تو خودت کِی جواب دادی، یا خواستار زمانِ پیامی بود که بالاتر با برچسب نمی‌بینی، ابزار get_chat_history را صدا بزن — نتایج آن شامل یک فیلد زمان واقعی دقیقاً برای همین کار است.\n\n';
         const mAiDateTimeEn = 'Exact current date/time (this device\'s own clock, right now): ' + mAiRichNow.lineEn
             + ' — that is: ' + mAiRichNow.weekdayEn + ', ' + mAiRichNow.monthEn + ' ' + mAiRichNow.day + ', ' + mAiRichNow.year
             + ', ' + mAiRichNow.seasonEn + ', ' + mAiRichNow.time + ' (with seconds)'
-            + ' (full parseable form of this exact moment: ' + mAiNowLocalIso + '). Whenever the user refers to a relative date/time (tomorrow, next Friday, by the end of this week, in 3 days, tonight, etc.), always compute from this exact moment as "now/today" — never guess today\'s date from training data. For unlock_at in set_time_capsule or until in set_ghost_note, always build a full, parseable date string (e.g. 2026-09-20T18:00:00), never a raw relative phrase. This date/time is only for the user\'s own device time zone; if the user asks what time/date it currently is somewhere else in the world (another country/city/state/province) or asks for the world/UTC time, never guess — use the get_world_time tool. Also, every message\'s text in this conversation (yours and the user\'s) is preceded by a tag giving that exact message\'s send time (formatted "[Timestamp of this message: ...]"); whenever the user asks exactly when a given message was sent, or when you replied, always read that tag rather than guessing or estimating from "now". Older messages saved before this feature existed may lack the tag — if so, say honestly that the exact time was not recorded for that message. This tag is for your own internal use only and is added automatically by the app itself to the start of every message — never write this tag, or any date/time in that same bracketed format, into the reply text shown to the user, unless the user explicitly asked what time a message was sent (in which case just state that time in a normal sentence, not by copying the tag\'s bracket format).\n\n';
+            + ' (full parseable form of this exact moment: ' + mAiNowLocalIso + '). Whenever the user refers to a relative date/time (tomorrow, next Friday, by the end of this week, in 3 days, tonight, etc.), always compute from this exact moment as "now/today" — never guess today\'s date from training data. For unlock_at in set_time_capsule or until in set_ghost_note, always build a full, parseable date string (e.g. 2026-09-20T18:00:00), never a raw relative phrase. This date/time is only for the user\'s own device time zone; if the user asks what time/date it currently is somewhere else in the world (another country/city/state/province) or asks for the world/UTC time, never guess — use the get_world_time tool. Also, every USER message\'s text in this conversation is preceded by a tag giving that exact message\'s send time (formatted "[Timestamp of this message: ...]"); whenever the user asks exactly when a given message of their own was sent, read that tag rather than guessing or estimating from "now". This tag is for your own internal use only and is added automatically by the app itself to the start of every user message — never write this tag, or any date/time in that same bracketed format, into the reply text shown to the user, unless the user explicitly asked what time a message was sent (in which case just state that time in a normal sentence, not by copying the tag\'s bracket format), and even then only ever do this in that one narrow case — never open a reply with a timestamp line by default. Assistant messages (yours) are never tagged this way, in your own past turns or in your current reply, so there is nothing to imitate there. If the user instead asks when YOU replied to something, or for a timestamp on any message you cannot see tagged above, call get_chat_history — its results include a real timestamp field for exactly this.\n\n';
 
         const sys = fa
             ? 'تو MARKHIN AI هستی: دستیار هوش مصنوعی حرفه‌ای، دقیق و قدرتمند، ساخته‌شده داخل اپلیکیشن یادداشت‌برداری Markhin. (تلفظ صحیح فارسیِ نام MARKHIN «مارخین» است — هر جا لازم شد نام برنامه یا خودت را با حروف فارسی بنویسی یا تلفظش کنی، همیشه «مارخین» بگو/بنویس، نه شکل‌های دیگر مثل «مارکین».) سه نقش داری و هر سه را همزمان انجام می‌دهی:\n'
@@ -13967,6 +14116,7 @@ window.attachWrapperEvents = function(categoryId){
                 + '- find_notes فقط یک قطعه کوتاه از متن هر یادداشت را برمی‌گرداند، و فهرست یادداشت‌هایی هم که پایین‌تر به‌عنوان زمینه در اختیارت گذاشته شده صرفاً یک پیش‌نمایش است که ممکن است وسط متن یک یادداشت بریده شده باشد (با یک نشانه‌ی «[...]» مشخص می‌شود) — هیچ‌کدام از این دو را متن کامل و قطعی فرض نکن. هر وقت واقعاً به متن کامل یک یادداشت خاص نیاز داری — برای خواندن کامل، خلاصه‌سازی دقیق، ترجمه، نقل‌قول جزئیات دقیق، یا پاسخ به هر سوالی درباره‌ی محتوای واقعی‌اش — حتماً get_note (یا برای چند یادداشت هم‌زمان، get_notes) را صدا بزن.\n'
                 + '- برای حذف، فقط کافی‌ست delete_note را صدا بزنی؛ خودِ ابزار یک تأیید واقعی و قابل‌لغو از کاربر می‌گیرد، ولی هرگز آن را بدون درخواست صریح کاربر صدا نزن.\n'
                 + '- خیلی مهم — امنیت رمز: وقتی کاربر خواست یادداشتی را قفل/رمزدار کند، هرگز خودت در همین چت از او رمز یا حتی راهنمای رمز نپرس و هرگز رمزی که در چت تایپ می‌کند را در جایی ثبت نکن — فقط بلافاصله lock_note را صدا بزن؛ خودِ ابزار همان دیالوگ امن رمزگذاریِ برنامه را باز می‌کند و کاربر رمز و راهنمای رمز (اختیاری) را مستقیماً و امن در همان دیالوگ وارد می‌کند، نه در چت. اگر نتیجه نشان داد کاربر دیالوگ را لغو کرده، به‌سادگی و بدون سرزنش به او بگو که رمزگذاری انجام نشد.\n'
+                + '- خیلی مهم — پیش از تغییرنام یا حذف یک پوشه، اگر مطمئن نیستی آن پوشه دقیقاً با همین املا وجود دارد (مثلاً همین الان در همین گفتگو آن را ندیده‌ای)، اول ابزار list_folders را صدا بزن، نه اینکه فقط از روی یادداشت‌ها/پوشه‌هایی که در زمینه‌ی پس‌زمینه به تو داده شده حدس بزنی — چون آن زمینه ممکن است پوشه‌های کاملاً خالی (بدون هیچ یادداشتی) را اصلاً نشان ندهد، و عمل‌کردن روی پوشه‌ای که واقعاً وجود ندارد یا روی یک املای مشابهِ اشتباه، دقیقاً همان خطایی است که این کار جلویش را می‌گیرد.\n'
                 + '- بسیار مهم — تشخیص پوشه از یادداشت: اینکه درخواست کاربر مربوط به «پوشه» است یا مربوط به «یادداشت»، فقط از روی چیزی که خودِ کاربر گفته تعیین می‌شود (کلمه «پوشه» در برابر عنوان یک یادداشت)، نه از روی اینکه کدام اسم از قبل جایی وجود دارد. اگر گفت «پوشه‌ی X رو بساز/تغییرنام بده/حذف کن» یا واضح بود که منظورش همان پوشه‌ای است که یادداشت‌ها داخلش دسته‌بندی می‌شوند، همیشه باید manage_folder صدا زده شود — هرگز create_note یا delete_note — حتی اگر یک یادداشت هم دقیقاً همین اسم را داشته باشد. اگر برعکس، منظورش یک یادداشت مشخص بود، از ابزارهای یادداشت استفاده کن. اگر واقعاً معلوم نبود منظورش کدام است، به‌جای حدس‌زدن یک سوال کوتاه بپرس، چون حذف پوشه و حذف یادداشت اصلاً جای هم را نمی‌گیرند.\n'
                 + '- برای یک درخواست جابجایی دستیِ یک‌باره — مثل «فلان یادداشت رو ببر بالای فلان»، «اینو اول لیست کن»، «اینو ببر ته لیست» — از move_note_position استفاده کن (position: top/bottom/before/after). این فقط درباره جای یادداشت در لیست است، نه پوشه؛ برای این‌ها manage_folder یا move_note_to_folder را صدا نزن، و برعکس، برای درخواست جابجایی بین پوشه‌ها هم move_note_position را به‌کار نبر.\n'
                 + '- برای مرتب‌کردن یک‌جای کل لیست (یا یک پوشه) بر اساس یک قاعده — الفبا، تاریخ آخرین ویرایش، یا طول متن — به‌جای جابجا‌کردن تک‌تک یادداشت‌ها با move_note_position، از sort_notes استفاده کن.\n'
@@ -14016,6 +14166,7 @@ window.attachWrapperEvents = function(categoryId){
                 + '- Time Capsule locks a note until its unlock time; Ghost Note deletes a note once its timer runs out, but — like every deletion in this app — that still lands the note in the recoverable Cemetery, not gone for good. Even so, only call set_time_capsule or set_ghost_note when the user has clearly and specifically asked for that, never speculatively, and confirm back in plain language what you just set (when it unlocks, or in how many hours it disappears).\n'
                 + '- For a change that should apply to a whole group of notes at once (a folder, a tag, or a search match) — e.g. "archive everything in Old Stuff" or "tag all my draft notes as done" — use bulk_update_notes instead of calling a single-note tool over and over.\n'
                 + '- Deleting a folder (manage_folder with action "delete") never deletes the notes inside it — they just become unfiled, exactly like the app\'s own folder-delete button. Renaming a folder moves every note inside it along with the new name automatically.\n'
+                + '- CRITICAL — before renaming or deleting a folder, if you are not already certain it exists and is spelled exactly right (e.g. you have not just seen it in this same conversation), call list_folders first rather than guessing from the notes/folders mentioned in your background context — that context can miss folders that have zero notes in them, and acting on a folder that does not really exist, or on the wrong near-miss spelling, is exactly the kind of mistake this is meant to prevent.\n'
                 + '- If the user asks to get back a note they deleted, call list_cemetery to find it (or restore_note_from_cemetery directly by name if you\'re confident which one they mean), then restore_note_from_cemetery.\n'
                 + '- For deletions, just call delete_note — it shows the user a real, cancellable confirmation dialog itself — but never call it unless the user has clearly asked to delete something.\n'
                 + '- CRITICAL — password security: when the user wants a note locked/password-protected, never ask them for the password (or even a password hint) here in chat, and never record a password they type into the chat — just call lock_note right away. The tool itself opens the app\'s own real, secure encryption dialog, where the user types the password and an optional hint directly and safely into that dialog, not into the chat. If the result shows the user cancelled the dialog, just tell them plainly that the note wasn\'t locked, with no blame.\n'
@@ -14051,17 +14202,30 @@ window.attachWrapperEvents = function(categoryId){
         const historyCount = Math.max(4, Math.round(120 * contextScale));
         const convo = [{ role: 'system', content: sys }].concat(
             mAiHistory.filter(function(m){ return !m.synthetic; }).slice(-historyCount).map(function(m){
-                // Precise bilingual send-time tag prepended to every
+                // Precise bilingual send-time tag prepended to every USER
                 // message's content sent to the model — not to the
                 // stored/displayed m.content itself — so the model can
-                // accurately answer "what time did I send that?" / "what
-                // time did you reply?" instead of guessing. Reuses the
-                // same rich Persian(Jalali)/English(Gregorian) formatting
-                // shown when the user taps a bubble in the UI. Messages
-                // saved before per-message timestamps existed have no
-                // m.ts — the tag is simply omitted for those, matching
-                // the "زمان دقیق این پیام ثبت نشده" shown in the UI.
-                const tsTag = m.ts ? ('[' + (fa ? 'زمان این پیام' : 'Timestamp of this message') + ': ' + mAiRichTimestamp(m.ts).lineFa + ' | ' + mAiRichTimestamp(m.ts).lineEn + ']\n') : '';
+                // accurately answer "what time did I send that?" instead of
+                // guessing. Reuses the same rich Persian(Jalali)/English
+                // (Gregorian) formatting shown when the user taps a bubble
+                // in the UI. Messages saved before per-message timestamps
+                // existed have no m.ts — the tag is simply omitted for
+                // those, matching the "زمان دقیق این پیام ثبت نشده" shown
+                // in the UI.
+                //
+                // Bug fix: this used to be prepended to assistant messages
+                // too. Since that tag became the literal first line of an
+                // "assistant"-role message's content, the model was reading
+                // its own past replies in the history it's shown and
+                // pattern-matching their shape — so it started opening its
+                // *new* replies with the same "[Timestamp of this
+                // message: ...]" line typed out as visible text, which is
+                // exactly the bug being fixed here. Only user messages get
+                // the inline tag now; if the user asks what time a past
+                // *assistant* reply was sent, get_chat_history's results
+                // below carry a real timestamp field for that instead of
+                // relying on text baked into the replayed conversation.
+                const tsTag = (m.ts && m.role === 'user') ? ('[' + (fa ? 'زمان این پیام' : 'Timestamp of this message') + ': ' + mAiRichTimestamp(m.ts).lineFa + ' | ' + mAiRichTimestamp(m.ts).lineEn + ']\n') : '';
                 // If this message was sent as a reply (via the ↩ button),
                 // let the model see what it was quoting too — not just
                 // display it — by prefixing a short quoted-context line
@@ -14099,7 +14263,20 @@ window.attachWrapperEvents = function(categoryId){
                 }
                 convo.push({ role: 'assistant', content: resText, toolCalls: calls, thinkingBlocks: (res && res.thinkingBlocks) || null });
                 for(const call of calls){
-                    const result = await mAiExecuteTool(call.name, call.input);
+                    // See the __mai_malformed__ tagging in _chatStreamAnthropic /
+                    // _chatStreamOpenAI: this call's own arguments got cut off or
+                    // corrupted in transit (most often when a long piece of text —
+                    // a full note body, a whole poem — was being written inside
+                    // the call and the reply hit its length limit mid-argument).
+                    // Running it anyway would mean e.g. create_note firing with no
+                    // name/content at all. Refuse to execute it and tell the model
+                    // plainly so it retries within this same turn instead of the
+                    // action just silently not happening.
+                    const result = (call.input && call.input.__mai_malformed__)
+                        ? { ok:false, error: fa
+                            ? 'ورودیِ این فراخوانیِ ابزار به‌خاطر محدودیت طول پاسخ، ناقص/خراب دریافت شد (معمولاً وقتی متن طولانی مثل یک یادداشت یا شعر کامل داخل یک فراخوانی نوشته می‌شود). همین کار را دوباره امتحان کن. اگر باز هم ناقص شد، آن را به چند مرحله کوچک‌تر تقسیم کن — مثلاً create_note را با محتوای خالی یا کوتاه بزن، بعد با یک یا چند فراخوانی edit_note_content (mode: "append") بقیه متن را اضافه کن.'
+                            : 'This tool call\'s own input arrived cut off/corrupted, usually because a long piece of text (a full note, a whole poem) was being written inside the call and the reply hit its length limit mid-argument. Retry the exact same action. If it keeps happening, split it into smaller steps instead — e.g. call create_note with little/no content, then add the rest with one or more edit_note_content calls (mode: "append").' }
+                        : await mAiExecuteTool(call.name, call.input);
                     convo.push({ role: 'tool_result', toolCallId: call.id, name: call.name, content: JSON.stringify(result) });
                 }
                 if(step === maxSteps - 1){
