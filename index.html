@@ -8506,6 +8506,11 @@ function ensureItem(item){
  item.fontFamily=typeof item.fontFamily==='string'?item.fontFamily:'';
  item.fontSize=Number(item.fontSize)||13;
 }
+// Exposed on window: this whole script tag is wrapped in its own IIFE, so
+// without this, a bare `ensureItem` reference from a different <script>
+// tag (e.g. the MARKHIN AI chat's create_note/edit_note_content tools)
+// throws "ensureItem is not defined" instead of finding this function.
+window.ensureItem = ensureItem;
 function allItems(){categories.forEach(ensureItem);return categories;}
 function isVisibleFeature(item){return true;}
 window.getVisibleCategories=function(){
@@ -8570,6 +8575,10 @@ window.addNewFolder=async function(){
  setTimeout(()=>{ const target=document.querySelector('.folder-wrapper[data-folder="'+CSS.escape(clean)+'"]'); if(target) target.scrollIntoView({behavior:'smooth', block:'nearest', inline:'nearest'}); }, 60);
 };
 function mdToHtml(md){let x=escapeHtml(String(md||''));x=x.replace(/```([\s\S]*?)```/g,'<pre><code>$1</code></pre>');x=x.replace(/^>\s?(.*)$/gm,'<blockquote>$1</blockquote>');x=x.replace(/^###\s+(.*)$/gm,'<h3>$1</h3>').replace(/^##\s+(.*)$/gm,'<h2>$1</h2>').replace(/^#\s+(.*)$/gm,'<h1>$1</h1>');x=x.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,'<a href="$2">$1</a>');x=x.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/__(.+?)__/g,'<strong>$1</strong>').replace(/\*(.+?)\*/g,'<em>$1</em>').replace(/_(.+?)_/g,'<em>$1</em>');x=x.replace(/^[-*]\s+(.*)$/gm,'<li>$1</li>').replace(/(<li>.*<\/li>\n?)+/g,m=>'<ul>'+m+'</ul>');return x.split(/\n\n+/).map(p=>/^<(h\d|ul|pre|blockquote)/.test(p)?p:'<p>'+p.replace(/\n/g,'<br>')+'</p>').join('');}
+// Exposed on window for the same reason as ensureItem above — the MARKHIN
+// AI chat's create_note/edit_note_content tools call this by bare name
+// from a different <script> tag.
+window.mdToHtml = mdToHtml;
 function htmlToMd(html){const d=document.createElement('div');d.innerHTML=sanitizeHtml(html||'');d.querySelectorAll('br').forEach(x=>x.replaceWith('\n'));d.querySelectorAll('strong,b').forEach(x=>x.replaceWith('**'+x.textContent+'**'));d.querySelectorAll('em,i').forEach(x=>x.replaceWith('*'+x.textContent+'*'));d.querySelectorAll('u').forEach(x=>x.replaceWith('__'+x.textContent+'__'));d.querySelectorAll('blockquote').forEach(x=>x.replaceWith('\n> '+x.textContent+'\n'));d.querySelectorAll('li').forEach(x=>x.replaceWith('- '+x.textContent+'\n'));d.querySelectorAll('a').forEach(x=>x.replaceWith('['+x.textContent+']('+x.getAttribute('href')+')'));return (d.innerText||d.textContent||'').replace(/\n{3,}/g,'\n\n').trim();}
 function addFeatureTools(item,box){
  const text=document.getElementById('text-'+item.id); if(!text)return; ensureItem(item);
@@ -10509,6 +10518,12 @@ async function mu_aiTranslateNote(id) {
 function mu_notePlainText(item){
     return (item.text || (item.html ? item.html.replace(/<[^>]+>/g,' ') : '') || '').trim();
 }
+// Exposed on window: this script tag is wrapped in its own IIFE too, so a
+// bare `mu_notePlainText` reference from the MARKHIN AI chat's <script>
+// tag (used when building note context, find_notes, compare_notes, the
+// merge tool, etc.) would otherwise throw "mu_notePlainText is not
+// defined" — this was the actual error being reported.
+window.mu_notePlainText = mu_notePlainText;
 
 async function mu_summarizeNote(id){
     const item = categories.find(c=>c.id===id); if(!item) return;
