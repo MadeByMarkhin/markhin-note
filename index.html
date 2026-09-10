@@ -13443,12 +13443,31 @@ window.attachWrapperEvents = function(categoryId){
         const styleRuleFa = activeStyle.promptFa ? ('- ' + activeStyle.promptFa + '\n') : '';
         const styleRuleEn = activeStyle.promptEn ? ('- ' + activeStyle.promptEn + '\n') : '';
 
+        // Bug fix: the model was never told what "today" actually is, so
+        // any relative date/time in a message ("tomorrow", "next Friday",
+        // "in 3 days", "tonight") had to be guessed from training data —
+        // wrong by however far the training cutoff is, and completely
+        // unusable for computing the exact unlock_at/until values that
+        // set_time_capsule/set_ghost_note require. Computed fresh every
+        // time the message is sent (not cached), from the device's own
+        // clock, in the device's own local time — exactly the timezone
+        // Date.parse()/`new Date(...)` on this same device will interpret
+        // the model's resulting date string in, so the two stay consistent.
+        const mAiNow = new Date();
+        const mAiPad2 = n => String(n).padStart(2, '0');
+        const mAiNowLocalIso = mAiNow.getFullYear() + '-' + mAiPad2(mAiNow.getMonth() + 1) + '-' + mAiPad2(mAiNow.getDate())
+            + 'T' + mAiPad2(mAiNow.getHours()) + ':' + mAiPad2(mAiNow.getMinutes()) + ':' + mAiPad2(mAiNow.getSeconds());
+        const mAiNowWeekday = mAiNow.toLocaleDateString(fa ? 'fa-IR' : 'en-US', { weekday: 'long' });
+        const mAiDateTimeFa = 'اطلاع زمانی فعلی (بر اساس ساعت همین دستگاه، همین لحظه): امروز ' + mAiNowWeekday + '، تاریخ میلادی ' + mAiNowLocalIso.slice(0, 10) + '، ساعت ' + mAiPad2(mAiNow.getHours()) + ':' + mAiPad2(mAiNow.getMinutes()) + ' (فرمِ کاملِ قابل‌پارس همین لحظه: ' + mAiNowLocalIso + '). هر وقت کاربر به تاریخ/زمانِ نسبی اشاره کرد (فردا، پس‌فردا، جمعه بعدی، تا آخر همین هفته، ۳ روز دیگر، امشب و مانند آن)، همیشه دقیقاً همین لحظه را به‌عنوان «الان/امروز» مبنای محاسبه بگیر — هرگز از دانش قبلی یا حدسِ خودت درباره تاریخ امروز استفاده نکن. برای مقدارِ unlock_at در set_time_capsule یا until در set_ghost_note، همیشه یک تاریخ کامل و قابل‌پارس با ارقام لاتین بساز (مثل 2026-09-20T18:00:00)، نه توصیف نسبی خام.\n\n';
+        const mAiDateTimeEn = 'Current date/time (this device\'s own clock, right now): today is ' + mAiNowWeekday + ', ' + mAiNowLocalIso.slice(0, 10) + ', ' + mAiPad2(mAiNow.getHours()) + ':' + mAiPad2(mAiNow.getMinutes()) + ' (full parseable form of this exact moment: ' + mAiNowLocalIso + '). Whenever the user refers to a relative date/time (tomorrow, next Friday, by the end of this week, in 3 days, tonight, etc.), always compute from this exact moment as "now/today" — never guess today\'s date from training data. For unlock_at in set_time_capsule or until in set_ghost_note, always build a full, parseable date string (e.g. 2026-09-20T18:00:00), never a raw relative phrase.\n\n';
+
         const sys = fa
             ? 'تو MARKHIN AI هستی: دستیار هوش مصنوعی حرفه‌ای، دقیق و قدرتمند، ساخته‌شده داخل اپلیکیشن یادداشت‌برداری Markhin. (تلفظ صحیح فارسیِ نام MARKHIN «مارخین» است — هر جا لازم شد نام برنامه یا خودت را با حروف فارسی بنویسی یا تلفظش کنی، همیشه «مارخین» بگو/بنویس، نه شکل‌های دیگر مثل «مارکین».) سه نقش داری و هر سه را همزمان انجام می‌دهی:\n'
                 + '۱) دستیار عمومی: به هر سوالی — چه ربطی به برنامه داشته باشد چه نه — با دانش عمومی‌ات، دقیق و روان پاسخ می‌دهی؛ پیش‌فرض این است که به همان زبانی جواب بدهی که کاربر با آن پیام نوشته، مگر آنکه کاربر صریحاً زبان دیگری برای پاسخ خواسته باشد (به بندِ زبانِ پاسخ در پایین همین بخش نگاه کن).\n'
                 + '۲) عامل مدیریت یادداشت: مستقیماً به یادداشت‌ها و پوشه‌های کاربر دسترسی داری و می‌توانی این کارها را واقعاً انجام دهی، نه فقط توضیح دهی: ' + toolsSummaryFa + '.\n'
                 + '۳) کارشناس خودِ برنامه: کل امکانات Markhin را می‌شناسی و درباره‌شان دقیق و کاربردی راهنمایی می‌کنی، حتی آن‌هایی که ابزار مستقیم برایشان نداری: پوشه‌بندی و برچسب‌گذاری یادداشت‌ها، پین و فیوریت‌کردن، آرشیو و بازگردانی، شبکه دانش (نمای گرافی ارتباط یادداشت‌ها)، گورستان (یادداشت‌های حذف‌شده)، پورتال رندوم، درون‌ریزی از JSON/CSV/TXT/MD (این یکی چون به انتخاب فایل واقعی از گوشی کاربر نیاز دارد، فقط می‌توانی راهنمایی کنی)، خروجیِ HTML کامل برنامه (بکاپ کل برنامه، شامل تنظیمات) و دو بازی داخلی (مار نئونی، عبور از موانع). تغییر تم ظاهری، تغییر زبان، خروجی‌گرفتن واقعی از یادداشت‌ها (JSON/CSV/MD/TXT/PDF/DOCX/PNG/JPG)، باز کردن شبکه دانش/گورستان/پورتال رندوم، و قفل‌کردن واقعیِ یک یادداشت با رمز (با ابزار lock_note — همان دیالوگ امنِ رمزگذاریِ خودِ برنامه باز می‌شود و کاربر رمز و راهنمای رمز را مستقیماً همان‌جا وارد می‌کند، هرگز از طریق این چت) را هم می‌توانی مستقیماً با ابزار انجام دهی، نه فقط توضیح بدهی. وقتی کاربر پرسید فلان کار در برنامه چطور انجام می‌شود، دقیقاً بگو کدام دکمه/بخش را لمس کند.\n\n'
                 + webSearchRoleFa
+                + mAiDateTimeFa
                 + 'قوانین فهمِ پیام کاربر (خیلی مهم — همیشه رعایت کن):\n'
                 + '- کاربر ممکن است خیلی سریع، محاوره‌ای، بدون فاصله‌گذاری درست، بدون نیم‌فاصله، با غلط املایی سنگین، حروف جابه‌جا/حذف‌شده/اضافه، غلط تایپی صفحه‌کلید، مخفف، یا حتی فینگلیش (فارسی با حروف لاتین) بنویسد. این‌ها را عادی و مورد‌انتظار بدان.\n'
                 + '- زبانِ پاسخ: پیش‌فرض این است که همیشه به همان زبانی جواب بدهی که کاربر با آن پیام نوشته (اگر فارسی نوشت فارسی، اگر انگلیسی نوشت انگلیسی و...). اما اگر کاربر صریحاً خواست که — چه در همین پیام و چه در یک پیام قبلی در همین گفتگو — به زبان دیگری جواب بدهی (مثلاً «انگلیسی جواب بده»، «به انگلیسی توضیح بده»، «از این به بعد فارسی صحبت کن»، «به عربی بنویس»)، دقیقاً همان خواسته را دنبال کن، حتی اگر با زبانِ خودِ آن پیام فرق داشته باشد (مثلاً کاربر با فارسی از تو بخواهد انگلیسی جواب بدهی)؛ و همان زبانِ درخواست‌شده را برای تمام پاسخ‌های بعدیِ همین گفتگو هم ادامه بده — نه فقط همین یک پاسخ — تا وقتی کاربر دوباره صریحاً زبان را عوض کند. اگر کاربر خواست محتوای یک یادداشت یا متنِ خاص به زبانی متفاوت از زبانِ پیامش نوشته شود (مثلاً «تو یادداشت به انگلیسی بنویس: سلام»)، همان محتوا را به همان زبانِ خواسته‌شده در ابزار مربوطه (create_note/edit_note_content) قرار بده، حتی اگر توضیحِ خودت به کاربر به زبان دیگری باشد.\n'
@@ -13490,6 +13509,7 @@ window.attachWrapperEvents = function(categoryId){
                 + '2) Notes-management agent: you have direct access to the user\'s notes and folders and can actually perform (not just explain) the following: ' + toolsSummaryEn + '.\n'
                 + '3) App expert: you know the whole Markhin feature set and give precise, actionable guidance about any of it, even features you have no direct tool for: folders and tags, pinning and favoriting, archiving/restoring, the Knowledge Graph (a graph view of how notes connect), the Cemetery (deleted notes), the Random Portal, importing from JSON/CSV/TXT/MD (this one needs the user to actually pick a file on their device, so you can only guide them to it), the full-app HTML export (a complete backup of the app itself, including settings), and two built-in games (Neon Snake, Obstacle Dash). Switching the visual theme, switching the language, actually exporting notes to a real file (JSON/CSV/MD/TXT/PDF/DOCX/PNG/JPG), opening the Knowledge Graph / Cemetery / Random Portal, and actually password-locking a note (with the lock_note tool — this opens the app\'s own real, secure encryption dialog, where the user types the password and an optional hint directly, never through this chat) are things you can do directly with a tool, not just explain. When asked how to do something in the app, say exactly which button or section to tap.\n\n'
                 + webSearchRoleEn
+                + mAiDateTimeEn
                 + 'Rules for understanding the user\'s message (important — always follow):\n'
                 + '- The user may write very fast, casually, with broken spacing, heavy spelling mistakes, swapped/dropped/extra letters, keyboard typos, abbreviations, or transliterated text, in any language. Treat this as normal and expected.\n'
                 + '- Response language: by default, always reply in the same language the user wrote that message in (Persian in, Persian out; English in, English out; etc.). But if the user explicitly asks — whether in this message or an earlier one in this same conversation — for you to answer in a different language (e.g. "answer in English", "explain this in English", "speak Persian from now on", "write in Arabic"), follow that request exactly, even when it differs from the language of the message making the request (e.g. they write in Persian but ask for an English answer); keep replying in that requested language for the rest of this conversation too — not just this one reply — until they explicitly switch it again. If the user asks for a note\'s or a specific piece of content\'s text to be written in a language different from the message\'s own language (e.g. "write in the note, in English: Hello"), put that content in the requested language inside the relevant tool call (create_note/edit_note_content), even if your own reply to the user stays in a different language.\n'
@@ -13540,7 +13560,7 @@ window.attachWrapperEvents = function(categoryId){
         // go out too.
         const historyCount = Math.max(4, Math.round(60 * contextScale));
         const convo = [{ role: 'system', content: sys }].concat(
-            mAiHistory.slice(-historyCount).map(function(m){
+            mAiHistory.filter(function(m){ return !m.synthetic; }).slice(-historyCount).map(function(m){
                 // If this message was sent as a reply (via the ↩ button),
                 // let the model see what it was quoting too — not just
                 // display it — by prefixing a short quoted-context line
@@ -13597,6 +13617,14 @@ window.attachWrapperEvents = function(categoryId){
             try {
                 finalText = await runAiTurn(contextScale);
                 lastErr = null;
+                if(finalText && finalText.trim()) break;
+                // Genuinely empty completion with no error thrown — some
+                // providers occasionally do this (a safety-filter hiccup,
+                // a stream that closed with nothing in it, etc). Retry
+                // like a transient failure instead of accepting it and
+                // permanently recording a blank turn; only give up and
+                // fall through to the placeholder once attempts run out.
+                if(attemptNum < 2) continue;
                 break;
             } catch(err){
                 lastErr = err;
@@ -13611,13 +13639,17 @@ window.attachWrapperEvents = function(categoryId){
 
             mAiStreamText = '';
             if(mAiMyGen === mAiGen){
-            mAiHistory.push({ id: mAiNextId(), role: 'assistant', content: finalText || (fa ? '(پاسخ خالی دریافت شد)' : '(received an empty response)') });
+            const mAiGotEmpty = !finalText || !finalText.trim();
+            mAiHistory.push({ id: mAiNextId(), role: 'assistant', synthetic: mAiGotEmpty, content: finalText || (fa ? '(پاسخ خالی دریافت شد)' : '(received an empty response)') });
             /* Deterministic, app-generated notice — not left up to the model to
                remember to mention. Appears every time the question touches a
-               locked note's title, telling the person exactly what to tap. */
+               locked note's title, telling the person exactly what to tap.
+               Marked synthetic so it's shown to the user but never replayed
+               back to the model as if it were the model's own prior turn —
+               see the convo builder above. */
             if(relevantLocked.length){
                 const names = relevantLocked.map(n => n.name).filter(Boolean).join(fa ? '، ' : ', ');
-                mAiHistory.push({ id: mAiNextId(), role: 'assistant', content: fa
+                mAiHistory.push({ id: mAiNextId(), role: 'assistant', synthetic: true, content: fa
                     ? `🔒 این سوال به یادداشت قفل «${names}» هم مربوط به نظر می‌رسه، ولی چون رمزش رو ندارم توی جوابم لحاظش نکردم. برای بازش‌کردن، روی دکمه 🔒 بالای همین چت بزن و رمزش رو وارد کن، بعد دوباره همین سوال رو از من بپرس.`
                     : `🔒 This question also looks related to the locked note "${names}", but I couldn't use it since I don't have its password. Tap the 🔒 button above this chat to unlock it, then ask me again.` });
             }
