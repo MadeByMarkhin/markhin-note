@@ -12388,6 +12388,30 @@ window.attachWrapperEvents = function(categoryId){
         return Math.max(0.12, scale * 0.35);
     }
 
+    /* Distinct from mu_looksLikeTooLargeError above: providers like
+       OpenRouter return HTTP 402 when the account's remaining credit
+       balance is too low to cover the completion budget (max_tokens) a
+       request asked for — a billing/balance problem, not a "the
+       message/context is too big" one, so it needs a different fix:
+       shrink how many tokens the reply itself is allowed to use, not
+       the notes/history sent in. The error text from OpenRouter states
+       exactly how many tokens the current balance can afford (e.g.
+       "...but can only afford 792"); markhinAiChat_send parses that and
+       retries once with exactly that budget instead of giving up right
+       away. */
+    function mu_looksLikeInsufficientCreditsError(err){
+        const msg = String((err && err.message) || err || '');
+        return /\b402\b/.test(msg) || /more credits|can only afford|insufficient credit|add credit/i.test(msg);
+    }
+    // Pulls the "can only afford N tokens" number out of the error
+    // message, if present. Returns null (not 0) when it can't be parsed,
+    // so callers can tell "no usable number" apart from "afford zero".
+    function mu_affordableTokens(err){
+        const msg = String((err && err.message) || err || '');
+        const m = msg.match(/can only afford\s+(\d[\d,]*)/i);
+        return m ? Math.max(64, parseInt(m[1].replace(/,/g,''), 10)) : null;
+    }
+
     /* Locked note content is never readable without its password, so
        relevance can only be judged from what's visible while locked: the
        note's title. A rough word-overlap check against the query is good
@@ -13526,7 +13550,7 @@ window.attachWrapperEvents = function(categoryId){
            both the notes context and how much chat history gets sent —
            see the retry loop right below this function for when/why a
            smaller scale gets used. */
-        const runAiTurn = async function(contextScale){
+        const runAiTurn = async function(contextScale, maxTokensOverride){
         /* Build the notes context the same way the old standalone Ask box
            used to: every non-decoy note that isn't locked (or has been
            temporarily unlocked via the 🔒 button above). Locked notes stay
@@ -13801,8 +13825,13 @@ window.attachWrapperEvents = function(categoryId){
             })
         );
 
-        const turnMaxTokens = Math.max(500, Math.round(4096 * contextScale));
-        const closingMaxTokens = Math.max(350, Math.round(3000 * contextScale));
+        // maxTokensOverride, when set, comes from a prior attempt's 402
+        // "insufficient credits" error (see mu_affordableTokens) — it
+        // caps the reply budget at exactly what the account's balance
+        // can currently pay for, instead of the normal 4096/3000 defaults
+        // scaled by contextScale.
+        const turnMaxTokens = maxTokensOverride ? Math.max(150, maxTokensOverride) : Math.max(500, Math.round(4096 * contextScale));
+        const closingMaxTokens = maxTokensOverride ? Math.max(120, Math.min(maxTokensOverride, Math.round(3000 * contextScale))) : Math.max(350, Math.round(3000 * contextScale));
 
             let finalText = '';
             const maxSteps = 15;
@@ -13836,13 +13865,19 @@ window.attachWrapperEvents = function(categoryId){
         // it specifically for being too large for its rate limit (see
         // mu_looksLikeTooLargeError), shrink the context and try again —
         // up to 2 extra times — instead of just showing the user a raw
-        // "413 / tokens per minute" error on the very first message.
+        // "413 / tokens per minute" error on the very first message. A
+        // 402 "insufficient credits" error (see
+        // mu_looksLikeInsufficientCreditsError) gets the same one-more-try
+        // treatment, but shrinks the reply's own max_tokens budget to
+        // whatever the account's balance can actually afford instead of
+        // touching the context.
         let finalText = '';
         let contextScale = 1;
+        let maxTokensOverride = null;
         let lastErr = null;
         for(let attemptNum = 0; attemptNum < 3; attemptNum++){
             try {
-                finalText = await runAiTurn(contextScale);
+                finalText = await runAiTurn(contextScale, maxTokensOverride);
                 lastErr = null;
                 if(finalText && finalText.trim()) break;
                 // Genuinely empty completion with no error thrown — some
@@ -13858,6 +13893,13 @@ window.attachWrapperEvents = function(categoryId){
                 if(attemptNum < 2 && mu_looksLikeTooLargeError(err)){
                     contextScale = mu_nextContextScale(contextScale, err);
                     continue;
+                }
+                if(attemptNum < 2 && mu_looksLikeInsufficientCreditsError(err)){
+                    const affordable = mu_affordableTokens(err);
+                    if(affordable){
+                        maxTokensOverride = affordable;
+                        continue;
+                    }
                 }
                 throw err;
             }
@@ -13903,6 +13945,10 @@ window.attachWrapperEvents = function(categoryId){
                 ? (fa
                     ? '⚠️ حتی بعد از این‌که برنامه خودکار حجم یادداشت‌ها/تاریخچه ارسالی را چند بار کم کرد، باز هم این درخواست برای سقف نرخ (توکن در دقیقه) این ارائه‌دهنده/مدل بزرگ بود. یا یک مدل/ارائه‌دهنده با سقف بالاتر انتخاب کن، یا تعداد/حجم یادداشت‌هایت را برای این گفتگو کمتر کن. جزئیات فنی: ' + (err && err.message || String(err))
                     : "⚠️ Even after the app automatically trimmed how much note/history context it sent (several times), this request was still too large for this provider/model's rate limit. Either pick a model/provider with a higher limit, or reduce how many notes are involved in this chat. Technical detail: " + (err && err.message || String(err)))
+                : mu_looksLikeInsufficientCreditsError(err)
+                ? (fa
+                    ? '⚠️ خطا از سمت ارائه‌دهنده‌ی هوش مصنوعی (کد 402): ' + (err && err.message || String(err)) + '\n\nخلاصه‌ی ماجرا: این خطا یعنی موجودی/اعتبار (credit) حسابِ ارائه‌دهنده‌ای که وصل کرده‌ای (مثلاً OpenRouter) کم یا صفر است و اجازه نمی‌دهد پاسخ به‌اندازه‌ی لازم بلند باشد. ربطی به یادداشت‌ها یا تنظیمات خودِ برنامه ندارد. راه‌حل: یا به حساب همان ارائه‌دهنده اعتبار اضافه کن، یا یک مدل رایگان (معمولاً با پسوند «:free») انتخاب کن، یا موقتاً به یک ارائه‌دهنده‌ی دیگر سوییچ کن.'
+                    : '⚠️ Error from the AI provider (code 402): ' + (err && err.message || String(err)) + '\n\nIn short: this means the connected provider account\'s (e.g. OpenRouter\'s) credit balance is too low or empty to cover a reply of the needed length — nothing to do with your notes or this app\'s own settings. Fix: top up credits on that provider\'s account, pick a free model (usually suffixed ":free"), or switch to a different provider for now.')
                 : '⚠️ ' + (fa ? 'خطا: ' : 'Error: ') + (err && err.message || String(err));
             mAiHistory.push({ id: mAiNextId(), ts: Date.now(), role: 'assistant', content: errMsg });
             mAiSave();
