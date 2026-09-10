@@ -10789,11 +10789,13 @@ const MarkhinAI = window.MarkhinAI = {
         const msg = (choice && choice.message) || {};
         const text = mu_extractOpenAiText(data);
         if(!tools) return text;
-        const toolCalls = Array.isArray(msg.tool_calls) ? msg.tool_calls.map(tc=>({
-            id: tc.id,
-            name: tc.function && tc.function.name,
-            input: safeParseJSON((tc.function && tc.function.arguments) || '{}', {})
-        })) : [];
+        const toolCalls = Array.isArray(msg.tool_calls) ? msg.tool_calls.map(tc=>{
+            const rawArgs = (tc.function && tc.function.arguments) || '{}';
+            let input;
+            try { input = JSON.parse(rawArgs); }
+            catch(e){ input = { __mai_malformed__: true, __mai_raw__: String(rawArgs).slice(0, 300) }; }
+            return { id: tc.id, name: tc.function && tc.function.name, input };
+        }) : [];
         return { text, toolCalls };
     },
 
@@ -12809,7 +12811,7 @@ window.attachWrapperEvents = function(categoryId){
        folder instead of filing into the one the user meant. Returns the
        folder's real, already-stored spelling so callers keep using it
        consistently instead of whatever variant the model happened to type. */
-    function mAiFindExistingFolder(name){
+    function mAiFindExistingFolder(name, opts){
         if(typeof folders === 'undefined' || !name) return null;
         const norm = normalizeText(String(name));
         if(!norm) return null;
@@ -12820,7 +12822,14 @@ window.attachWrapperEvents = function(categoryId){
         // mAiRecordFolderRename). This is what lets the AI still resolve
         // "the X folder" after the user has renamed X to something else,
         // instead of reporting it as not found or spawning a duplicate.
-        if(folderRenameHistory && typeof folderRenameHistory === 'object'){
+        //
+        // Skipped when opts.strict is set — used only by the two
+        // name-COLLISION checks (creating a brand-new folder, and the
+        // destination name of a rename): a name that used to belong to
+        // some other, since-renamed folder is genuinely free again, and
+        // treating it as still "taken" would wrongly block the user from
+        // reusing it for something new.
+        if(!(opts && opts.strict) && folderRenameHistory && typeof folderRenameHistory === 'object'){
             const entry = folderRenameHistory[norm];
             const mapped = entry && entry.to;
             if(mapped){
@@ -13401,7 +13410,7 @@ window.attachWrapperEvents = function(categoryId){
                     // already exist, so a near-miss spelling from the model can't
                     // silently miss the real folder or spawn a duplicate.
                     if(action === 'create'){
-                        const existing = mAiFindExistingFolder(folderName);
+                        const existing = mAiFindExistingFolder(folderName, { strict:true });
                         if(existing) return { ok:false, error: fa ? `این پوشه از قبل با نام «${existing}» وجود دارد.` : `That folder already exists as "${existing}".` };
                         folders.push(folderName);
                         saveFoldersToLocalStorage();
@@ -13415,7 +13424,7 @@ window.attachWrapperEvents = function(categoryId){
                         const existingSource = mAiFindExistingFolder(folderName);
                         if(!existingSource) return { ok:false, error: fa ? 'پوشه‌ای با این نام پیدا نشد.' : 'No folder with that name was found.' };
                         folderName = existingSource;
-                        const existingTarget = mAiFindExistingFolder(newName);
+                        const existingTarget = mAiFindExistingFolder(newName, { strict:true });
                         if(existingTarget && existingTarget !== folderName) return { ok:false, error: fa ? `پوشه‌ای با نام «${existingTarget}» از قبل وجود دارد.` : `A folder named "${existingTarget}" already exists.` };
                         folders = folders.map(f => f === folderName ? newName : f);
                         categories.forEach(c => { if(c.folder === folderName) c.folder = newName; });
