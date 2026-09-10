@@ -10101,19 +10101,43 @@ window.mu_jumpToTopMatch = mu_jumpToTopMatch;
      saved and stays selectable from the Provider dropdown.
 */
 const MU_AI_BUILTINS = {
-    openai:     { label:'OpenAI',        format:'openai',    defaultBaseUrl:'https://api.openai.com/v1',                                  defaultModel:'gpt-5-mini' },
-    anthropic:  { label:'Anthropic',     format:'anthropic', defaultBaseUrl:'https://api.anthropic.com',                                   defaultModel:'claude-sonnet-5' },
-    openrouter: { label:'OpenRouter',    format:'openai',    defaultBaseUrl:'https://openrouter.ai/api/v1',                                defaultModel:'openai/gpt-4o-mini' },
-    google:     { label:'Google Gemini', format:'openai',    defaultBaseUrl:'https://generativelanguage.googleapis.com/v1beta/openai',     defaultModel:'gemini-2.5-flash' },
-    groq:       { label:'Groq',          format:'openai',    defaultBaseUrl:'https://api.groq.com/openai/v1',                              defaultModel:'llama-3.3-70b-versatile' },
-    deepseek:   { label:'DeepSeek',      format:'openai',    defaultBaseUrl:'https://api.deepseek.com',                                    defaultModel:'deepseek-chat' },
+    // Bug fix / upgrade: these defaultModel values used to point at whatever
+    // was cheap-and-current when this list was first written (gpt-5-mini,
+    // gpt-4o-mini, llama-3.3-70b-versatile, deepseek-chat, grok-4, plain
+    // sonar, etc.) — several of which (deepseek-chat/deepseek-reasoner)
+    // have since been retired by their provider entirely. This is only the
+    // pre-filled suggestion shown the first time someone picks a provider
+    // (the model field itself stays freely editable), but it should point
+    // at each provider's actual current flagship, not a stale budget
+    // model, so a person who never touches the model field still gets that
+    // provider's strongest available model. Verified against each
+    // provider's own docs/catalog as of September 2026 — providers do
+    // rename/retire models over time, so if one of these ever 404s, check
+    // that provider's current model list and update the field manually.
+    openai:     { label:'OpenAI',        format:'openai',    defaultBaseUrl:'https://api.openai.com/v1',                                  defaultModel:'gpt-6-astra' },
+    anthropic:  { label:'Anthropic',     format:'anthropic', defaultBaseUrl:'https://api.anthropic.com',                                   defaultModel:'claude-opus-5' },
+    openrouter: { label:'OpenRouter',    format:'openai',    defaultBaseUrl:'https://openrouter.ai/api/v1',                                defaultModel:'anthropic/claude-opus-5' },
+    // A second, separate OpenRouter entry that is locked to a single
+    // built-in API key (never shown/editable/removable in the UI — see
+    // the `locked` flag below) and restricted to OpenRouter's free-tier
+    // models only (ids ending in ":free", filtered in fetchModels() via
+    // the `freeOnly` flag). This is what a person switches to when they
+    // just want free inference with zero setup; the model itself is
+    // still freely switchable among the fetched free models. It's kept as
+    // a fully distinct builtin id from `openrouter` above, so the two
+    // never share stored settings and a person can still add/use their
+    // own regular OpenRouter key side-by-side with this one.
+    openrouter_free: { label:'OpenRouter (Free Models)', format:'openai', defaultBaseUrl:'https://openrouter.ai/api/v1', defaultModel:'openrouter/free', locked:true, freeOnly:true, fixedApiKey:'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' },
+    google:     { label:'Google Gemini', format:'openai',    defaultBaseUrl:'https://generativelanguage.googleapis.com/v1beta/openai',     defaultModel:'gemini-3.1-pro-preview' },
+    groq:       { label:'Groq',          format:'openai',    defaultBaseUrl:'https://api.groq.com/openai/v1',                              defaultModel:'openai/gpt-oss-120b' },
+    deepseek:   { label:'DeepSeek',      format:'openai',    defaultBaseUrl:'https://api.deepseek.com',                                    defaultModel:'deepseek-v4-pro' },
     mistral:    { label:'Mistral',       format:'openai',    defaultBaseUrl:'https://api.mistral.ai/v1',                                   defaultModel:'mistral-large-latest' },
-    xai:        { label:'xAI (Grok)',    format:'openai',    defaultBaseUrl:'https://api.x.ai/v1',                                         defaultModel:'grok-4' },
-    together:   { label:'Together AI',   format:'openai',    defaultBaseUrl:'https://api.together.xyz/v1',                                 defaultModel:'meta-llama/Llama-3.3-70B-Instruct-Turbo' },
-    perplexity: { label:'Perplexity',    format:'openai',    defaultBaseUrl:'https://api.perplexity.ai',                                   defaultModel:'sonar' },
-    cerebras:   { label:'Cerebras',      format:'openai',    defaultBaseUrl:'https://api.cerebras.ai/v1',                                  defaultModel:'llama-3.3-70b' },
-    fireworks:  { label:'Fireworks AI',  format:'openai',    defaultBaseUrl:'https://api.fireworks.ai/inference/v1',                       defaultModel:'accounts/fireworks/models/llama-v3p3-70b-instruct' },
-    nvidia:     { label:'NVIDIA NIM',    format:'openai',    defaultBaseUrl:'https://integrate.api.nvidia.com/v1',                         defaultModel:'meta/llama-3.3-70b-instruct' }
+    xai:        { label:'xAI (Grok)',    format:'openai',    defaultBaseUrl:'https://api.x.ai/v1',                                         defaultModel:'grok-4.5' },
+    together:   { label:'Together AI',   format:'openai',    defaultBaseUrl:'https://api.together.xyz/v1',                                 defaultModel:'moonshotai/Kimi-K2.5' },
+    perplexity: { label:'Perplexity',    format:'openai',    defaultBaseUrl:'https://api.perplexity.ai',                                   defaultModel:'sonar-reasoning-pro' },
+    cerebras:   { label:'Cerebras',      format:'openai',    defaultBaseUrl:'https://api.cerebras.ai/v1',                                  defaultModel:'gpt-oss-120b' },
+    fireworks:  { label:'Fireworks AI',  format:'openai',    defaultBaseUrl:'https://api.fireworks.ai/inference/v1',                       defaultModel:'accounts/fireworks/models/deepseek-v4-pro' },
+    nvidia:     { label:'NVIDIA NIM',    format:'openai',    defaultBaseUrl:'https://integrate.api.nvidia.com/v1',                         defaultModel:'nvidia/nemotron-3-super-120b-a12b' }
 };
 
 /* ---------------------------------------------------------------------
@@ -10368,10 +10392,15 @@ const MarkhinAI = window.MarkhinAI = {
 
     getSettings(){
         let s = safeParseJSON(localStorage.getItem(this.KEY)||'null', null);
-        if(!s) s = this._migrateOld() || { activeId:'openai', builtins:{}, customProviders:[] };
+        // Brand-new installs (nothing saved yet, and no old single-provider
+        // setup to migrate) default to the built-in free OpenRouter
+        // provider so there's zero-setup AI access from the very first
+        // open — it stays active across reloads (persisted below) until
+        // the person explicitly switches/saves a different provider.
+        if(!s) s = this._migrateOld() || { activeId:'openrouter_free', builtins:{}, customProviders:[] };
         if(!s.builtins) s.builtins = {};
         if(!Array.isArray(s.customProviders)) s.customProviders = [];
-        if(!s.activeId) s.activeId = 'openai';
+        if(!s.activeId) s.activeId = 'openrouter_free';
         return s;
     },
     saveSettings(s){ try{ localStorage.setItem(this.KEY, JSON.stringify(s)); }catch(e){} },
@@ -10391,7 +10420,15 @@ const MarkhinAI = window.MarkhinAI = {
 
     listProviders(){
         const s = this.getSettings();
-        const list = Object.keys(MU_AI_BUILTINS).map(id=>({ id, name:MU_AI_BUILTINS[id].label, builtin:true }));
+        const fa = (typeof currentLang !== 'undefined' && currentLang === 'fa');
+        const list = Object.keys(MU_AI_BUILTINS).map(id=>{
+            const b = MU_AI_BUILTINS[id];
+            // "OpenRouter (Free Models)" isn't a brand name like the others
+            // in this list, so it gets a real Persian translation instead
+            // of showing the English label unchanged in fa mode.
+            const name = (id === 'openrouter_free') ? (fa ? 'اوپن‌روتر (مدل‌های رایگان)' : b.label) : b.label;
+            return { id, name, builtin:true, locked: !!b.locked };
+        });
         s.customProviders.forEach(p=> list.push({ id:'custom:'+p.id, name:p.name||'Custom', builtin:false }));
         return list;
     },
@@ -10399,7 +10436,7 @@ const MarkhinAI = window.MarkhinAI = {
     // Resolves the currently-active provider into one flat, ready-to-use config.
     getActiveProvider(s){
         s = s || this.getSettings();
-        const id = s.activeId || 'openai';
+        const id = s.activeId || 'openrouter_free';
         if(id.indexOf('custom:') === 0){
             const cp = s.customProviders.find(p => 'custom:'+p.id === id);
             if(!cp) return null;
@@ -10407,6 +10444,21 @@ const MarkhinAI = window.MarkhinAI = {
         }
         const preset = MU_AI_BUILTINS[id] || MU_AI_BUILTINS.openai;
         const stored = s.builtins[id] || {};
+        // Locked builtins (currently just openrouter_free) always use their
+        // fixed baked-in key/Base URL, regardless of anything ever written
+        // to storage for this id — nothing in the settings UI can change or
+        // remove these two fields for a locked provider (see
+        // mu_openAiSettingsModal / saveProviderFields).
+        if(preset.locked){
+            return {
+                id,
+                name: preset.label,
+                format: preset.format,
+                baseUrl: preset.defaultBaseUrl,
+                apiKey: preset.fixedApiKey || '',
+                model: stored.model || preset.defaultModel || ''
+            };
+        }
         return {
             id,
             name: preset.label,
@@ -10445,7 +10497,14 @@ const MarkhinAI = window.MarkhinAI = {
                 cp.baseUrl = fields.baseUrl || '';
             }
         } else {
-            s.builtins[id] = { apiKey:fields.apiKey||'', model:fields.model||'', baseUrl:fields.baseUrl||'' };
+            const preset = MU_AI_BUILTINS[id];
+            // Locked builtins never persist an apiKey/baseUrl — those are
+            // always resolved from the fixed preset (see
+            // getActiveProvider). Only the chosen model is savable, so
+            // switching between this provider's free models still works.
+            s.builtins[id] = (preset && preset.locked)
+                ? { apiKey:'', model:fields.model||'', baseUrl:'' }
+                : { apiKey:fields.apiKey||'', model:fields.model||'', baseUrl:fields.baseUrl||'' };
         }
         s.activeId = id;
         this.saveSettings(s);
@@ -10473,8 +10532,55 @@ const MarkhinAI = window.MarkhinAI = {
         const s = this.getSettings();
         const cid = id.slice(7);
         s.customProviders = s.customProviders.filter(p => p.id !== cid);
-        if(s.activeId === id) s.activeId = 'openai';
+        if(s.activeId === id) s.activeId = 'openrouter_free';
         this.saveSettings(s);
+    },
+
+    // Makes `id` the active provider without touching any of its stored
+    // fields (key/model/Base URL stay exactly as saved). Used by the
+    // automatic rate-limit fallback below — a plain, silent switch,
+    // distinct from saveProviderFields which is what the settings form
+    // uses when the person explicitly picks+saves a provider. Returns
+    // false (and leaves activeId untouched) if `id` isn't a real,
+    // currently-existing provider.
+    setActiveProviderId(id){
+        const s = this.getSettings();
+        if(id.indexOf('custom:') === 0){
+            if(!s.customProviders.find(p => 'custom:'+p.id === id)) return false;
+        } else if(!MU_AI_BUILTINS[id]){
+            return false;
+        }
+        s.activeId = id;
+        this.saveSettings(s);
+        return true;
+    },
+
+    // Ordered list of *other* provider ids (excluding excludeId) that are
+    // actually usable right now — i.e. have an API key — so the
+    // rate-limit retry logic in the chat widget has somewhere real to
+    // fall back to. Providers the person actually configured with their
+    // own key come first (more headroom, since they aren't sharing the
+    // built-in free key's quota); the locked free-OpenRouter provider is
+    // always usable (its key is baked in) but is listed last, as a final
+    // fallback, since if *it* was the one that just hit its limit, another
+    // instance of the same shared key/quota won't help much either.
+    listFallbackCandidates(excludeId){
+        const s = this.getSettings();
+        const configured = [];
+        const lockedFallbacks = [];
+        Object.keys(MU_AI_BUILTINS).forEach(id=>{
+            if(id === excludeId) return;
+            const preset = MU_AI_BUILTINS[id];
+            if(preset.locked){ lockedFallbacks.push(id); return; }
+            const stored = s.builtins[id] || {};
+            if(stored.apiKey) configured.push(id);
+        });
+        s.customProviders.forEach(p=>{
+            const id = 'custom:'+p.id;
+            if(id === excludeId) return;
+            if(p.apiKey) configured.push(id);
+        });
+        return configured.concat(lockedFallbacks);
     },
 
     isConfigured(){ const p=this.getActiveProvider(); return !!(p && p.apiKey); },
@@ -10628,6 +10734,13 @@ const MarkhinAI = window.MarkhinAI = {
                 }
                 if(m.role === 'assistant' && Array.isArray(m.toolCalls) && m.toolCalls.length){
                     const blocks = [];
+                    // Extended thinking requires the original thinking
+                    // block(s) — with their signature — to be replayed
+                    // back exactly as received whenever this assistant
+                    // turn is followed by tool use, or Anthropic rejects
+                    // the next request. See mAiOnDelta/runAiTurn, which is
+                    // what actually attaches m.thinkingBlocks.
+                    if(Array.isArray(m.thinkingBlocks) && m.thinkingBlocks.length) blocks.push.apply(blocks, m.thinkingBlocks);
                     if(m.content) blocks.push({ type:'text', text:m.content });
                     m.toolCalls.forEach(tc=>blocks.push({ type:'tool_use', id:tc.id, name:tc.name, input:tc.input||{} }));
                     aMessages.push({ role:'assistant', content:blocks });
@@ -10647,6 +10760,18 @@ const MarkhinAI = window.MarkhinAI = {
                 system: sysMsg ? sysMsg.content : undefined,
                 messages: aMessages
             };
+            // Extended thinking (real Anthropic only — a custom
+            // "anthropic-format" proxy may not support the `thinking`
+            // param at all): opts.thinking is only set by the main AI
+            // chat's own turns (see runAiTurn), never by the small one-off
+            // helper calls (translate/summarize/suggest-tags), so those
+            // keep behaving exactly as before. Extended thinking requires
+            // temperature to stay at its default of 1, which this app
+            // never overrides, and requires max_tokens to leave enough
+            // room beyond the thinking budget for the actual reply text.
+            if(opts.thinking && p.id === 'anthropic' && maxTokens >= 1400){
+                body.thinking = { type:'enabled', budget_tokens: Math.max(1024, Math.min(maxTokens - 400, 6000)) };
+            }
             if(tools){
                 // The Markhin note-management tools, plus Anthropic's own
                 // server-side web_search tool (real Anthropic endpoints
@@ -10679,9 +10804,14 @@ const MarkhinAI = window.MarkhinAI = {
             catch(e){ throw new Error(fa ? 'پاسخ Anthropic معتبر (JSON) نبود — Base URL را بررسی کن.' : 'Anthropic\'s response was not valid JSON — check the Base URL.'); }
             const blocks = data.content || [];
             const text = blocks.filter(b=>b.type==='text').map(b=>b.text||'').join('\n').trim();
+            // Carried alongside the reply (not returned when there are no
+            // tools, since there's no follow-up turn to replay them into)
+            // so runAiTurn can attach them to the assistant turn it stores
+            // in convo — see the thinking-block replay logic above.
+            const thinkingBlocks = blocks.filter(b=>b.type==='thinking').map(b=>({ type:'thinking', thinking:b.thinking||'', signature:b.signature||'' }));
             if(!tools) return text;
             const toolCalls = blocks.filter(b=>b.type==='tool_use').map(b=>({ id:b.id, name:b.name, input:b.input||{} }));
-            return { text, toolCalls };
+            return { text, toolCalls, thinkingBlocks };
         }
 
         // OpenAI-compatible format — covers OpenAI, OpenRouter, and any
@@ -10761,6 +10891,7 @@ const MarkhinAI = window.MarkhinAI = {
             }
             if(m.role === 'assistant' && Array.isArray(m.toolCalls) && m.toolCalls.length){
                 const blocks = [];
+                if(Array.isArray(m.thinkingBlocks) && m.thinkingBlocks.length) blocks.push.apply(blocks, m.thinkingBlocks);
                 if(m.content) blocks.push({ type:'text', text:m.content });
                 m.toolCalls.forEach(tc=>blocks.push({ type:'tool_use', id:tc.id, name:tc.name, input:tc.input||{} }));
                 aMessages.push({ role:'assistant', content:blocks });
@@ -10782,6 +10913,11 @@ const MarkhinAI = window.MarkhinAI = {
             messages: aMessages,
             stream: true
         };
+        // See the identical block in _chatRequest above for why this is
+        // gated to real Anthropic + opts.thinking + a large-enough budget.
+        if(opts.thinking && p.id === 'anthropic' && maxTokens >= 1400){
+            body.thinking = { type:'enabled', budget_tokens: Math.max(1024, Math.min(maxTokens - 400, 6000)) };
+        }
         if(tools){
             // Same native web_search addition as the non-streaming path —
             // see the comment there for why it's real-Anthropic-only.
@@ -10835,6 +10971,16 @@ const MarkhinAI = window.MarkhinAI = {
                         blocks[evt.index] = { type:'tool_use', id:evt.content_block.id, name:evt.content_block.name, json:'' };
                     } else if(cbType === 'text'){
                         blocks[evt.index] = { type:'text', text:'' };
+                    } else if(cbType === 'thinking'){
+                        // Extended thinking's reasoning block — deliberately
+                        // NOT fed into textAcc/onDelta, so it never shows up
+                        // in the visible chat bubble; only its final
+                        // {thinking, signature} pair (built up below from
+                        // thinking_delta/signature_delta events) gets kept,
+                        // to be replayed back verbatim if this turn goes on
+                        // to make a tool call (see the aMessages builder
+                        // above / mAiOnDelta in the chat widget).
+                        blocks[evt.index] = { type:'thinking', thinking:'', signature:'' };
                     } else {
                         blocks[evt.index] = { type: cbType || 'other', text:'', json:'' };
                     }
@@ -10847,6 +10993,10 @@ const MarkhinAI = window.MarkhinAI = {
                         if(onDelta) onDelta(textAcc);
                     } else if(evt.delta.type === 'input_json_delta'){
                         b.json += evt.delta.partial_json || '';
+                    } else if(evt.delta.type === 'thinking_delta' && b.type === 'thinking'){
+                        b.thinking += evt.delta.thinking || '';
+                    } else if(evt.delta.type === 'signature_delta' && b.type === 'thinking'){
+                        b.signature += evt.delta.signature || '';
                     }
                 } else if(evt.type === 'error'){
                     throw new Error('Anthropic: ' + ((evt.error && evt.error.message) || 'stream error'));
@@ -10865,7 +11015,8 @@ const MarkhinAI = window.MarkhinAI = {
         const text = textAcc.trim();
         if(!tools) return text;
         const toolCalls = Object.keys(blocks).map(k=>blocks[k]).filter(b=>b.type==='tool_use').map(b=>({ id:b.id, name:b.name, input: safeParseJSON(b.json || '{}', {}) }));
-        return { text, toolCalls };
+        const thinkingBlocks = Object.keys(blocks).map(k=>blocks[k]).filter(b=>b.type==='thinking').map(b=>({ type:'thinking', thinking:b.thinking||'', signature:b.signature||'' }));
+        return { text, toolCalls, thinkingBlocks };
     },
 
     async _chatStreamOpenAI(messages, opts, p, maxTokens, tools, signal, onDelta){
@@ -10993,7 +11144,14 @@ const MarkhinAI = window.MarkhinAI = {
             if(!res.ok){ const tx = await res.text().catch(()=>''); throw new Error(mu_extractApiErrorMessage(res.status, tx)); }
             const data = await res.json().catch(()=>({}));
             const list = Array.isArray(data.data) ? data.data : (Array.isArray(data.models) ? data.models : []);
-            return list.map(m=> (typeof m === 'string' ? m : (m.id || m.name || ''))).filter(Boolean);
+            let ids = list.map(m=> (typeof m === 'string' ? m : (m.id || m.name || ''))).filter(Boolean);
+            // Used by the locked "OpenRouter (Free Models)" provider so its
+            // "Fetch models" button only ever lists OpenRouter's free-tier
+            // models — OpenRouter marks every one of those with a ":free"
+            // suffix on the model id, so filtering on that suffix is enough
+            // to keep every paid model out of the list.
+            if(fields.onlyFree) ids = ids.filter(id => /:free$/i.test(id));
+            return ids;
         } catch(err){
             if(err && err.name === 'AbortError') throw new Error(fa ? 'درخواست فهرست مدل‌ها بیش از حد طول کشید.' : 'Fetching the model list took too long.');
             if(/Failed to fetch|NetworkError|Load failed|ERR_/i.test(String((err&&err.message)||err))){
@@ -11074,13 +11232,23 @@ function mu_openSmartSearchModal(){
 window.runSmartSearch = mu_openSmartSearchModal;
 
 /* ---------- AI settings modal ---------- */
-function mu_openAiSettingsModal(){
+// forcedActiveId lets mu_onProviderPick preview a different provider's
+// fields (locked or not) by fully re-rendering this modal, without
+// actually persisting that provider as active — persisting only happens
+// on Save/Test, exactly like the rest of this form already worked.
+function mu_openAiSettingsModal(forcedActiveId){
     const fa = currentLang==='fa';
     const s = MarkhinAI.getSettings();
-    const activeId = s.activeId || 'openai';
+    const activeId = forcedActiveId || s.activeId || 'openrouter_free';
     const providers = MarkhinAI.listProviders();
     const fields = MarkhinAI.getProviderFields(activeId) || { name:'', format:'openai', apiKey:'', model:'', baseUrl:'' };
     const isCustom = activeId.indexOf('custom:') === 0;
+    // Locked builtin provider (currently just the free OpenRouter one): its
+    // API key/Base URL are fixed in code and never exposed for
+    // viewing/copying/editing/deleting in this UI — only its model field
+    // and the "Fetch models" list stay interactive, and switching to a
+    // different provider is always still available from the dropdown.
+    const lockedPreset = MU_AI_BUILTINS[activeId] && MU_AI_BUILTINS[activeId].locked;
     const builtinGroup = providers.filter(p=>p.builtin).map(p=>
         `<option value="${p.id}" ${p.id===activeId?'selected':''}>${p.name}</option>`
     ).join('');
@@ -11113,21 +11281,29 @@ function mu_openAiSettingsModal(){
                 <button type="button" class="btn-main" onclick="mu_confirmNewProvider()">✅ ${fa?'ایجاد و انتخاب':'Create & select'}</button>
             </div>
 
+            ${lockedPreset ? `
+            <label>${fa?'کلید API':'API Key'}</label>
+            <input type="text" id="muAiKey" value="${fa?'🔒 کلید داخلی — نیازی به وارد کردن نیست، قابل مشاهده/کپی/حذف نیست':'🔒 Built-in key — nothing to enter, not viewable/copyable/removable'}" disabled style="opacity:.65">
+            <label>${fa?'مدل (از بین مدل‌های رایگان سوییچ کن)':'Model (switch between free models)'}</label>` : `
             <label>${fa?'کلید API':'API Key'}</label>
             <input type="password" id="muAiKey" value="${escapeHtml(fields.apiKey||'')}" placeholder="sk-...">
             <label>${isCustom
                 ? (fa?'مدل (الزامی — نام دقیق مدل همان سرویس)':'Model (required — the exact model name from that service)')
-                : (fa?'مدل (اختیاری — پیش‌فرض دارد)':'Model (optional — has a default)')}</label>
+                : (fa?'مدل (اختیاری — پیش‌فرض دارد)':'Model (optional — has a default)')}</label>`}
             <div style="display:flex;gap:6px;align-items:center">
                 <input type="text" id="muAiModel" value="${escapeHtml(fields.model||'')}" placeholder="${fa?'مثلاً gpt-5-mini یا openai/gpt-4o-mini':'e.g. gpt-5-mini or openai/gpt-4o-mini'}" style="flex:1">
-                <button type="button" class="btn-main" style="white-space:nowrap" onclick="mu_fetchAiModelsList()">🔍 ${fa?'دریافت مدل‌ها':'Fetch models'}</button>
+                <button type="button" class="btn-main" style="white-space:nowrap" onclick="mu_fetchAiModelsList()">🔍 ${fa?(lockedPreset?'دریافت مدل‌های رایگان':'دریافت مدل‌ها'):(lockedPreset?'Fetch free models':'Fetch models')}</button>
             </div>
             <div id="muAiModelsBox" style="display:none;max-height:160px;overflow:auto;border:1px solid var(--panel-border);border-radius:8px;padding:6px;flex-direction:column;gap:4px"></div>
+            ${lockedPreset ? `
+            <p style="opacity:.6;font-size:10.5px;line-height:1.8;margin:0">${fa
+                ? 'این ارائه‌دهنده با یک کلید API داخلی همیشه فعال است و به‌صورت پیش‌فرض روشن می‌ماند تا وقتی خودت ارائه‌دهنده دیگری را انتخاب و ذخیره کنی. فقط مدل‌های رایگان OpenRouter (پسوند «:free») در لیست دریافت مدل‌ها نشان داده می‌شوند. Base URL آن ثابت و غیرقابل تغییر است.'
+                : "This provider runs on an always-on built-in API key and stays the default until you pick and save a different provider. Only OpenRouter's free models (the \":free\" suffix) show up in the Fetch models list, and its Base URL is fixed and cannot be changed."}</p>` : `
             <label>${fa?'Base URL (اختیاری برای OpenAI/OpenRouter)':'Base URL (optional for OpenAI/OpenRouter)'}</label>
             <input type="text" id="muAiBase" value="${escapeHtml(fields.baseUrl||'')}" placeholder="https://api.openai.com/v1">
             ${isCustom ? `<p style="opacity:.6;font-size:10.5px;line-height:1.8;margin:0">${fa
                 ? 'نکته: اگر بعد از تست همچنان خطای شبکه/اتصال می‌گیری، معمولاً یعنی آن سرویس اجازه تماس مستقیم از داخل مرورگر (CORS) را نمی‌دهد — این را فقط خودِ سرویس می‌تواند فعال کند.'
-                : "Note: if you still get a network/connection error after testing, it usually means that service doesn't allow direct browser calls (CORS) — only the service itself can enable that."}</p>` : ''}
+                : "Note: if you still get a network/connection error after testing, it usually means that service doesn't allow direct browser calls (CORS) — only the service itself can enable that."}</p>` : ''}`}
         </div>
         <div class="markhin-ai-settings-row" style="margin-top:10px">
             <label>🎭 ${fa?'طرز حرف زدن (لحن دستیار)':'Speaking style (assistant tone)'}</label>
@@ -11141,9 +11317,11 @@ function mu_openAiSettingsModal(){
                 ? 'این لحن روی همه پاسخ‌های MARKHIN AI در همین چت اعمال می‌شود، مستقل از این‌که کدام ارائه‌دهنده انتخاب شده — هر وقت خواستی می‌توانی عوضش کنی.'
                 : "This tone applies to every MARKHIN AI reply in this chat, independent of which provider is selected — switch it anytime."}</p>
         </div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
             <button class="btn-main" onclick="mu_saveAiSettings()">💾 ${fa?'ذخیره':'Save'}</button>
-            ${isCustom ? `<button class="btn-main" onclick="mu_removeAiProvider()">🗑️ ${fa?'حذف این ارائه‌دهنده':'Remove this provider'}</button>` : `<button class="btn-main" onclick="mu_clearAiSettings()">🗑️ ${fa?'حذف کلید':'Clear key'}</button>`}
+            ${lockedPreset
+                ? `<span style="font-size:11px;opacity:.6">🔒 ${fa?'قابل حذف نیست — برای عوض‌کردن، ارائه‌دهنده دیگری از لیست بالا انتخاب و ذخیره کن':'Not removable — pick a different provider above and save to switch'}</span>`
+                : (isCustom ? `<button class="btn-main" onclick="mu_removeAiProvider()">🗑️ ${fa?'حذف این ارائه‌دهنده':'Remove this provider'}</button>` : `<button class="btn-main" onclick="mu_clearAiSettings()">🗑️ ${fa?'حذف کلید':'Clear key'}</button>`)}
             <button class="btn-main" onclick="mu_testAiSettings()">🔎 ${fa?'تست اتصال':'Test connection'}</button>
         </div>
         <div id="muAiTestResult" style="margin-top:8px;font-size:11px;opacity:.85"></div>
@@ -11152,22 +11330,19 @@ function mu_openAiSettingsModal(){
 window.mu_openAiSettingsModal = mu_openAiSettingsModal;
 
 window.mu_onProviderPick = function(value){
-    const box = document.getElementById('muAiNewProviderBox');
-    const modelsBox = document.getElementById('muAiModelsBox');
-    if(modelsBox){ modelsBox.style.display = 'none'; modelsBox.innerHTML = ''; }
     if(value === '__add_new__'){
+        const box = document.getElementById('muAiNewProviderBox');
+        const modelsBox = document.getElementById('muAiModelsBox');
+        if(modelsBox){ modelsBox.style.display = 'none'; modelsBox.innerHTML = ''; }
         if(box) box.style.display = 'flex';
         return;
     }
-    if(box) box.style.display = 'none';
-    const fields = MarkhinAI.getProviderFields(value);
-    if(!fields) return;
-    const keyEl = document.getElementById('muAiKey');
-    const modelEl = document.getElementById('muAiModel');
-    const baseEl = document.getElementById('muAiBase');
-    if(keyEl) keyEl.value = fields.apiKey||'';
-    if(modelEl) modelEl.value = fields.model||'';
-    if(baseEl) baseEl.value = fields.baseUrl||'';
+    // Full re-render (rather than just patching the key/model/Base URL
+    // inputs in place) so switching to/from the locked free-OpenRouter
+    // provider correctly shows/hides its API-key and Base URL fields and
+    // the remove/clear button. Nothing is persisted by this — only
+    // Save/Test actually make `value` the active provider, same as before.
+    mu_openAiSettingsModal(value);
 };
 
 window.mu_confirmNewProvider = function(){
@@ -11197,7 +11372,12 @@ window.mu_removeAiProvider = function(){
 
 function mu_readAiForm(){
     const sel = document.getElementById('muAiProvider');
-    const rawKey = ((document.getElementById('muAiKey')||{}).value || '');
+    const id = sel ? sel.value : 'openrouter_free';
+    const lockedPreset = MU_AI_BUILTINS[id] && MU_AI_BUILTINS[id].locked;
+    // The key/Base URL inputs for a locked provider are disabled and show
+    // a placeholder message rather than a real value — never read them
+    // back as if they were user-entered data.
+    const rawKey = lockedPreset ? '' : ((document.getElementById('muAiKey')||{}).value || '');
     const cleaned = mu_sanitizeApiKeyValue(rawKey);
     if(cleaned.wasCleaned){
         showToast(currentLang==='fa'
@@ -11205,10 +11385,10 @@ function mu_readAiForm(){
             : '⚠️ The API key contained invisible/invalid characters; it was cleaned up automatically.');
     }
     return {
-        id: sel ? sel.value : 'openai',
+        id,
         apiKey: cleaned.value,
         model: ((document.getElementById('muAiModel')||{}).value || '').trim(),
-        baseUrl: ((document.getElementById('muAiBase')||{}).value || '').trim()
+        baseUrl: lockedPreset ? '' : ((document.getElementById('muAiBase')||{}).value || '').trim()
     };
 }
 window.mu_saveAiSettings = function(){
@@ -11222,7 +11402,14 @@ window.mu_saveAiSettings = function(){
 };
 window.mu_clearAiSettings = function(){
     const sel = document.getElementById('muAiProvider');
-    const id = sel ? sel.value : 'openai';
+    const id = sel ? sel.value : 'openrouter_free';
+    if(MU_AI_BUILTINS[id] && MU_AI_BUILTINS[id].locked){
+        // No UI path should normally reach this (the button is hidden for
+        // locked providers), but guard anyway — this provider's key can
+        // never be cleared/removed, only switched away from.
+        showToast(currentLang==='fa' ? 'این ارائه‌دهنده قابل حذف نیست — ارائه‌دهنده دیگری را انتخاب کن.' : 'This provider cannot be removed — pick a different provider instead.');
+        return;
+    }
     if(id.indexOf('custom:')===0){ MarkhinAI.removeCustomProvider(id); }
     else { MarkhinAI.saveProviderFields(id, { apiKey:'', model:'', baseUrl:'' }); }
     showToast(currentLang==='fa' ? 'کلید حذف شد.' : 'Key cleared.');
@@ -11258,9 +11445,10 @@ window.mu_fetchAiModelsList = async function(){
     const fa = currentLang==='fa';
     const box = document.getElementById('muAiModelsBox');
     const sel = document.getElementById('muAiProvider');
-    const id = sel ? sel.value : 'openai';
+    const id = sel ? sel.value : 'openrouter_free';
+    const lockedPreset = MU_AI_BUILTINS[id] && MU_AI_BUILTINS[id].locked;
     let format = 'openai';
-    let baseUrl = ((document.getElementById('muAiBase')||{}).value||'').trim();
+    let baseUrl = lockedPreset ? '' : ((document.getElementById('muAiBase')||{}).value||'').trim();
     if(id === '__add_new__'){
         format = (document.getElementById('muAiNewFormat')||{}).value || 'openai';
         if(!baseUrl) baseUrl = ((document.getElementById('muAiNewBase')||{}).value||'').trim();
@@ -11272,13 +11460,17 @@ window.mu_fetchAiModelsList = async function(){
         format = (MU_AI_BUILTINS[id] && MU_AI_BUILTINS[id].format) || 'openai';
         if(!baseUrl) baseUrl = (MU_AI_BUILTINS[id] && MU_AI_BUILTINS[id].defaultBaseUrl) || '';
     }
-    const apiKey = ((document.getElementById('muAiKey')||{}).value || '');
+    // For the locked free-OpenRouter provider, the key input on screen is
+    // disabled and shows a placeholder message, not a real key — always
+    // use the fixed built-in key for this id instead of reading the DOM.
+    const apiKey = lockedPreset ? (MU_AI_BUILTINS[id].fixedApiKey||'') : ((document.getElementById('muAiKey')||{}).value || '');
+    const onlyFree = !!(lockedPreset && MU_AI_BUILTINS[id].freeOnly);
     if(!box) return;
     box.style.display = 'flex';
     box.innerHTML = fa ? '⏳ در حال دریافت لیست مدل‌ها...' : '⏳ Fetching model list...';
     try{
-        const models = await MarkhinAI.fetchModels({ format, apiKey, baseUrl });
-        if(!models.length){ box.innerHTML = fa ? 'چیزی پیدا نشد.' : 'Nothing found.'; return; }
+        const models = await MarkhinAI.fetchModels({ format, apiKey, baseUrl, onlyFree });
+        if(!models.length){ box.innerHTML = fa ? (onlyFree ? 'مدل رایگانی پیدا نشد.' : 'چیزی پیدا نشد.') : (onlyFree ? 'No free models found.' : 'Nothing found.'); return; }
         box.innerHTML = '';
         models.slice(0,200).forEach(m=>{
             const b = document.createElement('button');
@@ -12262,7 +12454,11 @@ window.attachWrapperEvents = function(categoryId){
                 const streamParts = mAi_splitReply(mAiStreamText);
                 html += streamParts.map(function(part, i){
                     const cursor = (i === streamParts.length - 1) ? '<span class="mAi-cursor">▍</span>' : '';
-                    return '<div class="mAi-msg mAi-assistant"><div class="mAi-bubble">' + mAiFormat(part) + cursor + '</div></div>';
+                    // id only on the common single-bubble case, so mAiOnDelta
+                    // below can find and patch just this node in place instead
+                    // of asking mAiRender() to rebuild the whole chat again.
+                    const idAttr = (streamParts.length === 1) ? ' id="mAiStreamBubbleContent"' : '';
+                    return '<div class="mAi-msg mAi-assistant"><div class="mAi-bubble"' + idAttr + '>' + mAiFormat(part) + cursor + '</div></div>';
                 }).join('');
             } else {
                 html += '<div class="mAi-msg mAi-assistant"><div class="mAi-bubble mAi-typing"><span></span><span></span><span></span></div></div>';
@@ -12412,6 +12608,19 @@ window.attachWrapperEvents = function(categoryId){
         return m ? Math.max(64, parseInt(m[1].replace(/,/g,''), 10)) : null;
     }
 
+    /* Distinct from both error types above: HTTP 429 (rate limit / quota
+       exceeded) — unlike a too-large request or a low balance, this can't
+       be fixed by shrinking anything about the request; the account
+       itself is temporarily capped. The only real fix is a different
+       account/provider (or waiting it out), so this is what triggers the
+       automatic fallback-provider switch in the retry loop below (see
+       MarkhinAI.listFallbackCandidates / setActiveProviderId) instead of
+       a shrink-and-retry like the other two. */
+    function mu_looksLikeRateLimitError(err){
+        const msg = String((err && err.message) || err || '');
+        return /\b429\b/.test(msg) || /rate limit|rate-limited|rate limited|too many requests|quota exceeded/i.test(msg);
+    }
+
     /* Locked note content is never readable without its password, so
        relevance can only be judged from what's visible while locked: the
        note's title. A rough word-overlap check against the query is good
@@ -12437,6 +12646,137 @@ window.attachWrapperEvents = function(categoryId){
        down for the loop that feeds these to MarkhinAI.chat() and runs
        whichever ones the model calls.
        ================================================================= */
+    /* Safe math expression evaluator for the 'calculate' tool below — a
+       small hand-written tokenizer + recursive-descent parser, NOT eval(),
+       so a malformed or adversarial expression can only ever throw, never
+       run arbitrary JS. Supports +, -, *, /, % (modulo), ^ (power,
+       right-associative), unary +/-, parentheses, the constants pi/e, and
+       the functions sqrt/abs/round/floor/ceil/min/max/pow/log(base10)/
+       ln/sin/cos/tan. This exists so the AI chat can get an exact,
+       tool-computed number instead of an LLM "eyeballing" arithmetic in
+       its own generated text — see the 'calculate' tool and the "Answer
+       quality standard" system-prompt section that tells the model to
+       actually call it. */
+    function mAiSafeCalc(exprRaw){
+        const expr = String(exprRaw == null ? '' : exprRaw).trim();
+        if(!expr) throw new Error('Empty expression.');
+        const tokens = [];
+        let i = 0;
+        const isDigit = c => c >= '0' && c <= '9';
+        const isIdentStart = c => /[a-zA-Z_]/.test(c);
+        const isIdentChar = c => /[a-zA-Z0-9_]/.test(c);
+        while(i < expr.length){
+            const c = expr[i];
+            if(c === ' ' || c === '\t' || c === '\n' || c === '\r'){ i++; continue; }
+            if(isDigit(c) || (c === '.' && isDigit(expr[i+1] || ''))){
+                let j = i;
+                while(j < expr.length && (isDigit(expr[j]) || expr[j] === '.')) j++;
+                const numStr = expr.slice(i, j);
+                if(!/^\d*\.?\d+$|^\d+\.?\d*$/.test(numStr)) throw new Error('Bad number: ' + numStr);
+                tokens.push({ type:'num', value: parseFloat(numStr) });
+                i = j;
+                continue;
+            }
+            if(isIdentStart(c)){
+                let j = i;
+                while(j < expr.length && isIdentChar(expr[j])) j++;
+                tokens.push({ type:'ident', value: expr.slice(i, j).toLowerCase() });
+                i = j;
+                continue;
+            }
+            if('+-*/^%(),'.indexOf(c) !== -1){
+                tokens.push({ type:'op', value: c });
+                i++;
+                continue;
+            }
+            throw new Error('Unexpected character "' + c + '" in expression.');
+        }
+        let pos = 0;
+        const peek = () => tokens[pos];
+        const next = () => tokens[pos++];
+        const expectOp = (v) => { const t = peek(); if(!t || t.type !== 'op' || t.value !== v) throw new Error('Expected "' + v + '".'); next(); };
+        function parseExpr(){ return parseAddSub(); }
+        function parseAddSub(){
+            let left = parseMulDiv();
+            while(peek() && peek().type === 'op' && (peek().value === '+' || peek().value === '-')){
+                const op = next().value;
+                const right = parseMulDiv();
+                left = op === '+' ? (left + right) : (left - right);
+            }
+            return left;
+        }
+        function parseMulDiv(){
+            let left = parseUnary();
+            while(peek() && peek().type === 'op' && (peek().value === '*' || peek().value === '/' || peek().value === '%')){
+                const op = next().value;
+                const right = parseUnary();
+                if(op === '*') left = left * right;
+                else if(op === '/') left = left / right;
+                else left = left % right;
+            }
+            return left;
+        }
+        function parseUnary(){
+            if(peek() && peek().type === 'op' && (peek().value === '-' || peek().value === '+')){
+                const op = next().value;
+                const val = parseUnary();
+                return op === '-' ? -val : val;
+            }
+            return parsePow();
+        }
+        function parsePow(){
+            const base = parseAtom();
+            if(peek() && peek().type === 'op' && peek().value === '^'){
+                next();
+                const exp = parseUnary(); // right-associative: 2^3^2 = 2^(3^2)
+                return Math.pow(base, exp);
+            }
+            return base;
+        }
+        const FUNCS = {
+            sqrt: Math.sqrt, abs: Math.abs, round: Math.round, floor: Math.floor, ceil: Math.ceil,
+            log: (x) => Math.log(x) / Math.LN10, ln: Math.log,
+            sin: Math.sin, cos: Math.cos, tan: Math.tan,
+            min: (...a) => Math.min.apply(null, a), max: (...a) => Math.max.apply(null, a),
+            pow: Math.pow
+        };
+        const CONSTS = { pi: Math.PI, e: Math.E };
+        function parseAtom(){
+            const t = peek();
+            if(!t) throw new Error('Unexpected end of expression.');
+            if(t.type === 'num'){ next(); return t.value; }
+            if(t.type === 'op' && t.value === '('){
+                next();
+                const val = parseExpr();
+                expectOp(')');
+                return val;
+            }
+            if(t.type === 'ident'){
+                next();
+                const name = t.value;
+                const followedByParen = peek() && peek().type === 'op' && peek().value === '(';
+                if(!followedByParen && Object.prototype.hasOwnProperty.call(CONSTS, name)) return CONSTS[name];
+                if(!Object.prototype.hasOwnProperty.call(FUNCS, name)) throw new Error('Unknown function or name: "' + name + '".');
+                expectOp('(');
+                const args = [];
+                if(!(peek() && peek().type === 'op' && peek().value === ')')){
+                    args.push(parseExpr());
+                    while(peek() && peek().type === 'op' && peek().value === ','){
+                        next();
+                        args.push(parseExpr());
+                    }
+                }
+                expectOp(')');
+                return FUNCS[name].apply(null, args);
+            }
+            throw new Error('Unexpected token in expression.');
+        }
+        const result = parseExpr();
+        if(pos !== tokens.length) throw new Error('Unexpected trailing input in expression.');
+        if(typeof result !== 'number' || !Number.isFinite(result)) throw new Error('Result is not a finite number (check for division by zero, etc).');
+        return result;
+    }
+
     const MAI_TOOLS = [
         { name:'find_notes', description:'Search the user\'s unlocked notes by keyword (matches title, body text, or tags). Call this first whenever the user refers to a note by name/topic and you do not already know its exact id, or whenever asked to list/find notes. Returns id, name, folder, tags, pinned, favorite, archived, and a short content snippet for every match. Locked (password-protected) notes are never included.', parameters:{ type:'object', properties:{ query:{ type:'string', description:'Keyword or phrase to search for. Leave empty to list all unlocked notes.' } } } },
         { name:'create_note', description:'Create a brand-new note in the app. If a folder is given that does not exist yet, it is created automatically — so "make a note X in a new folder Y" is a single call.', parameters:{ type:'object', properties:{ name:{ type:'string', description:'Title of the new note.' }, content:{ type:'string', description:'Body of the new note. Supports lightweight markdown that gets rendered to real formatting: **bold**, *italic*, `code`, # / ## / ### headings, > quote, - list items, [text](url) links. Use it whenever the user asks for bold/italic/headings/lists/etc.' }, folder:{ type:'string', description:'Folder to place the note in. Leave empty for no folder. A folder that does not exist yet will be created automatically.' } }, required:['name'] } },
@@ -12474,6 +12814,7 @@ window.attachWrapperEvents = function(categoryId){
         { name:'sort_notes', description:'Resort a whole set of notes at once by a rule — alphabetically by title, by last-edited date, or by content length — instead of moving notes one at a time (use move_note_position for a single one-off move). Optionally restrict to one folder; otherwise it sorts every visible note in the vault. Use this whenever the user asks to sort/order their notes "by name/alphabet", "by date", "by length", etc. Pinned notes always display before non-pinned ones, and favorites before plain notes, regardless of manual order — this sorts within each of those groups separately, so the pinned/favorite grouping itself never changes, only the order inside each group.', parameters:{ type:'object', properties:{ folder:{ type:'string', description:'Restrict sorting to notes inside this folder. Omit to sort across the whole vault.' }, by:{ type:'string', enum:['name','edited','length'], description:'"name" = alphabetical by title. "edited" = by last-edited date. "length" = by content length.' }, direction:{ type:'string', enum:['asc','desc'], description:'Sort direction. Defaults to "asc" (A→Z / oldest→newest / shortest→longest).' } }, required:['by'] } },
         { name:'suggest_note_groups', description:'Analyze notes and suggest how to group related ones into folders, based on shared tags and shared significant words/topics in their content. This only analyzes and returns candidate groups (a suggested folder name plus the notes that belong in it) — it never moves or changes anything by itself. Use this whenever the user asks you to organize/tidy/group their notes into folders, or find which notes are related enough to file together. After getting the result, briefly tell the user what you found, then actually apply it yourself by calling move_note_to_folder (or bulk_update_notes) for each suggested group — any folder that does not exist yet is created automatically, exactly like move_note_to_folder always does.', parameters:{ type:'object', properties:{ include_foldered:{ type:'boolean', description:'If true, also consider notes that already have a folder, to suggest a full reorganization. Defaults to false, meaning only currently-unfiled notes are considered.' }, min_group_size:{ type:'number', description:'Minimum number of notes required to suggest a group. Defaults to 2.' } } } },
         { name:'get_chat_history', description:'Look up part of THIS conversation (between you and the user, in this same chat) that falls outside what you can currently see above — only the most recent turns are included directly in your context each time, older ones are not, even though the app still has them stored. Call this whenever the user refers to something earlier in this chat that is not visible above: "what was my first message", "what did I ask you at the start", "what did we say about X earlier", "repeat what you told me before". Do not guess or say you don\'t know before calling this. If the user has cleared this conversation, there is no earlier history at all — the tool will correctly return nothing before that point, and you should tell the user the earlier conversation was cleared rather than invent something.', parameters:{ type:'object', properties:{ mode:{ type:'string', enum:['first','last','range','search'], description:'"first" = the earliest message(s) of the whole stored conversation (e.g. for "what was my first message"). "last" = the most recent stored message(s) (rarely needed — recent turns are usually already visible above). "range" = a specific slice by zero-based index (use total_messages from a previous call to pick indices). "search" = find messages whose text contains a keyword/phrase.' }, count:{ type:'number', description:'How many messages to return for "first" or "last". Default 1, max 20.' }, start:{ type:'number', description:'Zero-based start index, for mode "range".' }, end:{ type:'number', description:'Zero-based end index, exclusive, for mode "range".' }, query:{ type:'string', description:'Keyword or phrase to search for, for mode "search".' } }, required:['mode'] } },
+        { name:'calculate', description:'Evaluate a precise math expression and get back the exact numeric result — call this for ANY nontrivial arithmetic, percentage, ratio, or multi-step calculation instead of computing it yourself in generated text, since a tool-computed number is always exact and an LLM-estimated one can be subtly wrong. Supports +, -, *, /, % (modulo), ^ (power), parentheses, the constants pi and e, and the functions sqrt, abs, round, floor, ceil, min, max, pow, log (base 10), ln (natural log), sin, cos, tan (radians). For a percentage like "18% of 250", write it as an expression yourself, e.g. "250*0.18" or "250*18/100". You may call this more than once in the same turn for several separate calculations.', parameters:{ type:'object', properties:{ expression:{ type:'string', description:'The math expression to evaluate, e.g. "(1200*3 + 450) / 7", "sqrt(2)^3", or "250*18/100".' } }, required:['expression'] } },
         { name:'get_world_time', description:'Get the exact current date and time in any place in the world — a country, city, state/province, or a plain UTC/world-clock reading — independent of the user\'s own device time given to you above. Use this whenever the user asks what time/day/date it currently is somewhere else, or asks for world/UTC time; you may call it more than once in the same turn to check several places at once. Resolve the requested place to a real IANA time zone identifier yourself, from your own geography knowledge (e.g. Toronto or Ontario, Canada → "America/Toronto"; Vancouver or British Columbia → "America/Vancouver"; Tehran → "Asia/Tehran"; London → "Europe/London"; New York → "America/New_York"; Sydney → "Australia/Sydney"). If you are not fully sure of the exact zone for an unusual place, pick the nearest major city/region in the same country you are confident about and say so plainly in your answer. For a plain "world time"/UTC request, use "UTC".', parameters:{ type:'object', properties:{ timezone:{ type:'string', description:'A valid IANA time zone identifier, e.g. "America/Toronto", "Asia/Tehran", "Europe/London", or "UTC".' }, place_label:{ type:'string', description:'A short, human-readable label for the place, in the user\'s own language, to echo back in your answer — e.g. "تورنتو، اونتاریو، کانادا" or "Tokyo, Japan". Optional but recommended.' } }, required:['timezone'] } }
     ];
 
@@ -13442,6 +13783,19 @@ window.attachWrapperEvents = function(categoryId){
                     }
                     return { ok:true, data:{ total_messages: full.length, results: results } };
                 }
+                case 'calculate': {
+                    const expr = String(input.expression == null ? '' : input.expression);
+                    if(!expr.trim()) return { ok:false, error: fa ? 'یک عبارتِ ریاضی برای محاسبه لازم است.' : 'A math expression to evaluate is required.' };
+                    let result;
+                    try {
+                        result = mAiSafeCalc(expr);
+                    } catch(calcErr){
+                        return { ok:false, error: fa
+                            ? ('عبارت قابل‌محاسبه نبود: ' + ((calcErr && calcErr.message) || calcErr))
+                            : ('Could not evaluate the expression: ' + ((calcErr && calcErr.message) || calcErr)) };
+                    }
+                    return { ok:true, data:{ expression: expr, result: result } };
+                }
                 case 'get_world_time': {
                     const tz = String(input.timezone || '').trim();
                     if(!tz) return { ok:false, error: fa ? 'یک منطقه‌زمانیِ معتبر (IANA) لازم است، مثل "America/Toronto".' : 'A valid IANA time zone is required, e.g. "America/Toronto".' };
@@ -13540,8 +13894,31 @@ window.attachWrapperEvents = function(categoryId){
         // guards whether the finished result gets saved).
         const mAiOnDelta = function(t){
             if(mAiMyGen !== mAiGen) return;
+            // Bug fix (whole chat jittering/blinking while a reply streams in):
+            // this used to call the full mAiRender() on every single delta —
+            // for a long reply that can fire dozens of times a second, and
+            // mAiRender() replaces box.innerHTML for the ENTIRE conversation
+            // each time, tearing down and rebuilding every earlier bubble's
+            // DOM nodes just to show a few new characters. That constant
+            // full-list rebuild/reflow is what showed up as the small
+            // jump+flicker. Now: only patch the one streaming bubble's own
+            // content in place (cheap, no reflow of anything else), and only
+            // fall back to a full mAiRender() for the rare cases that
+            // actually change the chat's shape — the very first chunk of a
+            // reply (bubble doesn't exist yet) or the multi-bubble
+            // MAI_MSG_SPLIT case.
+            const prevParts = mAi_splitReply(mAiStreamText);
             mAiStreamText = t;
-            mAiRender();
+            const streamParts = mAi_splitReply(mAiStreamText);
+            const box = document.getElementById('markhinAiChatMessages');
+            const bubbleEl = (box && streamParts.length === 1) ? document.getElementById('mAiStreamBubbleContent') : null;
+            if(bubbleEl && prevParts.length === 1){
+                const wasAtBottom = (box.scrollHeight - box.scrollTop - box.clientHeight) < 40;
+                bubbleEl.innerHTML = mAiFormat(streamParts[0]) + '<span class="mAi-cursor">▍</span>';
+                if(wasAtBottom) box.scrollTop = box.scrollHeight;
+            } else {
+                mAiRender();
+            }
         };
 
         /* Runs one full model turn (the whole multi-step tool-call loop,
@@ -13625,8 +14002,14 @@ window.attachWrapperEvents = function(categoryId){
            background awareness. Notes already given in full just above
            are left out here so the model is never shown two different
            (one truncated, one complete) versions of the same note. */
-        const perNoteBudget = Math.max(250, Math.round(1500 * contextScale));
-        const totalBudget = Math.max(1000, Math.round(14000 * contextScale));
+        // Upgrade: these budgets used to cut each note's preview off at 1500
+        // chars and the whole notes-context block at 14000 chars, forcing a
+        // get_note round-trip for almost anything longer than a short note.
+        // Raised well past that so the model actually has real memory of
+        // the vault's contents up front — get_note/get_notes are still
+        // there (and still get called) for anything even bigger than this.
+        const perNoteBudget = Math.max(250, Math.round(3000 * contextScale));
+        const totalBudget = Math.max(1000, Math.round(30000 * contextScale));
         const notesContext = notes.filter(function(n){ return !referencedNoteIds.has(n.id); }).map(function(n){
             const fullPlain = mu_notePlainText(n);
             const excerpt = fullPlain.slice(0,perNoteBudget);
@@ -13640,8 +14023,8 @@ window.attachWrapperEvents = function(categoryId){
         }).join('\n\n').slice(0,totalBudget);
 
 
-        const toolsSummaryFa = '🔎 پیدا کردن یادداشت، 📖 خواندن متن کامل یک یادداشت، ➕ ساخت یادداشت جدید (با فرمت‌بندی)، 📝 ویرایش/بازنویسی متن یادداشت (بولد، ایتالیک، تیتر، لیست و...)، 📄 ساخت کپی از یک یادداشت، 🔒 قفل‌کردن واقعیِ یک یادداشت با رمز (باز کردن دیالوگ امن رمزگذاری خودِ برنامه)، ✏️ تغییر عنوان، 🔤 تغییر فونت/سایز یک یادداشت، ⌛ تنظیم دستی/خودکار سطح فرسودگی، 📁 انتقال به/خروج از پوشه، ➕📁 ساخت/تغییرنام/حذف پوشه، 🏷️ تگ‌گذاری، 📌 پین، ⭐ فیوریت، 📦 آرشیو/بازگردانی، ⏳ فعال/غیرفعال‌کردن کپسول زمانی (قفل یک یادداشت تا زمان مشخص)، 👻 فعال/لغو Ghost Note (خودکار حذف‌شدن یادداشت بعد از چند ساعت)، ⚰️ دیدن لیست گورستان و ♻️ بازیابی یادداشت حذف‌شده از آن، 🧰 اعمال یک تغییر روی چند یادداشت هم‌زمان بر اساس پوشه/تگ/جستجو (تگ‌گذاری، آرشیو، پین، فیوریت، یا جابجایی گروهی)، 🔗 ترکیب چند یادداشت، 🗑️ حذف (همیشه با تأیید واقعی کاربر)، 🎨 تغییر تم ظاهری، 🌐 تغییر زبان برنامه، 📤 خروجی‌گرفتن واقعی از یادداشت‌ها (JSON/CSV/MD/TXT/PDF/DOCX/PNG/JPG — دانلود واقعی، نه فقط توضیح)، 🌌 باز کردن شبکه دانش/گورستان/پورتال رندوم، 🧬 مقایسه چند یادداشت و پیدا کردن اشتراکات (تگ مشترک، کلمات/موضوع مشترک)، 📊 آمار کامل داشبورد (تعداد کل، پین‌شده‌ها، فیوریت‌ها، پوشه‌ها، تگ‌ها)، 📚 خواندن چند یادداشت کامل در یک درخواست (برای خلاصه‌سازی/مقایسه گروهی)، 🗂️ خواندن متن کامل *همه* یادداشت‌های در‌دسترس با هم در یک درخواست (برای مرور/خلاصه‌سازی/جستجوی کامل کل واقت)، ➕📚 ساخت چند یادداشت هم‌زمان در یک درخواست، 🧭 پیدا کردن یادداشت‌های خیلی شبیه/تکراری در کل واقتان، ↕️ جابجایی دقیق یک یادداشت در لیست (بردن به بالا/پایین یا درست قبل/بعد از یادداشتی دیگر)، 🔀 مرتب‌سازی یک‌جای همه یادداشت‌ها یا یک پوشه بر اساس الفبا/تاریخ ویرایش/طول، 🧩 پیشنهاد پوشه‌بندی خودکار یادداشت‌های مرتبط بر اساس تگ و محتوای مشترک، 🕰️ دسترسی به بخش‌های قدیمی‌تر همین گفتگو که در حافظه فعلی‌ات نیست (مثل اولین پیامی که کاربر فرستاده)، و 🌍 دیدن تاریخ/ساعت دقیق در هر نقطه از دنیا (هر کشور/شهر/ایالت یا ساعت جهانی UTC)';
-        const toolsSummaryEn = 'finding notes, reading a note\'s full content, creating notes (with formatting), editing/rewriting a note\'s content (bold, italic, headings, lists, etc.), duplicating a note, actually password-locking a note (opening the app\'s own secure encryption dialog), renaming, changing a note\'s font/size, setting its decay/staleness level manually or back to automatic, moving into/out of a folder, creating/renaming/deleting folders, tagging, pinning, favoriting, archiving/restoring, arming/clearing a Time Capsule lock (a note that cannot reopen until a future date), arming/cancelling a Ghost Note self-destruct timer (a note that auto-deletes after a set number of hours), listing what\'s in the Cemetery and restoring a deleted note from it, applying one change to a whole group of notes at once by folder/tag/search (bulk tagging, archiving, pinning, favoriting, or moving), merging multiple notes, deleting (always with a real user confirmation), switching the app\'s visual theme, switching the app\'s language, actually exporting notes to a real downloaded file (JSON/CSV/MD/TXT/PDF/DOCX/PNG/JPG — a real download, not just instructions), opening the Knowledge Graph / Cemetery / Random Portal views, comparing multiple notes to find what they share (common tags, common words/themes), getting full dashboard stats (totals, pinned notes, favorite notes, folders, tags), batch-reading several notes\' full content in one request (for group summarizing/comparing), reading the full text of *every* accessible note at once in a single request (for reviewing/summarizing/searching the whole vault), batch-creating several notes in one request, scanning the whole vault for near-duplicate/highly overlapping notes, precisely repositioning a single note in its list (to the top/bottom or right before/after another note), resorting all notes (or one folder) at once by alphabet/edit-date/length, suggesting automatic folder groupings for related notes based on shared tags and content, looking up older parts of this very conversation that are no longer in your current context (e.g. the user\'s very first message), and checking the exact current date/time anywhere else in the world (any country, city, state/province, or UTC)';
+        const toolsSummaryFa = '🔎 پیدا کردن یادداشت، 📖 خواندن متن کامل یک یادداشت، ➕ ساخت یادداشت جدید (با فرمت‌بندی)، 📝 ویرایش/بازنویسی متن یادداشت (بولد، ایتالیک، تیتر، لیست و...)، 📄 ساخت کپی از یک یادداشت، 🔒 قفل‌کردن واقعیِ یک یادداشت با رمز (باز کردن دیالوگ امن رمزگذاری خودِ برنامه)، ✏️ تغییر عنوان، 🔤 تغییر فونت/سایز یک یادداشت، ⌛ تنظیم دستی/خودکار سطح فرسودگی، 📁 انتقال به/خروج از پوشه، ➕📁 ساخت/تغییرنام/حذف پوشه، 🏷️ تگ‌گذاری، 📌 پین، ⭐ فیوریت، 📦 آرشیو/بازگردانی، ⏳ فعال/غیرفعال‌کردن کپسول زمانی (قفل یک یادداشت تا زمان مشخص)، 👻 فعال/لغو Ghost Note (خودکار حذف‌شدن یادداشت بعد از چند ساعت)، ⚰️ دیدن لیست گورستان و ♻️ بازیابی یادداشت حذف‌شده از آن، 🧰 اعمال یک تغییر روی چند یادداشت هم‌زمان بر اساس پوشه/تگ/جستجو (تگ‌گذاری، آرشیو، پین، فیوریت، یا جابجایی گروهی)، 🔗 ترکیب چند یادداشت، 🗑️ حذف (همیشه با تأیید واقعی کاربر)، 🎨 تغییر تم ظاهری، 🌐 تغییر زبان برنامه، 📤 خروجی‌گرفتن واقعی از یادداشت‌ها (JSON/CSV/MD/TXT/PDF/DOCX/PNG/JPG — دانلود واقعی، نه فقط توضیح)، 🌌 باز کردن شبکه دانش/گورستان/پورتال رندوم، 🧬 مقایسه چند یادداشت و پیدا کردن اشتراکات (تگ مشترک، کلمات/موضوع مشترک)، 📊 آمار کامل داشبورد (تعداد کل، پین‌شده‌ها، فیوریت‌ها، پوشه‌ها، تگ‌ها)، 📚 خواندن چند یادداشت کامل در یک درخواست (برای خلاصه‌سازی/مقایسه گروهی)، 🗂️ خواندن متن کامل *همه* یادداشت‌های در‌دسترس با هم در یک درخواست (برای مرور/خلاصه‌سازی/جستجوی کامل کل واقت)، ➕📚 ساخت چند یادداشت هم‌زمان در یک درخواست، 🧭 پیدا کردن یادداشت‌های خیلی شبیه/تکراری در کل واقتان، ↕️ جابجایی دقیق یک یادداشت در لیست (بردن به بالا/پایین یا درست قبل/بعد از یادداشتی دیگر)، 🔀 مرتب‌سازی یک‌جای همه یادداشت‌ها یا یک پوشه بر اساس الفبا/تاریخ ویرایش/طول، 🧩 پیشنهاد پوشه‌بندی خودکار یادداشت‌های مرتبط بر اساس تگ و محتوای مشترک، 🕰️ دسترسی به بخش‌های قدیمی‌تر همین گفتگو که در حافظه فعلی‌ات نیست (مثل اولین پیامی که کاربر فرستاده)، و 🌍 دیدن تاریخ/ساعت دقیق در هر نقطه از دنیا (هر کشور/شهر/ایالت یا ساعت جهانی UTC)، و 🧮 انجام محاسبات دقیقِ ریاضی (درصد، توان، جذر، محاسبات چندمرحله‌ای و…) با یک ابزار محاسبه‌گرِ واقعی به‌جای حدس‌زدن';
+        const toolsSummaryEn = 'finding notes, reading a note\'s full content, creating notes (with formatting), editing/rewriting a note\'s content (bold, italic, headings, lists, etc.), duplicating a note, actually password-locking a note (opening the app\'s own secure encryption dialog), renaming, changing a note\'s font/size, setting its decay/staleness level manually or back to automatic, moving into/out of a folder, creating/renaming/deleting folders, tagging, pinning, favoriting, archiving/restoring, arming/clearing a Time Capsule lock (a note that cannot reopen until a future date), arming/cancelling a Ghost Note self-destruct timer (a note that auto-deletes after a set number of hours), listing what\'s in the Cemetery and restoring a deleted note from it, applying one change to a whole group of notes at once by folder/tag/search (bulk tagging, archiving, pinning, favoriting, or moving), merging multiple notes, deleting (always with a real user confirmation), switching the app\'s visual theme, switching the app\'s language, actually exporting notes to a real downloaded file (JSON/CSV/MD/TXT/PDF/DOCX/PNG/JPG — a real download, not just instructions), opening the Knowledge Graph / Cemetery / Random Portal views, comparing multiple notes to find what they share (common tags, common words/themes), getting full dashboard stats (totals, pinned notes, favorite notes, folders, tags), batch-reading several notes\' full content in one request (for group summarizing/comparing), reading the full text of *every* accessible note at once in a single request (for reviewing/summarizing/searching the whole vault), batch-creating several notes in one request, scanning the whole vault for near-duplicate/highly overlapping notes, precisely repositioning a single note in its list (to the top/bottom or right before/after another note), resorting all notes (or one folder) at once by alphabet/edit-date/length, suggesting automatic folder groupings for related notes based on shared tags and content, looking up older parts of this very conversation that are no longer in your current context (e.g. the user\'s very first message), and checking the exact current date/time anywhere else in the world (any country, city, state/province, or UTC), and doing exact math (percentages, powers, roots, multi-step calculations, etc.) with a real calculator tool instead of estimating';
 
         // Native, always-on live web search: when the active provider is
         // Anthropic, we attach Anthropic's own server-side web_search tool
@@ -13693,11 +14076,11 @@ window.attachWrapperEvents = function(categoryId){
         const mAiDateTimeFa = 'اطلاع زمانیِ دقیقِ فعلی (بر اساس ساعت همین دستگاه، همین لحظه): ' + mAiRichNow.lineFa
             + ' — یعنی روز هفته ' + mAiRichNow.weekdayFa + '، ' + mAiRichNow.day + ' ' + mAiRichNow.monthFa + ' ' + mAiRichNow.year
             + '، فصل ' + mAiRichNow.seasonFa + '، ساعت (با ثانیه) ' + mAiRichNow.time
-            + ' (فرمِ کاملِ قابل‌پارس همین لحظه: ' + mAiNowLocalIso + '). هر وقت کاربر به تاریخ/زمانِ نسبی اشاره کرد (فردا، پس‌فردا، جمعه بعدی، تا آخر همین هفته، ۳ روز دیگر، امشب و مانند آن)، همیشه دقیقاً همین لحظه را به‌عنوان «الان/امروز» مبنای محاسبه بگیر — هرگز از دانش قبلی یا حدسِ خودت درباره تاریخ امروز استفاده نکن. برای مقدارِ unlock_at در set_time_capsule یا until در set_ghost_note، همیشه یک تاریخ کامل و قابل‌پارس با ارقام لاتین بساز (مثل 2026-09-20T18:00:00)، نه توصیف نسبی خام. این تاریخ/ساعت فقط برای منطقه‌زمانیِ خودِ دستگاه کاربر است؛ اگر کاربر پرسید همین الان در جای دیگری از دنیا (کشور/شهر/استان/ایالت دیگر) یا ساعت جهانی (UTC) چند است، هرگز حدس نزن — از ابزار get_world_time استفاده کن. همچنین جلوی متنِ هر پیام در همین گفتگو (چه از کاربر چه از خودت) یک برچسب با زمان دقیق ارسال همان پیام آمده (به‌شکل «[زمان این پیام: ...]»)؛ هر وقت کاربر پرسید فلان پیام دقیقاً کِی فرستاده شده یا تو کِی جواب دادی، همیشه از همان برچسب استفاده کن، نه از حدس یا محاسبه بر پایه «الان». پیام‌های قدیمی‌تر که از قبل از وجود این قابلیت باقی مانده‌اند ممکن است این برچسب را نداشته باشند — در آن صورت صادقانه بگو زمان دقیق آن پیام ثبت نشده.\n\n';
+            + ' (فرمِ کاملِ قابل‌پارس همین لحظه: ' + mAiNowLocalIso + '). هر وقت کاربر به تاریخ/زمانِ نسبی اشاره کرد (فردا، پس‌فردا، جمعه بعدی، تا آخر همین هفته، ۳ روز دیگر، امشب و مانند آن)، همیشه دقیقاً همین لحظه را به‌عنوان «الان/امروز» مبنای محاسبه بگیر — هرگز از دانش قبلی یا حدسِ خودت درباره تاریخ امروز استفاده نکن. برای مقدارِ unlock_at در set_time_capsule یا until در set_ghost_note، همیشه یک تاریخ کامل و قابل‌پارس با ارقام لاتین بساز (مثل 2026-09-20T18:00:00)، نه توصیف نسبی خام. این تاریخ/ساعت فقط برای منطقه‌زمانیِ خودِ دستگاه کاربر است؛ اگر کاربر پرسید همین الان در جای دیگری از دنیا (کشور/شهر/استان/ایالت دیگر) یا ساعت جهانی (UTC) چند است، هرگز حدس نزن — از ابزار get_world_time استفاده کن. همچنین جلوی متنِ هر پیام در همین گفتگو (چه از کاربر چه از خودت) یک برچسب با زمان دقیق ارسال همان پیام آمده (به‌شکل «[زمان این پیام: ...]»)؛ هر وقت کاربر پرسید فلان پیام دقیقاً کِی فرستاده شده یا تو کِی جواب دادی، همیشه از همان برچسب استفاده کن، نه از حدس یا محاسبه بر پایه «الان». پیام‌های قدیمی‌تر که از قبل از وجود این قابلیت باقی مانده‌اند ممکن است این برچسب را نداشته باشند — در آن صورت صادقانه بگو زمان دقیق آن پیام ثبت نشده. این برچسب فقط و فقط برای استفاده‌ی داخلی خودت است و به‌طور خودکار توسط خودِ برنامه به ابتدای هر پیام اضافه می‌شود؛ هرگز این برچسب — یا هر تاریخ/ساعتی با همین شکل — را در متنِ پاسخی که به کاربر نشان داده می‌شود ننویس، مگر آنکه کاربر صراحتاً زمان دقیق یک پیام را از تو پرسیده باشد (که در آن صورت فقط همان زمان را به‌صورت طبیعی در جمله بیاور، نه با کپی‌کردن فرمتِ براکت‌دارِ برچسب).\n\n';
         const mAiDateTimeEn = 'Exact current date/time (this device\'s own clock, right now): ' + mAiRichNow.lineEn
             + ' — that is: ' + mAiRichNow.weekdayEn + ', ' + mAiRichNow.monthEn + ' ' + mAiRichNow.day + ', ' + mAiRichNow.year
             + ', ' + mAiRichNow.seasonEn + ', ' + mAiRichNow.time + ' (with seconds)'
-            + ' (full parseable form of this exact moment: ' + mAiNowLocalIso + '). Whenever the user refers to a relative date/time (tomorrow, next Friday, by the end of this week, in 3 days, tonight, etc.), always compute from this exact moment as "now/today" — never guess today\'s date from training data. For unlock_at in set_time_capsule or until in set_ghost_note, always build a full, parseable date string (e.g. 2026-09-20T18:00:00), never a raw relative phrase. This date/time is only for the user\'s own device time zone; if the user asks what time/date it currently is somewhere else in the world (another country/city/state/province) or asks for the world/UTC time, never guess — use the get_world_time tool. Also, every message\'s text in this conversation (yours and the user\'s) is preceded by a tag giving that exact message\'s send time (formatted "[Timestamp of this message: ...]"); whenever the user asks exactly when a given message was sent, or when you replied, always read that tag rather than guessing or estimating from "now". Older messages saved before this feature existed may lack the tag — if so, say honestly that the exact time was not recorded for that message.\n\n';
+            + ' (full parseable form of this exact moment: ' + mAiNowLocalIso + '). Whenever the user refers to a relative date/time (tomorrow, next Friday, by the end of this week, in 3 days, tonight, etc.), always compute from this exact moment as "now/today" — never guess today\'s date from training data. For unlock_at in set_time_capsule or until in set_ghost_note, always build a full, parseable date string (e.g. 2026-09-20T18:00:00), never a raw relative phrase. This date/time is only for the user\'s own device time zone; if the user asks what time/date it currently is somewhere else in the world (another country/city/state/province) or asks for the world/UTC time, never guess — use the get_world_time tool. Also, every message\'s text in this conversation (yours and the user\'s) is preceded by a tag giving that exact message\'s send time (formatted "[Timestamp of this message: ...]"); whenever the user asks exactly when a given message was sent, or when you replied, always read that tag rather than guessing or estimating from "now". Older messages saved before this feature existed may lack the tag — if so, say honestly that the exact time was not recorded for that message. This tag is for your own internal use only and is added automatically by the app itself to the start of every message — never write this tag, or any date/time in that same bracketed format, into the reply text shown to the user, unless the user explicitly asked what time a message was sent (in which case just state that time in a normal sentence, not by copying the tag\'s bracket format).\n\n';
 
         const sys = fa
             ? 'تو MARKHIN AI هستی: دستیار هوش مصنوعی حرفه‌ای، دقیق و قدرتمند، ساخته‌شده داخل اپلیکیشن یادداشت‌برداری Markhin. (تلفظ صحیح فارسیِ نام MARKHIN «مارخین» است — هر جا لازم شد نام برنامه یا خودت را با حروف فارسی بنویسی یا تلفظش کنی، همیشه «مارخین» بگو/بنویس، نه شکل‌های دیگر مثل «مارکین».) سه نقش داری و هر سه را همزمان انجام می‌دهی:\n'
@@ -13706,6 +14089,11 @@ window.attachWrapperEvents = function(categoryId){
                 + '۳) کارشناس خودِ برنامه: کل امکانات Markhin را می‌شناسی و درباره‌شان دقیق و کاربردی راهنمایی می‌کنی، حتی آن‌هایی که ابزار مستقیم برایشان نداری: پوشه‌بندی و برچسب‌گذاری یادداشت‌ها، پین و فیوریت‌کردن، آرشیو و بازگردانی، شبکه دانش (نمای گرافی ارتباط یادداشت‌ها)، گورستان (یادداشت‌های حذف‌شده)، پورتال رندوم، درون‌ریزی از JSON/CSV/TXT/MD (این یکی چون به انتخاب فایل واقعی از گوشی کاربر نیاز دارد، فقط می‌توانی راهنمایی کنی)، خروجیِ HTML کامل برنامه (بکاپ کل برنامه، شامل تنظیمات) و دو بازی داخلی (مار نئونی، عبور از موانع). تغییر تم ظاهری، تغییر زبان، خروجی‌گرفتن واقعی از یادداشت‌ها (JSON/CSV/MD/TXT/PDF/DOCX/PNG/JPG)، باز کردن شبکه دانش/گورستان/پورتال رندوم، و قفل‌کردن واقعیِ یک یادداشت با رمز (با ابزار lock_note — همان دیالوگ امنِ رمزگذاریِ خودِ برنامه باز می‌شود و کاربر رمز و راهنمای رمز را مستقیماً همان‌جا وارد می‌کند، هرگز از طریق این چت) را هم می‌توانی مستقیماً با ابزار انجام دهی، نه فقط توضیح بدهی. وقتی کاربر پرسید فلان کار در برنامه چطور انجام می‌شود، دقیقاً بگو کدام دکمه/بخش را لمس کند.\n\n'
                 + webSearchRoleFa
                 + mAiDateTimeFa
+                + 'استانداردِ کیفیت پاسخ (خیلی مهم):\n'
+                + '- برای سوال‌های ساده مستقیم جواب بده، اما برای هر درخواستِ چندمرحله‌ای، تصمیم‌گیری، مقایسه، محاسبه، یا هر جایی که جزئیات به‌هم‌ریخته یا نتیجه‌گیری غلط واقعاً هزینه دارد، قبل از نوشتنِ جواب نهایی، خودت را وادار کن مرحله‌به‌مرحله و آرام فکر کنی (این ظرفیتِ تفکرِ عمیق‌تر را داری و باید واقعاً از آن استفاده کنی، نه فقط سریع‌ترین پاسخِ ممکن را بنویسی) — ولی این فکرکردنِ داخلی را برای کاربر ننویس، فقط نتیجه‌ی نهاییِ پاک و مرتب را نشان بده.\n'
+                + '- هرگز چیزی را که مطمئن نیستی به‌عنوان قطعی جا نزن؛ اگر یک عدد/تاریخ/محتوای دقیق یادداشت را حدس می‌زنی نه می‌دانی، یا خودت را با ابزار مطمئن کن (get_note/get_notes و مانند آن) یا صادقانه به کاربر بگو که مطمئن نیستی.\n'
+                + '- برای هر محاسبه‌ی ریاضی که کمی پیچیده‌تر از جمع/تفریق تک‌رقمی است (درصد، کسر، توان، جذر، محاسبات چندمرحله‌ای، یا هر جا که یک رقمِ اشتباه واقعاً مهم است)، به‌جای محاسبه‌ی ذهنیِ خودت، حتماً ابزار calculate را صدا بزن و نتیجه‌ی دقیقِ برگشتی از آن را در جواب بیاور.\n'
+                + '- برای اعداد، ریاضیات، یا شمارش (مثلاً «چند تا یادداشت با تگ X دارم»، «مجموع...»)، به‌جای حدس‌زدن، واقعاً از داده‌ی برگشتی ابزارها بشمار/محاسبه کن.\n'
                 + 'قوانین فهمِ پیام کاربر (خیلی مهم — همیشه رعایت کن):\n'
                 + '- کاربر ممکن است خیلی سریع، محاوره‌ای، بدون فاصله‌گذاری درست، بدون نیم‌فاصله، با غلط املایی سنگین، حروف جابه‌جا/حذف‌شده/اضافه، غلط تایپی صفحه‌کلید، مخفف، یا حتی فینگلیش (فارسی با حروف لاتین) بنویسد. این‌ها را عادی و مورد‌انتظار بدان.\n'
                 + '- زبانِ پاسخ: پیش‌فرض این است که همیشه به همان زبانی جواب بدهی که کاربر با آن پیام نوشته (اگر فارسی نوشت فارسی، اگر انگلیسی نوشت انگلیسی و...). اما اگر کاربر صریحاً خواست که — چه در همین پیام و چه در یک پیام قبلی در همین گفتگو — به زبان دیگری جواب بدهی (مثلاً «انگلیسی جواب بده»، «به انگلیسی توضیح بده»، «از این به بعد فارسی صحبت کن»، «به عربی بنویس»)، دقیقاً همان خواسته را دنبال کن، حتی اگر با زبانِ خودِ آن پیام فرق داشته باشد (مثلاً کاربر با فارسی از تو بخواهد انگلیسی جواب بدهی)؛ و همان زبانِ درخواست‌شده را برای تمام پاسخ‌های بعدیِ همین گفتگو هم ادامه بده — نه فقط همین یک پاسخ — تا وقتی کاربر دوباره صریحاً زبان را عوض کند. اگر کاربر خواست محتوای یک یادداشت یا متنِ خاص به زبانی متفاوت از زبانِ پیامش نوشته شود (مثلاً «تو یادداشت به انگلیسی بنویس: سلام»)، همان محتوا را به همان زبانِ خواسته‌شده در ابزار مربوطه (create_note/edit_note_content) قرار بده، حتی اگر توضیحِ خودت به کاربر به زبان دیگری باشد.\n'
@@ -13749,6 +14137,11 @@ window.attachWrapperEvents = function(categoryId){
                 + '3) App expert: you know the whole Markhin feature set and give precise, actionable guidance about any of it, even features you have no direct tool for: folders and tags, pinning and favoriting, archiving/restoring, the Knowledge Graph (a graph view of how notes connect), the Cemetery (deleted notes), the Random Portal, importing from JSON/CSV/TXT/MD (this one needs the user to actually pick a file on their device, so you can only guide them to it), the full-app HTML export (a complete backup of the app itself, including settings), and two built-in games (Neon Snake, Obstacle Dash). Switching the visual theme, switching the language, actually exporting notes to a real file (JSON/CSV/MD/TXT/PDF/DOCX/PNG/JPG), opening the Knowledge Graph / Cemetery / Random Portal, and actually password-locking a note (with the lock_note tool — this opens the app\'s own real, secure encryption dialog, where the user types the password and an optional hint directly, never through this chat) are things you can do directly with a tool, not just explain. When asked how to do something in the app, say exactly which button or section to tap.\n\n'
                 + webSearchRoleEn
                 + mAiDateTimeEn
+                + 'Answer quality standard (important):\n'
+                + '- Answer simple questions directly, but for anything multi-step, a decision, a comparison, a calculation, or anywhere a mixed-up detail or wrong conclusion actually costs the user something, force yourself to reason step by step, unhurried, before writing the final answer (you have real capacity for deeper reasoning here and should actually use it, not just produce the fastest possible answer) — but never show that internal reasoning to the user, only the clean final result.\n'
+                + '- Never present something as certain when you are not — if you would be guessing rather than knowing an exact number/date/note content, either verify it with a tool (get_note/get_notes, etc.) or tell the user plainly that you are not sure.\n'
+                + '- For any math that is more than trivial single-digit addition/subtraction (percentages, fractions, powers, roots, multi-step calculations, or anywhere being off by a digit actually matters), always call the calculate tool instead of computing it in your head, and use its exact returned result in your answer.\n'
+                + '- For counts, math, or totals (e.g. "how many notes have tag X", "sum of..."), actually count/compute from the data a tool returns instead of estimating.\n'
                 + 'Rules for understanding the user\'s message (important — always follow):\n'
                 + '- The user may write very fast, casually, with broken spacing, heavy spelling mistakes, swapped/dropped/extra letters, keyboard typos, abbreviations, or transliterated text, in any language. Treat this as normal and expected.\n'
                 + '- Response language: by default, always reply in the same language the user wrote that message in (Persian in, Persian out; English in, English out; etc.). But if the user explicitly asks — whether in this message or an earlier one in this same conversation — for you to answer in a different language (e.g. "answer in English", "explain this in English", "speak Persian from now on", "write in Arabic"), follow that request exactly, even when it differs from the language of the message making the request (e.g. they write in Persian but ask for an English answer); keep replying in that requested language for the rest of this conversation too — not just this one reply — until they explicitly switch it again. If the user asks for a note\'s or a specific piece of content\'s text to be written in a language different from the message\'s own language (e.g. "write in the note, in English: Hello"), put that content in the requested language inside the relevant tool call (create_note/edit_note_content), even if your own reply to the user stays in a different language.\n'
@@ -13798,7 +14191,11 @@ window.attachWrapperEvents = function(categoryId){
         // after only ~20 exchanges — unless contextScale is shrinking
         // things for a low-rate-limit provider, in which case fewer turns
         // go out too.
-        const historyCount = Math.max(4, Math.round(60 * contextScale));
+        // Upgrade: was 60 turns — doubled so longer conversations keep more
+        // real memory of what was actually said instead of losing earlier
+        // turns as sharply (still shrinks automatically via contextScale on
+        // a provider's rate-limit error, same as before).
+        const historyCount = Math.max(4, Math.round(120 * contextScale));
         const convo = [{ role: 'system', content: sys }].concat(
             mAiHistory.filter(function(m){ return !m.synthetic; }).slice(-historyCount).map(function(m){
                 // Precise bilingual send-time tag prepended to every
@@ -13830,21 +14227,24 @@ window.attachWrapperEvents = function(categoryId){
         // caps the reply budget at exactly what the account's balance
         // can currently pay for, instead of the normal 4096/3000 defaults
         // scaled by contextScale.
-        const turnMaxTokens = maxTokensOverride ? Math.max(150, maxTokensOverride) : Math.max(500, Math.round(4096 * contextScale));
-        const closingMaxTokens = maxTokensOverride ? Math.max(120, Math.min(maxTokensOverride, Math.round(3000 * contextScale))) : Math.max(350, Math.round(3000 * contextScale));
+        // Upgrade: was 4096/3000 — raised so replies (and, on real
+        // Anthropic, the extended-thinking budget below) have real headroom
+        // instead of getting cut off on longer/more thorough answers.
+        const turnMaxTokens = maxTokensOverride ? Math.max(150, maxTokensOverride) : Math.max(500, Math.round(8192 * contextScale));
+        const closingMaxTokens = maxTokensOverride ? Math.max(120, Math.min(maxTokensOverride, Math.round(6000 * contextScale))) : Math.max(350, Math.round(6000 * contextScale));
 
             let finalText = '';
             const maxSteps = 15;
             for(let step = 0; step < maxSteps; step++){
                 mAiStreamText = '';
-                const res = await MarkhinAI.chat(convo, { maxTokens: turnMaxTokens, tools: MAI_TOOLS, onDelta: mAiOnDelta });
+                const res = await MarkhinAI.chat(convo, { maxTokens: turnMaxTokens, tools: MAI_TOOLS, onDelta: mAiOnDelta, thinking: true });
                 const resText = (res && res.text) || '';
                 const calls = (res && res.toolCalls) || [];
                 if(!calls.length){
                     finalText = resText.trim();
                     break;
                 }
-                convo.push({ role: 'assistant', content: resText, toolCalls: calls });
+                convo.push({ role: 'assistant', content: resText, toolCalls: calls, thinkingBlocks: (res && res.thinkingBlocks) || null });
                 for(const call of calls){
                     const result = await mAiExecuteTool(call.name, call.input);
                     convo.push({ role: 'tool_result', toolCallId: call.id, name: call.name, content: JSON.stringify(result) });
@@ -13854,7 +14254,7 @@ window.attachWrapperEvents = function(categoryId){
                         ? 'بر اساس نتایج ابزارهای بالا، الان یک پاسخ نهایی و کوتاه به کاربر بده (بدون فراخوانی ابزار دیگر).'
                         : 'Based on the tool results above, give the user a final, concise answer now (do not call any more tools).';
                     mAiStreamText = '';
-                    const closing = await MarkhinAI.chat(convo.concat([{ role:'user', content: closingPrompt }]), { maxTokens: closingMaxTokens, onDelta: mAiOnDelta });
+                    const closing = await MarkhinAI.chat(convo.concat([{ role:'user', content: closingPrompt }]), { maxTokens: closingMaxTokens, onDelta: mAiOnDelta, thinking: true });
                     finalText = String(closing || '').trim();
                 }
             }
@@ -13875,6 +14275,11 @@ window.attachWrapperEvents = function(categoryId){
         let contextScale = 1;
         let maxTokensOverride = null;
         let lastErr = null;
+        // Set when the rate-limit fallback below actually switches
+        // providers mid-retry, so the success path further down can tell
+        // the person what happened (see autoSwitchNotice usage after the
+        // loop). Only one such switch is attempted per message.
+        let autoSwitchNotice = null;
         for(let attemptNum = 0; attemptNum < 3; attemptNum++){
             try {
                 finalText = await runAiTurn(contextScale, maxTokensOverride);
@@ -13898,6 +14303,26 @@ window.attachWrapperEvents = function(categoryId){
                     const affordable = mu_affordableTokens(err);
                     if(affordable){
                         maxTokensOverride = affordable;
+                        continue;
+                    }
+                }
+                // Rate limit (429) on the currently active provider: instead
+                // of just failing, look for another already-configured
+                // provider to fall back to (see listFallbackCandidates) and
+                // silently switch the active provider to it before retrying
+                // — runAiTurn's calls into MarkhinAI.chat() always resolve
+                // whichever provider is active right now, so no other
+                // plumbing is needed for the retry itself to actually use
+                // the new one. If nothing is available to fall back to,
+                // this falls through to throw below exactly as before.
+                if(attemptNum < 2 && !autoSwitchNotice && mu_looksLikeRateLimitError(err)){
+                    const current = MarkhinAI.getActiveProvider();
+                    const currentId = current ? current.id : null;
+                    const candidates = MarkhinAI.listFallbackCandidates(currentId);
+                    if(candidates.length && MarkhinAI.setActiveProviderId(candidates[0])){
+                        const next = MarkhinAI.getActiveProvider();
+                        autoSwitchNotice = { fromName: (current && current.name) || '', toName: (next && next.name) || '' };
+                        if(typeof mAiUpdateSub === 'function') mAiUpdateSub();
                         continue;
                     }
                 }
@@ -13936,6 +14361,16 @@ window.attachWrapperEvents = function(categoryId){
                     ? `🔒 این سوال به یادداشت قفل «${names}» هم مربوط به نظر می‌رسه، ولی چون رمزش رو ندارم توی جوابم لحاظش نکردم. برای بازش‌کردن، روی دکمه 🔒 بالای همین چت بزن و رمزش رو وارد کن، بعد دوباره همین سوال رو از من بپرس.`
                     : `🔒 This question also looks related to the locked note "${names}", but I couldn't use it since I don't have its password. Tap the 🔒 button above this chat to unlock it, then ask me again.` });
             }
+            // Same deterministic, app-generated notice pattern as the
+            // locked-note one above — tells the person exactly what just
+            // happened (which provider hit its limit, which one it
+            // switched to) rather than leaving the switch invisible, and
+            // reminds them the switch can always be made manually too.
+            if(autoSwitchNotice){
+                mAiHistory.push({ id: mAiNextId(), ts: Date.now(), role: 'assistant', synthetic: true, content: fa
+                    ? `🔄 ارائه‌دهنده «${autoSwitchNotice.fromName}» به محدودیت نرخ درخواست/سهمیه خورد، برای همین به‌صورت خودکار به ارائه‌دهنده «${autoSwitchNotice.toName}» سوییچ شد و همین پیام دوباره برایش ارسال و پاسخ داده شد — جواب بالا از همون ارائه‌دهنده جدیده. هر وقت خواستی می‌تونی از ⚙️ بالای همین چت، مدل یا ارائه‌دهنده رو دستی هم عوض کنی.`
+                    : `🔄 The "${autoSwitchNotice.fromName}" provider hit its rate limit/quota, so the app automatically switched to "${autoSwitchNotice.toName}" and resent this message — the reply above came from the new provider. You can always switch the model or provider yourself anytime from ⚙️ above this chat.` });
+            }
             mAiSave();
             }
         } catch(err){
@@ -13949,6 +14384,10 @@ window.attachWrapperEvents = function(categoryId){
                 ? (fa
                     ? '⚠️ خطا از سمت ارائه‌دهنده‌ی هوش مصنوعی (کد 402): ' + (err && err.message || String(err)) + '\n\nخلاصه‌ی ماجرا: این خطا یعنی موجودی/اعتبار (credit) حسابِ ارائه‌دهنده‌ای که وصل کرده‌ای (مثلاً OpenRouter) کم یا صفر است و اجازه نمی‌دهد پاسخ به‌اندازه‌ی لازم بلند باشد. ربطی به یادداشت‌ها یا تنظیمات خودِ برنامه ندارد. راه‌حل: یا به حساب همان ارائه‌دهنده اعتبار اضافه کن، یا یک مدل رایگان (معمولاً با پسوند «:free») انتخاب کن، یا موقتاً به یک ارائه‌دهنده‌ی دیگر سوییچ کن.'
                     : '⚠️ Error from the AI provider (code 402): ' + (err && err.message || String(err)) + '\n\nIn short: this means the connected provider account\'s (e.g. OpenRouter\'s) credit balance is too low or empty to cover a reply of the needed length — nothing to do with your notes or this app\'s own settings. Fix: top up credits on that provider\'s account, pick a free model (usually suffixed ":free"), or switch to a different provider for now.')
+                : mu_looksLikeRateLimitError(err)
+                ? (fa
+                    ? '⏳ ارائه‌دهنده‌ی فعلی به محدودیت نرخ درخواست/سهمیه‌اش خورده، و ارائه‌دهنده‌ی دیگری هم برای سوییچ خودکار در دسترس نبود (هیچ ارائه‌دهنده‌ی دیگری با کلید API تنظیم‌شده نداری تا خودکار بهش سوییچ کنم). کمی صبر کن و دوباره امتحان کن، یا از ⚙️ بالای همین چت یک ارائه‌دهنده/مدل دیگر اضافه یا انتخاب کن. جزئیات فنی: ' + (err && err.message || String(err))
+                    : "⏳ The current provider hit its rate limit/quota, and no other configured provider was available to automatically switch to (you don't have another provider set up with its own API key). Wait a bit and try again, or add/select a different provider or model from ⚙️ above this chat. Technical detail: " + (err && err.message || String(err)))
                 : '⚠️ ' + (fa ? 'خطا: ' : 'Error: ') + (err && err.message || String(err));
             mAiHistory.push({ id: mAiNextId(), ts: Date.now(), role: 'assistant', content: errMsg });
             mAiSave();
