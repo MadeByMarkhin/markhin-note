@@ -4685,8 +4685,8 @@ window.mu_syncHtmlBg = function(){
             enterGamePlayMode();
             document.getElementById('gameTitleActive').innerText = 'NEON SNAKE';
             document.getElementById('gameDescActive').innerText = fa
-                ? 'با کلیدهای جهت‌نما یا کشیدن دست، مار را هدایت کن!'
-                : 'Steer with arrow keys or swipe!';
+                ? 'با کلیدهای جهت‌نما یا کشیدن دست مار را هدایت کن! مراقب موانع بنفش باش و دانه‌های طلایی رو سریع بگیر!'
+                : 'Steer with arrow keys or swipe! Watch for purple obstacles and grab gold bonuses fast!';
 
             clearGameEvents();
             const canvas = document.getElementById('cyberCanvas');
@@ -4731,6 +4731,7 @@ window.mu_syncHtmlBg = function(){
             gctx.lineWidth = 1;
             for (let x = 0; x <= boardW; x += gridSize) { gctx.beginPath(); gctx.moveTo(x, 0); gctx.lineTo(x, boardH); gctx.stroke(); }
             for (let y = 0; y <= boardH; y += gridSize) { gctx.beginPath(); gctx.moveTo(0, y); gctx.lineTo(boardW, y); gctx.stroke(); }
+
             // A short input queue (instead of a single "next direction") makes
             // fast swipes/keys register correctly instead of being silently
             // dropped or occasionally allowing a same-tick reversal into the
@@ -4740,7 +4741,58 @@ window.mu_syncHtmlBg = function(){
             let stepMs = 130;
             let ended = false;
             gameScore = 0;
-            document.getElementById('gameScore').innerText = (fa ? 'امتیاز: ' : 'Score: ') + gameScore;
+
+            // --------------- upgrades: obstacles, gold food, combo, fx ---------------
+            // Purple obstacle blocks start showing up once the player has
+            // proved they can handle the basics, and are capped so the board
+            // never gets so cluttered it becomes unfair.
+            let obstacles = [];
+            const maxObstacles = 9;
+            let nextObstacleScore = 80;
+
+            // A rare, timed golden pellet worth far more than normal food —
+            // it has to be grabbed before its ring runs out, which rewards
+            // decisive play instead of just drifting toward it.
+            let goldFood = null; // {x, y, ticksLeft, totalTicks}
+            const GOLD_SPAWN_CHANCE = 0.35;
+            const GOLD_LIFE_TICKS = 55;
+
+            // Combo: eating again soon after the last bite keeps the score
+            // multiplier climbing (capped); waiting too long resets it.
+            let combo = 1;
+            let ticksSinceEat = 999;
+            let foodEatenCount = 0;
+            const COMBO_WINDOW_TICKS = 18;
+            const MAX_COMBO = 8;
+
+            // Lightweight particle bursts + floating score popups, both
+            // animated with real elapsed time (not the fixed tick step) so
+            // they stay smooth no matter how fast the snake is moving.
+            let particles = [];
+            let popups = [];
+
+            function updateScoreLabel() {
+                const comboTxt = combo > 1 ? ' (x' + combo + ')' : '';
+                document.getElementById('gameScore').innerText = (fa ? 'امتیاز: ' : 'Score: ') + gameScore + comboTxt;
+            }
+            updateScoreLabel();
+
+            function spawnParticles(px, py, color, count) {
+                for (let i = 0; i < count; i++) {
+                    const ang = Math.random() * Math.PI * 2;
+                    const spd = 40 + Math.random() * 90;
+                    particles.push({
+                        x: px + gridSize / 2, y: py + gridSize / 2,
+                        vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd,
+                        life: 0, maxLife: 350 + Math.random() * 200,
+                        color, size: 2 + Math.random() * 2
+                    });
+                }
+            }
+
+            function spawnPopup(px, py, text, color) {
+                popups.push({ x: px + gridSize / 2, y: py, text, color, life: 0, maxLife: 700 });
+            }
 
             function queueDir(ndx, ndy) {
                 const last = inputQueue.length ? inputQueue[inputQueue.length - 1] : {x: dx, y: dy};
@@ -4750,15 +4802,55 @@ window.mu_syncHtmlBg = function(){
                 inputQueue.push({x: ndx, y: ndy});
             }
 
+            // Shared "is this cell free" check used by food/obstacle/gold
+            // placement, so none of them ever land on the snake or on top
+            // of each other.
+            function cellIsFree(gx, gy) {
+                if (snake.some(part => part.x === gx && part.y === gy)) return false;
+                if (obstacles.some(o => o.x === gx && o.y === gy)) return false;
+                if (goldFood && goldFood.x === gx && goldFood.y === gy) return false;
+                return true;
+            }
+
             function spawnFood() {
-                let attempts = 0;
+                let attempts = 0, gx, gy;
                 do {
-                    food.x = Math.floor(Math.random() * cols) * gridSize;
-                    food.y = Math.floor(Math.random() * rows) * gridSize;
+                    gx = Math.floor(Math.random() * cols) * gridSize;
+                    gy = Math.floor(Math.random() * rows) * gridSize;
                     attempts++;
-                } while (snake.some(part => part.x === food.x && part.y === food.y) && attempts < 200);
+                } while (!cellIsFree(gx, gy) && attempts < 200);
+                food.x = gx; food.y = gy;
             }
             spawnFood();
+
+            function spawnObstacle() {
+                if (obstacles.length >= maxObstacles) return;
+                let attempts = 0, gx = 0, gy = 0, ok = false;
+                while (attempts < 200 && !ok) {
+                    gx = Math.floor(Math.random() * cols) * gridSize;
+                    gy = Math.floor(Math.random() * rows) * gridSize;
+                    attempts++;
+                    // Keep a small buffer around the current head so a fresh
+                    // obstacle can never spawn an instant, unavoidable death.
+                    const nearHead = Math.abs(gx - snake[0].x) <= gridSize * 2 && Math.abs(gy - snake[0].y) <= gridSize * 2;
+                    ok = cellIsFree(gx, gy) && !(food.x === gx && food.y === gy) && !nearHead;
+                }
+                if (!ok) return;
+                obstacles.push({x: gx, y: gy});
+            }
+
+            function tryStartGoldFood() {
+                if (goldFood || Math.random() >= GOLD_SPAWN_CHANCE) return;
+                let attempts = 0, gx, gy;
+                do {
+                    gx = Math.floor(Math.random() * cols) * gridSize;
+                    gy = Math.floor(Math.random() * rows) * gridSize;
+                    attempts++;
+                } while ((!cellIsFree(gx, gy) || (food.x === gx && food.y === gy)) && attempts < 200);
+                if (attempts >= 200) return;
+                goldFood = {x: gx, y: gy, ticksLeft: GOLD_LIFE_TICKS, totalTicks: GOLD_LIFE_TICKS};
+            }
+            // ---------------------------------------------------------------------
 
             window.addEventListener('keydown', (e) => {
                 if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) e.preventDefault();
@@ -4811,17 +4903,29 @@ window.mu_syncHtmlBg = function(){
                 e.preventDefault();
             }, { passive: false, signal: gameAborter.signal });
 
+            // Death is now a short "impact" beat (screen shake, then the
+            // game-over card) instead of an instant hard cut, so a crash
+            // actually reads as a crash.
+            let dying = false, dyingStart = 0;
+            const DYING_MS = 260;
+
+            function triggerDeath(ts) {
+                if (dying || ended) return;
+                dying = true;
+                dyingStart = ts;
+                mAiGameHaptic('error');
+            }
+
             function endSnake() {
                 if (ended) return;
                 ended = true;
-                mAiGameHaptic('error');
                 presentGameOver(gameScore, 'snake', fa ? '🐍 بازی تمام شد!' : '🐍 Game over!', startNeonSnake);
             }
 
             let raf = null, lastTick = 0, acc = 0;
             function loop(ts) {
                 raf = requestAnimationFrame(loop);
-                if (gamePaused || ended) { lastTick = ts; return; }
+                if (gamePaused) { lastTick = ts; return; }
                 if (!lastTick) lastTick = ts;
                 // Clamp the elapsed time so a throttled/backgrounded tab can't
                 // dump a multi-second gap into the accumulator and force the
@@ -4829,41 +4933,98 @@ window.mu_syncHtmlBg = function(){
                 // instant the tab becomes visible again.
                 let dt = Math.min(ts - lastTick, 250);
                 lastTick = ts;
-                acc += dt;
 
-                while (acc >= stepMs) {
-                    acc -= stepMs;
-                    if (inputQueue.length) {
-                        const next = inputQueue.shift();
-                        dx = next.x; dy = next.y;
-                    }
-                    let head = {x: snake[0].x + dx, y: snake[0].y + dy};
+                var frameStartSnake = null;
+                if (dying) {
+                    if (ts - dyingStart >= DYING_MS) { dying = false; endSnake(); return; }
+                } else if (!ended) {
+                    // Snapshot pre-tick positions once per frame so the snake
+                    // can be drawn eased between grid steps below instead of
+                    // visibly snapping from cell to cell.
+                    frameStartSnake = snake.map(p => ({x: p.x, y: p.y}));
+                    acc += dt;
 
-                    if (head.x < 0 || head.x >= boardW || head.y < 0 || head.y >= boardH) {
-                        endSnake();
-                        return;
-                    }
-
-                    const ateFood = (head.x === food.x && head.y === food.y);
-                    const bodyToCheck = ateFood ? snake : snake.slice(0, -1);
-                    for (let i = 0; i < bodyToCheck.length; i++) {
-                        if (head.x === bodyToCheck[i].x && head.y === bodyToCheck[i].y) {
-                            endSnake();
-                            return;
+                    while (acc >= stepMs) {
+                        acc -= stepMs;
+                        if (inputQueue.length) {
+                            const next = inputQueue.shift();
+                            dx = next.x; dy = next.y;
                         }
-                    }
+                        let head = {x: snake[0].x + dx, y: snake[0].y + dy};
 
-                    snake.unshift(head);
-                    if (ateFood) {
-                        gameScore += 10;
-                        document.getElementById('gameScore').innerText = (fa ? 'امتیاز: ' : 'Score: ') + gameScore;
-                        if (gameScore % 50 === 0) stepMs = Math.max(70, stepMs - 6);
-                        mAiGameHaptic('light');
-                        spawnFood();
-                    } else {
-                        snake.pop();
+                        if (head.x < 0 || head.x >= boardW || head.y < 0 || head.y >= boardH) {
+                            triggerDeath(ts);
+                            break;
+                        }
+                        if (obstacles.some(o => o.x === head.x && o.y === head.y)) {
+                            triggerDeath(ts);
+                            break;
+                        }
+
+                        const ateFood = (head.x === food.x && head.y === food.y);
+                        const ateGold = !!(goldFood && head.x === goldFood.x && head.y === goldFood.y);
+                        const bodyToCheck = (ateFood || ateGold) ? snake : snake.slice(0, -1);
+                        let hitSelf = false;
+                        for (let i = 0; i < bodyToCheck.length; i++) {
+                            if (head.x === bodyToCheck[i].x && head.y === bodyToCheck[i].y) { hitSelf = true; break; }
+                        }
+                        if (hitSelf) { triggerDeath(ts); break; }
+
+                        snake.unshift(head);
+
+                        if (ateFood || ateGold) {
+                            combo = (ticksSinceEat <= COMBO_WINDOW_TICKS) ? Math.min(MAX_COMBO, combo + 1) : 1;
+                            ticksSinceEat = 0;
+
+                            if (ateGold) {
+                                const gained = 30 * combo;
+                                gameScore += gained;
+                                spawnParticles(goldFood.x, goldFood.y, '#ffd23f', 16);
+                                spawnPopup(goldFood.x, goldFood.y, '+' + gained, '#ffd23f');
+                                goldFood = null;
+                                mAiGameHaptic('medium');
+                            } else {
+                                const gained = 10 * combo;
+                                gameScore += gained;
+                                spawnParticles(food.x, food.y, '#ff0055', 10);
+                                spawnPopup(food.x, food.y, '+' + gained, '#ff8fb3');
+                                mAiGameHaptic('light');
+                            }
+                            updateScoreLabel();
+
+                            if (gameScore >= nextObstacleScore) {
+                                spawnObstacle();
+                                nextObstacleScore += 70;
+                            }
+
+                            if (ateFood) {
+                                foodEatenCount++;
+                                if (foodEatenCount % 5 === 0) stepMs = Math.max(70, stepMs - 6);
+                                spawnFood();
+                                tryStartGoldFood();
+                            }
+                        } else {
+                            snake.pop();
+                            ticksSinceEat++;
+                            if (ticksSinceEat > COMBO_WINDOW_TICKS && combo > 1) { combo = 1; updateScoreLabel(); }
+                        }
+
+                        if (goldFood) {
+                            goldFood.ticksLeft--;
+                            if (goldFood.ticksLeft <= 0) goldFood = null;
+                        }
+
+                        if (dying) break;
                     }
                 }
+
+                if (ended) return;
+
+                // -------- update cosmetic fx (real time, not tick-based) --------
+                particles.forEach(p => { p.life += dt; p.x += p.vx * (dt / 1000); p.y += p.vy * (dt / 1000); });
+                particles = particles.filter(p => p.life < p.maxLife);
+                popups.forEach(p => { p.life += dt; p.y -= (dt / 1000) * 26; });
+                popups = popups.filter(p => p.life < p.maxLife);
 
                 // -------- draw --------
                 ctx.clearRect(0, 0, width, height);
@@ -4871,9 +5032,57 @@ window.mu_syncHtmlBg = function(){
                 ctx.fillRect(0, 0, width, height);
 
                 ctx.save();
-                ctx.translate(offsetX, offsetY);
+                // A brief, decaying shake on death — confined to the short
+                // DYING_MS window — is what turns a plain instant stop into
+                // something that actually feels like an impact.
+                let shakeX = 0, shakeY = 0;
+                if (dying) {
+                    const remain = 1 - Math.min(1, (ts - dyingStart) / DYING_MS);
+                    const mag = 6 * remain;
+                    shakeX = (Math.random() * 2 - 1) * mag;
+                    shakeY = (Math.random() * 2 - 1) * mag;
+                }
+                ctx.translate(offsetX + shakeX, offsetY + shakeY);
 
                 if (boardW > 0 && boardH > 0) ctx.drawImage(gridCanvas, 0, 0, boardW, boardH);
+
+                // Obstacles: static purple neon blocks with a slow pulse so
+                // they read as dangerous without competing visually with food.
+                if (obstacles.length) {
+                    const obPulse = 0.75 + Math.sin(ts / 400) * 0.15;
+                    ctx.fillStyle = '#a855f7';
+                    ctx.shadowBlur = 10 * obPulse;
+                    ctx.shadowColor = '#a855f7';
+                    obstacles.forEach(o => {
+                        ctx.beginPath();
+                        ctx.roundRect(o.x + 2, o.y + 2, gridSize - 4, gridSize - 4, 4);
+                        ctx.fill();
+                    });
+                    ctx.shadowBlur = 0;
+                }
+
+                // Golden bonus food: pulses faster than normal food and shows
+                // a shrinking ring so the player can see it's about to expire.
+                if (goldFood) {
+                    const gp = 1 + Math.sin(ts / 90) * 0.15;
+                    const gfs = (gridSize - 2) * gp;
+                    const gOff = ((gridSize - 2) - gfs) / 2;
+                    ctx.fillStyle = '#ffd23f';
+                    ctx.shadowBlur = 16;
+                    ctx.shadowColor = '#ffd23f';
+                    ctx.beginPath();
+                    ctx.roundRect(goldFood.x + 1 + gOff, goldFood.y + 1 + gOff, gfs, gfs, 5);
+                    ctx.fill();
+                    ctx.shadowBlur = 0;
+
+                    const cx = goldFood.x + gridSize / 2, cy = goldFood.y + gridSize / 2;
+                    const frac = Math.max(0, goldFood.ticksLeft / goldFood.totalTicks);
+                    ctx.strokeStyle = 'rgba(255,210,63,0.85)';
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.arc(cx, cy, gridSize * 0.62, -Math.PI / 2, -Math.PI / 2 + frac * Math.PI * 2);
+                    ctx.stroke();
+                }
 
                 const pulse = 1 + Math.sin(ts / 180) * 0.12;
                 const fs = (gridSize - 2) * pulse;
@@ -4894,15 +5103,47 @@ window.mu_syncHtmlBg = function(){
                 // keeps the neon look with a small, constant per-frame cost
                 // regardless of how long the snake gets.
                 ctx.shadowColor = '#00f0ff';
+                // Render each segment eased between its pre-tick and post-tick
+                // position (progress = how far into the current step we are)
+                // instead of hard-snapping cell to cell — same collision/logic
+                // timing as before, just smoother to look at. Frozen at the
+                // exact final position while dying/no snapshot available.
+                const progress = (dying || !frameStartSnake) ? 1 : Math.min(1, acc / stepMs);
                 snake.forEach((part, index) => {
+                    const prev = (frameStartSnake && frameStartSnake[index]) ? frameStartSnake[index]
+                        : (frameStartSnake && frameStartSnake[index - 1]) ? frameStartSnake[index - 1] : part;
+                    const rx = prev.x + (part.x - prev.x) * progress;
+                    const ry = prev.y + (part.y - prev.y) * progress;
                     const t = index / Math.max(1, snake.length - 1);
                     ctx.fillStyle = index === 0 ? '#c4fbff' : `hsl(${188 + t * 20}, 100%, ${62 - t * 22}%)`;
                     ctx.shadowBlur = index === 0 ? 14 : 0;
                     ctx.beginPath();
-                    ctx.roundRect(part.x + 1, part.y + 1, gridSize - 2, gridSize - 2, 5);
+                    ctx.roundRect(rx + 1, ry + 1, gridSize - 2, gridSize - 2, 5);
                     ctx.fill();
                 });
                 ctx.shadowBlur = 0;
+
+                // Particles + floating score popups on top of everything else.
+                particles.forEach(p => {
+                    const a = Math.max(0, 1 - p.life / p.maxLife);
+                    ctx.globalAlpha = a;
+                    ctx.fillStyle = p.color;
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                    ctx.fill();
+                });
+                ctx.globalAlpha = 1;
+
+                ctx.textAlign = 'center';
+                ctx.font = 'bold 13px sans-serif';
+                popups.forEach(p => {
+                    const a = Math.max(0, 1 - p.life / p.maxLife);
+                    ctx.globalAlpha = a;
+                    ctx.fillStyle = p.color;
+                    ctx.fillText(p.text, p.x, p.y);
+                });
+                ctx.globalAlpha = 1;
+
                 ctx.restore();
             }
             raf = requestAnimationFrame(loop);
@@ -10699,8 +10940,14 @@ const MarkhinAI = window.MarkhinAI = {
             // temperature to stay at its default of 1, which this app
             // never overrides, and requires max_tokens to leave enough
             // room beyond the thinking budget for the actual reply text.
-            if(opts.thinking && p.id === 'anthropic' && maxTokens >= 1400){
-                body.thinking = { type:'enabled', budget_tokens: Math.max(1024, Math.min(maxTokens - 400, 6000)) };
+            // Upgrade: budget cap raised from 6000 to 32000 (and the
+            // headroom reserved for the visible reply from 400 to 1024)
+            // so Claude can actually use deep extended thinking on hard
+            // multi-step requests instead of hitting an artificially low
+            // ceiling — turnMaxTokens/closingMaxTokens below were raised
+            // to match, so there's still real room left for the reply.
+            if(opts.thinking && p.id === 'anthropic' && maxTokens >= 2048){
+                body.thinking = { type:'enabled', budget_tokens: Math.max(2048, Math.min(maxTokens - 1024, 32000)) };
             }
             if(tools){
                 // The Markhin note-management tools, plus Anthropic's own
@@ -10741,7 +10988,13 @@ const MarkhinAI = window.MarkhinAI = {
             const thinkingBlocks = blocks.filter(b=>b.type==='thinking').map(b=>({ type:'thinking', thinking:b.thinking||'', signature:b.signature||'' }));
             if(!tools) return text;
             const toolCalls = blocks.filter(b=>b.type==='tool_use').map(b=>({ id:b.id, name:b.name, input:b.input||{} }));
-            return { text, toolCalls, thinkingBlocks };
+            // Upgrade: surface whether Anthropic cut this reply off by
+            // hitting the max_tokens ceiling (stop_reason 'max_tokens')
+            // rather than finishing on its own, so the caller can warn
+            // the user instead of silently showing a reply that just
+            // stops mid-sentence.
+            const truncated = data.stop_reason === 'max_tokens';
+            return { text, toolCalls, thinkingBlocks, truncated };
         }
 
         // OpenAI-compatible format — covers OpenAI, OpenRouter, and any
@@ -10796,7 +11049,10 @@ const MarkhinAI = window.MarkhinAI = {
             catch(e){ input = { __mai_malformed__: true, __mai_raw__: String(rawArgs).slice(0, 300) }; }
             return { id: tc.id, name: tc.function && tc.function.name, input };
         }) : [];
-        return { text, toolCalls };
+        // Upgrade: same truncation signal as the streaming path — see the
+        // comment there.
+        const truncated = choice && choice.finish_reason === 'length';
+        return { text, toolCalls, truncated };
     },
 
     // Dispatches a streaming (Server-Sent Events) request to whichever format
@@ -10847,8 +11103,10 @@ const MarkhinAI = window.MarkhinAI = {
         };
         // See the identical block in _chatRequest above for why this is
         // gated to real Anthropic + opts.thinking + a large-enough budget.
-        if(opts.thinking && p.id === 'anthropic' && maxTokens >= 1400){
-            body.thinking = { type:'enabled', budget_tokens: Math.max(1024, Math.min(maxTokens - 400, 6000)) };
+        // Upgrade: same higher ceiling as the non-streaming path above —
+        // see the comment there.
+        if(opts.thinking && p.id === 'anthropic' && maxTokens >= 2048){
+            body.thinking = { type:'enabled', budget_tokens: Math.max(2048, Math.min(maxTokens - 1024, 32000)) };
         }
         if(tools){
             // Same native web_search addition as the non-streaming path —
@@ -10875,6 +11133,7 @@ const MarkhinAI = window.MarkhinAI = {
         let buf = '';
         let textAcc = '';
         let sawAnyEvent = false;
+        let stopReason = null;
         const blocks = {};
         while(true){
             const { done, value } = await reader.read();
@@ -10930,6 +11189,13 @@ const MarkhinAI = window.MarkhinAI = {
                     } else if(evt.delta.type === 'signature_delta' && b.type === 'thinking'){
                         b.signature += evt.delta.signature || '';
                     }
+                } else if(evt.type === 'message_delta' && evt.delta){
+                    // Carries the turn's final stop_reason ('max_tokens'
+                    // when the reply was cut off by the length ceiling,
+                    // 'end_turn'/'tool_use'/etc. otherwise) — arrives once,
+                    // near the end of the stream, separately from the
+                    // content_block_delta events above.
+                    if(evt.delta.stop_reason) stopReason = evt.delta.stop_reason;
                 } else if(evt.type === 'error'){
                     throw new Error('Anthropic: ' + ((evt.error && evt.error.message) || 'stream error'));
                 }
@@ -10964,7 +11230,10 @@ const MarkhinAI = window.MarkhinAI = {
             return { id:b.id, name:b.name, input };
         });
         const thinkingBlocks = Object.keys(blocks).map(k=>blocks[k]).filter(b=>b.type==='thinking').map(b=>({ type:'thinking', thinking:b.thinking||'', signature:b.signature||'' }));
-        return { text, toolCalls, thinkingBlocks };
+        // Upgrade: same truncation signal as the non-streaming path — see
+        // the comment there.
+        const truncated = stopReason === 'max_tokens';
+        return { text, toolCalls, thinkingBlocks, truncated };
     },
 
     async _chatStreamOpenAI(messages, opts, p, maxTokens, tools, signal, onDelta){
@@ -11001,6 +11270,7 @@ const MarkhinAI = window.MarkhinAI = {
         let buf = '';
         let textAcc = '';
         let sawAnyEvent = false;
+        let finishReason = null;
         const toolAcc = {};
         while(true){
             const { done, value } = await reader.read();
@@ -11019,6 +11289,7 @@ const MarkhinAI = window.MarkhinAI = {
                 sawAnyEvent = true;
                 const choice = evt.choices && evt.choices[0];
                 if(!choice) continue;
+                if(choice.finish_reason) finishReason = choice.finish_reason;
                 const delta = choice.delta || {};
                 let deltaText = delta.content;
                 if(Array.isArray(deltaText)) deltaText = deltaText.map(part => (part && (part.text||part.content)) || '').join('');
@@ -11061,7 +11332,12 @@ const MarkhinAI = window.MarkhinAI = {
                 input
             };
         });
-        return { text, toolCalls };
+        // Upgrade: surface whether this reply was cut off by hitting the
+        // max_tokens ceiling (finish_reason 'length') rather than the model
+        // finishing on its own, so the caller can warn the user instead of
+        // silently showing a reply that just stops mid-sentence.
+        const truncated = finishReason === 'length';
+        return { text, toolCalls, truncated };
     },
 
     // Queries the provider's own model-listing endpoint so the settings UI
@@ -14071,6 +14347,14 @@ window.attachWrapperEvents = function(categoryId){
             }
         };
 
+        /* Upgrade: set by runAiTurn whenever the model's final reply text
+           (not a tool-call step) came back with a truncated flag — i.e. it
+           was cut off by hitting the max_tokens ceiling rather than
+           finishing on its own — so the caller below can append a short,
+           app-generated warning instead of silently showing a reply that
+           just stops mid-sentence. Reset per attempt inside runAiTurn. */
+        let mAiLastReplyTruncated = false;
+
         /* Runs one full model turn (the whole multi-step tool-call loop,
            through to a final answer) at a given context size. contextScale
            of 1 is the normal, full-size context; anything smaller shrinks
@@ -14078,6 +14362,7 @@ window.attachWrapperEvents = function(categoryId){
            see the retry loop right below this function for when/why a
            smaller scale gets used. */
         const runAiTurn = async function(contextScale, maxTokensOverride){
+        mAiLastReplyTruncated = false;
         /* Build the notes context the same way the old standalone Ask box
            used to: every non-decoy note that isn't locked (or has been
            temporarily unlocked via the 🔒 button above). Locked notes stay
@@ -14241,6 +14526,8 @@ window.attachWrapperEvents = function(categoryId){
                 + mAiDateTimeFa
                 + 'استانداردِ کیفیت پاسخ (خیلی مهم):\n'
                 + '- برای سوال‌های ساده مستقیم جواب بده، اما برای هر درخواستِ چندمرحله‌ای، تصمیم‌گیری، مقایسه، محاسبه، یا هر جایی که جزئیات به‌هم‌ریخته یا نتیجه‌گیری غلط واقعاً هزینه دارد، قبل از نوشتنِ جواب نهایی، خودت را وادار کن مرحله‌به‌مرحله و آرام فکر کنی (این ظرفیتِ تفکرِ عمیق‌تر را داری و باید واقعاً از آن استفاده کنی، نه فقط سریع‌ترین پاسخِ ممکن را بنویسی) — ولی این فکرکردنِ داخلی را برای کاربر ننویس، فقط نتیجه‌ی نهاییِ پاک و مرتب را نشان بده.\n'
+                + '- بودجه‌ی فکرکردنِ عمیقِ داخلی‌ات (وقتی در دسترس است) قابل‌توجه است — از آن دریغ نکن؛ برای هر چیزِ واقعاً غیرِپیش‌پاافتاده، فرضیات را بررسی کن، حداقل یک راهِ جایگزین یا یک اشکالِ احتمالی در استدلالِ خودت را قبل از نهایی‌کردنِ جواب امتحان کن، و فقط وقتی که از درست‌بودنِ نتیجه مطمئن شدی آن را ارائه بده. کیفیت و دقتِ نهاییِ پاسخ روی سرعتِ رسیدن به آن اولویت دارد.\n'
+                + '- در نقشِ کارشناسِ عمومی، سطحِ پاسخ‌هایت باید در حدِ یک متخصصِ واقعی همان حوزه باشد: کامل، دقیق، دارای جزئیاتِ کاربردی و مثال‌های مشخص وقتی لازم است — نه یک خلاصه‌ی سطحی که فقط عنوانِ موضوع را تکرار می‌کند.\n'
                 + '- هرگز چیزی را که مطمئن نیستی به‌عنوان قطعی جا نزن؛ اگر یک عدد/تاریخ/محتوای دقیق یادداشت را حدس می‌زنی نه می‌دانی، یا خودت را با ابزار مطمئن کن (get_note/get_notes و مانند آن) یا صادقانه به کاربر بگو که مطمئن نیستی.\n'
                 + '- برای هر محاسبه‌ی ریاضی که کمی پیچیده‌تر از جمع/تفریق تک‌رقمی است (درصد، کسر، توان، جذر، محاسبات چندمرحله‌ای، یا هر جا که یک رقمِ اشتباه واقعاً مهم است)، به‌جای محاسبه‌ی ذهنیِ خودت، حتماً ابزار calculate را صدا بزن و نتیجه‌ی دقیقِ برگشتی از آن را در جواب بیاور.\n'
                 + '- برای اعداد، ریاضیات، یا شمارش (مثلاً «چند تا یادداشت با تگ X دارم»، «مجموع...»)، به‌جای حدس‌زدن، واقعاً از داده‌ی برگشتی ابزارها بشمار/محاسبه کن.\n'
@@ -14292,6 +14579,8 @@ window.attachWrapperEvents = function(categoryId){
                 + mAiDateTimeEn
                 + 'Answer quality standard (important):\n'
                 + '- Answer simple questions directly, but for anything multi-step, a decision, a comparison, a calculation, or anywhere a mixed-up detail or wrong conclusion actually costs the user something, force yourself to reason step by step, unhurried, before writing the final answer (you have real capacity for deeper reasoning here and should actually use it, not just produce the fastest possible answer) — but never show that internal reasoning to the user, only the clean final result.\n'
+                + '- Your internal deep-thinking budget (when available) is substantial — use it. For anything genuinely non-trivial, check your own assumptions, try at least one alternative approach or look for a flaw in your own reasoning before finalizing, and only give the answer once you are actually confident it is correct. Getting the final answer right matters more than getting to it fast.\n'
+                + '- In your general-knowledge role, answer at the level of a real subject-matter expert: complete, precise, with concrete practical detail and examples where useful — not a shallow summary that just restates the topic.\n'
                 + '- Never present something as certain when you are not — if you would be guessing rather than knowing an exact number/date/note content, either verify it with a tool (get_note/get_notes, etc.) or tell the user plainly that you are not sure.\n'
                 + '- For any math that is more than trivial single-digit addition/subtraction (percentages, fractions, powers, roots, multi-step calculations, or anywhere being off by a digit actually matters), always call the calculate tool instead of computing it in your head, and use its exact returned result in your answer.\n'
                 + '- For counts, math, or totals (e.g. "how many notes have tag X", "sum of..."), actually count/compute from the data a tool returns instead of estimating.\n'
@@ -14396,11 +14685,14 @@ window.attachWrapperEvents = function(categoryId){
         // caps the reply budget at exactly what the account's balance
         // can currently pay for, instead of the normal 4096/3000 defaults
         // scaled by contextScale.
-        // Upgrade: was 4096/3000 — raised so replies (and, on real
-        // Anthropic, the extended-thinking budget below) have real headroom
-        // instead of getting cut off on longer/more thorough answers.
-        const turnMaxTokens = maxTokensOverride ? Math.max(150, maxTokensOverride) : Math.max(500, Math.round(8192 * contextScale));
-        const closingMaxTokens = maxTokensOverride ? Math.max(120, Math.min(maxTokensOverride, Math.round(6000 * contextScale))) : Math.max(350, Math.round(6000 * contextScale));
+        // Upgrade: was 4096/3000, then 8192/6000 — raised again so replies
+        // (and, on real Anthropic, the extended-thinking budget above) have
+        // real headroom instead of getting cut off on longer/more thorough
+        // answers. Providers/models with a lower actual output-token cap
+        // than this will just use as much of it as they support; this only
+        // raises the ceiling we ask for, it never forces a longer reply.
+        const turnMaxTokens = maxTokensOverride ? Math.max(150, maxTokensOverride) : Math.max(500, Math.round(16384 * contextScale));
+        const closingMaxTokens = maxTokensOverride ? Math.max(120, Math.min(maxTokensOverride, Math.round(10000 * contextScale))) : Math.max(350, Math.round(10000 * contextScale));
 
             let finalText = '';
             const maxSteps = 15;
@@ -14411,6 +14703,7 @@ window.attachWrapperEvents = function(categoryId){
                 const calls = (res && res.toolCalls) || [];
                 if(!calls.length){
                     finalText = resText.trim();
+                    mAiLastReplyTruncated = !!(res && res.truncated) && !!finalText;
                     break;
                 }
                 convo.push({ role: 'assistant', content: resText, toolCalls: calls, thinkingBlocks: (res && res.thinkingBlocks) || null });
@@ -14517,6 +14810,20 @@ window.attachWrapperEvents = function(categoryId){
                 mAiHistory.push({ id: mAiNextId(), ts: Date.now(), role: 'assistant', synthetic: true, content: fa
                     ? `🔒 این سوال به یادداشت قفل «${names}» هم مربوط به نظر می‌رسه، ولی چون رمزش رو ندارم توی جوابم لحاظش نکردم. برای بازش‌کردن، روی دکمه 🔒 بالای همین چت بزن و رمزش رو وارد کن، بعد دوباره همین سوال رو از من بپرس.`
                     : `🔒 This question also looks related to the locked note "${names}", but I couldn't use it since I don't have its password. Tap the 🔒 button above this chat to unlock it, then ask me again.` });
+            }
+            /* Upgrade: deterministic, app-generated notice for the case
+               this whole feature was added for — the provider cut the
+               reply off by hitting the max_tokens ceiling (finish_reason
+               'length' / stop_reason 'max_tokens') rather than the model
+               finishing on its own. Without this, a truncated reply just
+               silently stops mid-sentence with no indication why. Marked
+               synthetic, same as the locked-note notice above, so it's
+               shown to the user but never replayed back to the model as
+               if it were part of its own prior turn. */
+            if(mAiLastReplyTruncated){
+                mAiHistory.push({ id: mAiNextId(), ts: Date.now(), role: 'assistant', synthetic: true, content: fa
+                    ? '⚠️ این پاسخ به‌خاطر رسیدنِ طولش به سقفِ مجازِ توکن (max_tokens) کوتاه/قطع شد.'
+                    : '⚠️ This reply was cut short because it hit the max_tokens length limit.' });
             }
             mAiSave();
             }
