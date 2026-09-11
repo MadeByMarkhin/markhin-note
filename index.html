@@ -1873,18 +1873,18 @@
             align-items: center;
             justify-content: space-between;
             gap: 10px;
-            padding: 10px 14px;
+            padding: 6px 12px;
             flex-wrap: wrap;
             background: rgba(0,0,0,0.35);
             border-bottom: 1px solid rgba(255,255,255,0.08);
             flex: 0 0 auto;
         }
-        .game-topbar-title h3 { margin: 0; font-size: 15px; letter-spacing: 0.6px; }
-        .game-topbar-title p { margin: 2px 0 0; font-size: 10.5px; color: rgba(255,255,255,0.5); }
+        .game-topbar-title h3 { margin: 0; font-size: 13px; letter-spacing: 0.6px; }
+        .game-topbar-title p { margin: 1px 0 0; font-size: 9px; color: rgba(255,255,255,0.5); }
         .game-topbar-actions { display: flex; align-items: center; gap: 8px; }
         .game-topbar-actions #gameScore {
-            font-weight: bold; font-size: 14px; color: var(--text-color);
-            background: rgba(255,255,255,0.06); padding: 5px 12px; border-radius: 999px;
+            font-weight: bold; font-size: 12.5px; color: var(--text-color);
+            background: rgba(255,255,255,0.06); padding: 4px 10px; border-radius: 999px;
         }
 
         .game-canvas-wrap {
@@ -2794,6 +2794,7 @@ window.mu_syncHtmlBg = function(){
                 <p id="gameMenuDesc" style="font-size: 12px; color: rgba(255,255,255,0.5); margin-bottom: 20px;">یک بازی را انتخاب کنید:</p>
                 <div style="display: flex; gap: 12px; justify-content: center; margin-bottom: 20px; flex-wrap: wrap;">
                     <button class="btn-main" id="btnGameSnake" onclick="startNeonSnake()" style="padding: 10px 20px; font-size: 13px;">🐍 مار نئونی</button>
+                    <button class="btn-main" id="btnGameRacer" onclick="startTwinLaneRacer()" style="padding: 10px 20px; font-size: 13px;">🏎️ جاده بی‌قانون</button>
                     <button class="btn-main" id="btnGameFlappy" onclick="startCyberFlappy()" style="padding: 10px 20px; font-size: 13px;">🚀 عبور از موانع</button>
                 </div>
                 <button class="img-btn" id="btnGameClose" style="padding: 8px 25px; background: rgba(239, 68, 68, 0.75); color: #fff; font-size: 13px;" onclick="closeGame()">بستن</button>
@@ -3127,6 +3128,7 @@ window.mu_syncHtmlBg = function(){
                 gameMenuP: "یک بازی را انتخاب کنید:",
                 snakeBtn: "🐍 مار نئونی",
                 flappyBtn: "🚀 عبور از موانع",
+                racerBtn: "🏎️ جاده بی‌قانون",
                 closeBtn: "بستن",
                 menuBtn: "منو",
                 exitBtn: "خروج",
@@ -3227,6 +3229,7 @@ window.mu_syncHtmlBg = function(){
                 gameMenuP: "Select a game:",
                 snakeBtn: "🐍 Neon Snake",
                 flappyBtn: "🚀 Cyber Flappy",
+                racerBtn: "🏎️ No Rules Road",
                 closeBtn: "Close",
                 menuBtn: "Menu",
                 exitBtn: "Exit",
@@ -3865,6 +3868,7 @@ window.mu_syncHtmlBg = function(){
             document.getElementById('gameMenuDesc').innerText = t.gameMenuP;
             document.getElementById('btnGameSnake').innerText = t.snakeBtn;
             document.getElementById('btnGameFlappy').innerText = t.flappyBtn;
+            document.getElementById('btnGameRacer').innerText = t.racerBtn;
             document.getElementById('btnGameClose').innerText = t.closeBtn;
             document.getElementById('btnGameMenu').innerText = t.menuBtn;
             document.getElementById('btnGameExit').innerText = t.exitBtn;
@@ -4656,6 +4660,7 @@ window.mu_syncHtmlBg = function(){
             gameResizeTimer = setTimeout(() => {
                 if (window.__markhinActiveGame === 'snake') startNeonSnake();
                 else if (window.__markhinActiveGame === 'flappy') startCyberFlappy();
+                else if (window.__markhinActiveGame === 'racer') startTwinLaneRacer();
             }, 200);
         }
         window.addEventListener('resize', mAiGameScheduleRefit);
@@ -5299,6 +5304,885 @@ window.mu_syncHtmlBg = function(){
                 ctx.fill();
                 ctx.restore();
                 ctx.shadowBlur = 0;
+            }
+            raf = requestAnimationFrame(loop);
+            gameStopFn = () => { if (raf) cancelAnimationFrame(raf); };
+        }
+
+        /* ------------------------- No Rules Road -------------------------
+           Two independent lanes side by side (left car / right car), each
+           lane split into two roads the car can hop between. Tapping the
+           left half of the play area swaps the left car's road; tapping the
+           right half swaps the right car's. Oncoming traffic scrolls down
+           each of the four roads — the player has to keep both cars alive
+           at once, which is the whole point of the "two cars" concept.
+           Obstacle spawning is column-paired per lane (exactly one of the
+           two roads in a lane is ever blocked at a given moment), so every
+           crash is a missed dodge, never an unavoidable wall — same
+           fairness principle Cyber Flappy already uses for its pipe gaps.
+
+           On top of that base game, "No Rules Road" periodically breaks its
+           own physics for a few seconds at a time: speed spikes or crawls,
+           the screen renders upside down (Screen Flip), or the tap zones
+           get mirrored (Controls Swapped). Every event is telegraphed with
+           a ~1.1s warning beat before it actually hits, only one event is
+           ever live at once, and none of them touch the underlying
+           hitboxes or spawn fairness — so the chaos is something to react
+           to, not an unavoidable cheap death. See the "Chaos / No Rules
+           physics" block below for the event list and scheduler. */
+
+        function startTwinLaneRacer() {
+            window.__markhinActiveGame = 'racer';
+            const fa = currentLang === 'fa';
+            enterGamePlayMode();
+            document.getElementById('gameTitleActive').innerText = fa ? '🏎️ جاده بی‌قانون' : '🏎️ NO RULES ROAD';
+            document.getElementById('gameDescActive').innerText = fa
+                ? 'نیمه چپ رو بزن برای ماشین چپ، نیمه راست برای ماشین راست. این جاده قانون سرش نمی‌شه: هر از گاهی سرعت یا حتی خودِ صفحه دیوونه می‌شه!'
+                : "Tap left for the left car, right for the right car. This road has no rules — speed, even the screen itself, can go haywire without warning!";
+
+            clearGameEvents();
+            const canvas = document.getElementById('cyberCanvas');
+            const { width, height, ctx } = fitGameCanvas(canvas, 'fill');
+
+            // ---- layout: two lanes side by side, each made of two roads ----
+            // No gap between the two lanes anymore — they sit directly
+            // against each other as one continuous road, per request.
+            const laneGap = 0;
+            const halfW = (width - laneGap) / 2;
+            const laneX = [0, halfW + laneGap]; // left edge of lane 0 (left car) / lane 1 (right car)
+            const colW = halfW / 2;             // width of a single road inside a lane
+
+            // Absolute column indices: 0-1 = the left lane's two roads,
+            // 2-3 = the right lane's two roads.
+            function colCenterX(col) {
+                const lane = col < 2 ? 0 : 1;
+                const sub = col % 2;
+                return laneX[lane] + sub * colW + colW / 2;
+            }
+
+            // baseUnit is the shared size reference; the player's own car
+            // is drawn a bit larger than it for easier visibility, while
+            // obstacle sizing below stays tied to baseUnit so it doesn't
+            // grow along with it.
+            const baseUnit = Math.min(colW * 0.2, height * 0.028);
+            const carW = baseUnit * 1.25;
+            const carH = carW * 1.65;
+            const carRowY = height * 0.8;
+            // Obstacles are no longer little cars — flat square hazard
+            // blocks, and a bit bigger than the old car-shaped obstacles
+            // so they read as clearly "different from traffic".
+            const obsW = baseUnit * 1.5, obsH = obsW;
+            const dashLen = height * 0.05, dashGap = height * 0.04, dashCycle = dashLen + dashGap;
+
+            // Logical column state switches instantly on tap (same "arcade
+            // fair" instant-response feel as Flappy's jump); only the drawn
+            // position eases toward it, so a switch never gets silently
+            // dropped mid-animation.
+            let car1Col = 0, car2Col = 2;
+            let car1X = colCenterX(car1Col), car2X = colCenterX(car2Col);
+            let prevCar1X = car1X, prevCar2X = car2X;
+            let roadOffset = 0;
+            let flashAlpha = 0;          // brief white flash on a speed-up milestone
+            let bannerLife = 0, bannerMax = 900, bannerText = '', bannerColor = '#ffd23f';
+            let lastMilestone = 0;
+            let exhaustTimer = 0;
+
+            let obstacles = []; // {col, y, passed}
+            let bonuses = [];   // {col, y, taken}
+            let particles = [];
+            let popups = [];
+            gameScore = 0;
+
+            // ------------------------- Chaos / "No Rules" physics -------------------------
+            // Every so often the road's rules break for a few seconds: speed
+            // spikes or crawls, or the screen renders upside down. Always
+            // telegraphed with a short warning beat first, and only one
+            // event runs at a time, so the chaos is a twist to react to —
+            // never an unfair ambush and never stacked into something
+            // unbeatable.
+            let chaosSpeedMult = 1;       // smoothed multiplier actually used for speed
+            let chaosSpeedMultTarget = 1; // where chaosSpeedMult is easing toward
+            let screenFlipped = false;    // true: canvas is rendered rotated 180°
+            let chaosScoreMult = 1;       // reward bonus while an event is live
+            let chaosState = 'idle';      // 'idle' | 'warning' | 'active'
+            let chaosPhaseTimer = 0;
+            let chaosSinceLast = 0;
+            let chaosNextIn = 9500 + Math.random() * 4000; // first event ~9.5-13.5s in
+            let chaosEvent = null;
+            let chaosBadgeText = '';
+
+            const CHAOS_EVENTS = [
+                {
+                    id: 'speedUp', warnFa: '⚠️ سرعت داره می‌ره رو هوا...', warnEn: '⚠️ Speed is spiking...',
+                    labelFa: '🔥 سرعت جنون‌آمیز!', labelEn: '🔥 INSANE SPEED!', duration: 4200, color: '#ff2f2f',
+                    // Sets a target only — chaosSpeedMult itself eases toward
+                    // it every frame (see the loop below), so the speed-up
+                    // ramps in over about a second instead of snapping.
+                    start() { chaosSpeedMultTarget = 1.55; }, end() { chaosSpeedMultTarget = 1; }
+                },
+                {
+                    id: 'slowMo', warnFa: '⚠️ زمان داره کند می‌شه...', warnEn: '⚠️ Time is slowing...',
+                    labelFa: '🐌 دنیا آروم شد!', labelEn: '🐌 SLOW-MO ZONE!', duration: 3600, color: '#3fd2ff',
+                    start() { chaosSpeedMultTarget = 0.6; }, end() { chaosSpeedMultTarget = 1; }
+                },
+                {
+                    id: 'screenFlip', warnFa: '⚠️ صفحه داره وارونه می‌شه...', warnEn: '⚠️ Screen is flipping...',
+                    labelFa: '🔄 صفحه وارونه شد!', labelEn: '🔄 SCREEN FLIPPED!', duration: 4600, color: '#ffd23f',
+                    start() { screenFlipped = true; }, end() { screenFlipped = false; }
+                }
+            ];
+
+            function roadClearForFlip() {
+                // Only safe to flip when nothing is in front of us at all —
+                // any obstacle still on screen must be right at the far
+                // end of the road (just spawned near the top), not
+                // anywhere in the stretch the player actually has to react to.
+                const farLimit = height * 0.2;
+                return obstacles.every(o => o.y < farLimit);
+            }
+
+            function updateChaos(rawDt) {
+                if (chaosState === 'idle') {
+                    chaosSinceLast += rawDt;
+                    if (chaosSinceLast >= chaosNextIn) {
+                        // Pick anything but a repeat of the event that just
+                        // ran, so the same twist can't fire back-to-back.
+                        const pool = CHAOS_EVENTS.filter(e => e !== chaosEvent);
+                        const candidate = pool[Math.floor(Math.random() * pool.length)];
+                        // Never flip the screen unless the road ahead is
+                        // clear — that would disorient the player right
+                        // when they need to react cleanly to something
+                        // close. Wait for a clearer moment; re-checked
+                        // every frame.
+                        if (candidate.id === 'screenFlip' && !roadClearForFlip()) return;
+                        chaosState = 'warning';
+                        chaosPhaseTimer = 0;
+                        chaosEvent = candidate;
+                        mAiGameHaptic('light');
+                    }
+                } else if (chaosState === 'warning') {
+                    chaosPhaseTimer += rawDt;
+                    if (chaosPhaseTimer >= 1100) {
+                        chaosState = 'active';
+                        chaosPhaseTimer = 0;
+                        chaosEvent.start();
+                        chaosScoreMult = 1.5;
+                        flashAlpha = 0.5;
+                        bannerLife = bannerMax;
+                        bannerColor = chaosEvent.color;
+                        bannerText = fa ? chaosEvent.labelFa : chaosEvent.labelEn;
+                        chaosBadgeText = bannerText;
+                        mAiGameHaptic('heavy');
+                    }
+                } else if (chaosState === 'active') {
+                    chaosPhaseTimer += rawDt;
+                    if (chaosPhaseTimer >= chaosEvent.duration) {
+                        chaosEvent.end();
+                        chaosScoreMult = 1;
+                        chaosState = 'idle';
+                        chaosSinceLast = 0;
+                        chaosNextIn = 9000 + Math.random() * 5000;
+                        chaosBadgeText = '';
+                    }
+                }
+            }
+
+            function updateScoreLabel() {
+                document.getElementById('gameScore').innerText = (fa ? 'امتیاز: ' : 'Score: ') + gameScore;
+            }
+            updateScoreLabel();
+
+            // Same asymptotic difficulty curve as Cyber Flappy: speed keeps
+            // creeping up but always approaches a fixed ceiling instead of
+            // running away to something unbeatable.
+            const baseSpeed = Math.max(2.6, height * 0.0055);
+            const maxSpeedGain = baseSpeed * 1.6;
+            const difficultyRamp = 14;
+            let obstaclesPassed = 0;
+            function currentDifficulty() { return obstaclesPassed / (obstaclesPassed + difficultyRamp); }
+            let speed = baseSpeed;
+
+            const basePixelGap = Math.max(150, height * 0.62);
+            let distSinceSpawn = [0, 0];
+            // Slightly offset starting gaps so the two lanes don't spawn in
+            // lockstep the moment the run begins.
+            let nextGap = [basePixelGap, basePixelGap * 1.35];
+            function jitteredGap() { return basePixelGap * (0.82 + Math.random() * 0.5); }
+
+            function spawnForLane(laneIdx) {
+                const sub = Math.random() < 0.5 ? 0 : 1;
+                const col = laneIdx * 2 + sub;
+                obstacles.push({ col, y: -obsH, passed: false });
+                // The other road in this lane is guaranteed clear right now,
+                // so it's a safe spot for an occasional bonus — rewards
+                // deliberately picking the open road, not just luck.
+                if (Math.random() < 0.4) {
+                    bonuses.push({ col: laneIdx * 2 + (1 - sub), y: -obsH, taken: false });
+                }
+            }
+
+            function spawnParticles(px, py, color, count) {
+                for (let i = 0; i < count; i++) {
+                    const ang = Math.random() * Math.PI * 2;
+                    const spd = 40 + Math.random() * 100;
+                    particles.push({ x: px, y: py, vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd, life: 0, maxLife: 320 + Math.random() * 180, color, size: 2 + Math.random() * 2 });
+                }
+            }
+            function spawnPopup(px, py, text, color) {
+                popups.push({ x: px, y: py, text, color, life: 0, maxLife: 650 });
+            }
+            function spawnExhaust(px, py, color) {
+                particles.push({
+                    x: px + (Math.random() * 10 - 5), y: py,
+                    vx: (Math.random() * 20 - 10), vy: 55 + Math.random() * 35,
+                    life: 0, maxLife: 260 + Math.random() * 100,
+                    color, size: 2 + Math.random() * 2.2
+                });
+            }
+
+            // Obstacle = a flat square hazard block, not a car: solid
+            // color, dark outline, diagonal hazard-tape stripes clipped to
+            // the square. Reads instantly as "thing to avoid" and is never
+            // confused with the player's own car silhouette.
+            function drawObstacleBlock(cx, cy, s, color) {
+                ctx.save();
+                ctx.translate(cx, cy);
+                ctx.beginPath();
+                ctx.roundRect(-s / 2, -s / 2, s, s, s * 0.14);
+                ctx.fillStyle = color;
+                ctx.fill();
+                ctx.lineWidth = Math.max(1, s * 0.07);
+                ctx.strokeStyle = 'rgba(5,5,8,0.9)';
+                ctx.stroke();
+
+                ctx.save();
+                ctx.beginPath();
+                ctx.roundRect(-s / 2, -s / 2, s, s, s * 0.14);
+                ctx.clip();
+                ctx.strokeStyle = 'rgba(255,255,255,0.32)';
+                ctx.lineWidth = s * 0.16;
+                for (let x = -s; x < s; x += s * 0.36) {
+                    ctx.beginPath();
+                    ctx.moveTo(x, -s);
+                    ctx.lineTo(x + s * 2, s);
+                    ctx.stroke();
+                }
+                ctx.restore();
+                ctx.restore();
+            }
+
+            // Body outline per shape — 'rect' is the player's own silhouette
+            // (kept exclusive to the player so it's always instantly
+            // recognizable); 'block'/'wedge'/'wide' are the traffic pool,
+            // deliberately different from 'rect' and from each other so
+            // oncoming cars read as a mixed crowd, not one repeated shape.
+            function carBodyPath(w, h, shape) {
+                ctx.beginPath();
+                if (shape === 'wedge') {
+                    // Long pointed nose, narrow tapered tail — a sports coupe.
+                    ctx.moveTo(0, -h / 2);
+                    ctx.lineTo(w * 0.36, -h * 0.05);
+                    ctx.lineTo(w * 0.26, h / 2);
+                    ctx.lineTo(-w * 0.26, h / 2);
+                    ctx.lineTo(-w * 0.36, -h * 0.05);
+                } else if (shape === 'block') {
+                    // Flat nose and tail, boxy sides — a van/truck.
+                    ctx.moveTo(-w * 0.4, -h / 2);
+                    ctx.lineTo(w * 0.4, -h / 2);
+                    ctx.lineTo(w * 0.44, h / 2);
+                    ctx.lineTo(-w * 0.44, h / 2);
+                } else if (shape === 'wide') {
+                    // Short and stubby — a compact/SUV silhouette.
+                    ctx.moveTo(0, -h * 0.46);
+                    ctx.lineTo(w * 0.48, -h * 0.16);
+                    ctx.lineTo(w * 0.48, h * 0.2);
+                    ctx.lineTo(w * 0.3, h * 0.46);
+                    ctx.lineTo(-w * 0.3, h * 0.46);
+                    ctx.lineTo(-w * 0.48, h * 0.2);
+                    ctx.lineTo(-w * 0.48, -h * 0.16);
+                } else {
+                    // 'rect' (player only) — a clean straight-edged
+                    // rectangle, flat nose and tail, square corners.
+                    ctx.moveTo(-w * 0.4, -h / 2);
+                    ctx.lineTo(w * 0.4, -h / 2);
+                    ctx.lineTo(w * 0.4, h / 2);
+                    ctx.lineTo(-w * 0.4, h / 2);
+                }
+                ctx.closePath();
+            }
+
+            // Player car — a hollow neon-outlined pill: dark fill, glowing
+            // colored border, nothing else. Matches the reference look the
+            // person shared: an outline shape, not a filled silhouette.
+            function drawPlayerCar(cx, cy, w, h, color, opts) {
+                opts = opts || {};
+                const tilt = opts.tilt || 0;
+                const sx = opts.squashX || 1, sy = opts.squashY || 1;
+                ctx.save();
+                ctx.translate(cx, cy);
+                ctx.rotate(tilt);
+                ctx.scale(sx, sy);
+
+                // Thin, crisp headlight wedge.
+                if (opts.beamColor) {
+                    ctx.save();
+                    ctx.globalCompositeOperation = 'lighter';
+                    ctx.fillStyle = opts.beamColor;
+                    ctx.beginPath();
+                    ctx.moveTo(-w * 0.2, -h * 0.5);
+                    ctx.lineTo(-w * 0.65, -h * 2.1);
+                    ctx.lineTo(w * 0.65, -h * 2.1);
+                    ctx.lineTo(w * 0.2, -h * 0.5);
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.restore();
+                }
+
+                // Sharper wedge/dart silhouette — a pointed nose, flared
+                // mid-body "shoulders", and a tapered rounded tail —
+                // a fresh, more aggressive race-car look. Still a hollow
+                // neon outline. Same w×h bounding box as before, so the
+                // car's size is unchanged.
+                ctx.beginPath();
+                ctx.moveTo(0, -h / 2);
+                ctx.lineTo(w * 0.34, -h * 0.2);
+                ctx.lineTo(w * 0.46, h * 0.08);
+                ctx.lineTo(w * 0.4, h * 0.4);
+                ctx.quadraticCurveTo(w * 0.4, h / 2, w * 0.24, h / 2);
+                ctx.lineTo(-w * 0.24, h / 2);
+                ctx.quadraticCurveTo(-w * 0.4, h / 2, -w * 0.4, h * 0.4);
+                ctx.lineTo(-w * 0.46, h * 0.08);
+                ctx.lineTo(-w * 0.34, -h * 0.2);
+                ctx.closePath();
+                ctx.fillStyle = '#0a0e1f';
+                ctx.fill();
+                ctx.lineWidth = Math.max(2, w * 0.16);
+                ctx.shadowBlur = 14;
+                ctx.shadowColor = color;
+                ctx.strokeStyle = color;
+                ctx.stroke();
+                ctx.shadowBlur = 0;
+
+                // Cockpit accent near the nose.
+                ctx.beginPath();
+                ctx.moveTo(-w * 0.18, -h * 0.14);
+                ctx.lineTo(w * 0.18, -h * 0.14);
+                ctx.lineWidth = Math.max(1, w * 0.07);
+                ctx.strokeStyle = color;
+                ctx.globalAlpha = 0.5;
+                ctx.stroke();
+                ctx.globalAlpha = 1;
+
+                // Rear spoiler — a short glowing bar near the tail.
+                ctx.beginPath();
+                ctx.moveTo(-w * 0.3, h * 0.36);
+                ctx.lineTo(w * 0.3, h * 0.36);
+                ctx.lineWidth = Math.max(1, w * 0.09);
+                ctx.strokeStyle = color;
+                ctx.globalAlpha = 0.4;
+                ctx.stroke();
+                ctx.globalAlpha = 1;
+
+                ctx.restore();
+            }
+
+            // opts: { tilt, shape, squashX, squashY } — tilt leans the car
+            // into a lane change; shape picks the silhouette (see
+            // carBodyPath); squashX/squashY give the car a brief
+            // stretch/squeeze right as it swaps lanes. Traffic only — the
+            // player's own cars are drawn by drawPlayerCar above.
+            function drawCar(cx, cy, w, h, color, opts) {
+                opts = opts || {};
+                const tilt = opts.tilt || 0;
+                const shape = opts.shape || 'block';
+                const sx = opts.squashX || 1, sy = opts.squashY || 1;
+                ctx.save();
+                ctx.translate(cx, cy);
+                ctx.rotate(tilt);
+                ctx.scale(sx, sy);
+
+                // Wheels — flat dark slabs, just enough to read as "vehicle".
+                ctx.fillStyle = '#0a0a0d';
+                const wheelW = w * 0.14, wheelH = h * 0.22;
+                ctx.fillRect(-w / 2 - wheelW * 0.3, -h * 0.22, wheelW, wheelH);
+                ctx.fillRect(w / 2 - wheelW * 0.7, -h * 0.22, wheelW, wheelH);
+                ctx.fillRect(-w / 2 - wheelW * 0.3, h * 0.1, wheelW, wheelH);
+                ctx.fillRect(w / 2 - wheelW * 0.7, h * 0.1, wheelW, wheelH);
+
+                // Body — a single flat fill on the shape's outline, plus a
+                // dark stroke.
+                carBodyPath(w, h, shape);
+                ctx.fillStyle = color;
+                ctx.fill();
+                ctx.lineWidth = Math.max(1, w * 0.05);
+                ctx.strokeStyle = 'rgba(5,5,8,0.85)';
+                ctx.stroke();
+
+                // Canopy — one flat dark panel, sized to sit inside any shape.
+                ctx.fillStyle = 'rgba(5,6,10,0.75)';
+                ctx.beginPath();
+                ctx.moveTo(0, -h * 0.22);
+                ctx.lineTo(w * 0.2, h * 0.02);
+                ctx.lineTo(w * 0.18, h * 0.24);
+                ctx.lineTo(-w * 0.18, h * 0.24);
+                ctx.lineTo(-w * 0.2, h * 0.02);
+                ctx.closePath();
+                ctx.fill();
+
+                // One accent stripe down the spine.
+                ctx.fillStyle = 'rgba(255,255,255,0.85)';
+                ctx.fillRect(-w * 0.05, -h * 0.4, w * 0.1, h * 0.14);
+                ctx.fillRect(-w * 0.05, h * 0.28, w * 0.1, h * 0.12);
+
+                // Taillights — two flat squares, no glow.
+                ctx.fillStyle = 'rgba(255,70,70,0.9)';
+                ctx.fillRect(-w * 0.26, h * 0.4, w * 0.13, h * 0.06);
+                ctx.fillRect(w * 0.13, h * 0.4, w * 0.13, h * 0.06);
+
+                ctx.restore();
+            }
+
+            let ended = false, dying = false, dyingStart = 0;
+            const DYING_MS = 240;
+
+            // Lane-change feedback: the car itself banks hard toward the
+            // new lane and eases back — no separate trail/streak drawn on
+            // the road — plus a brief squash/stretch pop (see squashScale
+            // below). The switch reads as a quick, punchy dash-and-lean.
+            let car1SquashT = 9999, car2SquashT = 9999;
+            let car1BankT = 9999, car2BankT = 9999;
+            let car1BankDir = 1, car2BankDir = 1;
+            const SQUASH_MS = 220;
+            const BANK_MS = 260;
+            function squashScale(t) {
+                if (t >= SQUASH_MS) return { sx: 1, sy: 1 };
+                const p = t / SQUASH_MS;
+                const s = Math.sin(p * Math.PI);
+                return { sx: 1 + s * 0.24, sy: 1 - s * 0.16 };
+            }
+            // A quick, pronounced lean into the direction of travel that
+            // eases back to upright — the nose visibly turns toward the
+            // new lane instead of the car just sliding over flat.
+            function bankTilt(t, dir) {
+                if (t >= BANK_MS) return 0;
+                const p = t / BANK_MS;
+                return dir * Math.sin(p * Math.PI) * 0.5;
+            }
+            function toggleCar(which) {
+                if (gamePaused || ended || dying) return;
+                if (which === 1) {
+                    const newCol = car1Col === 0 ? 1 : 0;
+                    car1BankDir = newCol > car1Col ? 1 : -1;
+                    car1Col = newCol;
+                    car1SquashT = 0;
+                    car1BankT = 0;
+                } else {
+                    const newCol = car2Col === 2 ? 3 : 2;
+                    car2BankDir = newCol > car2Col ? 1 : -1;
+                    car2Col = newCol;
+                    car2SquashT = 0;
+                    car2BankT = 0;
+                }
+                mAiGameHaptic('light');
+            }
+
+            // Screen Flip mirrors left/right (the whole canvas is rotated
+            // 180°), so tap mapping stays visually correct: whichever side
+            // the player actually sees a car on is the side that steers it.
+            function sideForLeft(isLeftSide) {
+                const wantsLeftCar = screenFlipped ? !isLeftSide : isLeftSide;
+                return wantsLeftCar ? 1 : 2;
+            }
+
+            // Bound to the wrapper (whole area under the top bar) like the
+            // other games, split down the middle: left half steers the left
+            // car, right half steers the right car. Skips taps that land on
+            // the pause/game-over overlay so those cards keep working.
+            const wrap = document.getElementById('gameCanvasWrap');
+            function handleTap(clientX) {
+                const rect = wrap.getBoundingClientRect();
+                const relX = clientX - rect.left;
+                toggleCar(sideForLeft(relX < width / 2));
+            }
+            wrap.addEventListener('mousedown', (e) => {
+                if (e.target.closest('.game-overlay-panel')) return;
+                handleTap(e.clientX);
+                e.preventDefault();
+            }, { signal: gameAborter.signal });
+            // Two-finger support: a real simultaneous tap on both halves
+            // arrives as ONE touchstart event whose touches list already
+            // holds both fingers, so reading only touches[0] silently
+            // dropped the second one. Walking e.changedTouches instead
+            // (only the finger(s) that just went down in this event) and
+            // toggling each side at most once means both cars swap
+            // together on a genuine two-finger tap, while a third finger
+            // landing later still can't double-toggle a side that was
+            // already handled.
+            wrap.addEventListener('touchstart', (e) => {
+                if (e.target.closest('.game-overlay-panel')) return;
+                const rect = wrap.getBoundingClientRect();
+                let hitLeft = false, hitRight = false;
+                for (let i = 0; i < e.changedTouches.length; i++) {
+                    const relX = e.changedTouches[i].clientX - rect.left;
+                    if (relX < width / 2) hitLeft = true; else hitRight = true;
+                }
+                if (hitLeft) toggleCar(sideForLeft(true));
+                if (hitRight) toggleCar(sideForLeft(false));
+                e.preventDefault();
+            }, { passive: false, signal: gameAborter.signal });
+
+            window.addEventListener('keydown', (e) => {
+                if (['ArrowLeft', 'ArrowRight', 'a', 'A', 'd', 'D'].includes(e.key)) e.preventDefault();
+                if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') toggleCar(sideForLeft(true));
+                if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') toggleCar(sideForLeft(false));
+            }, { signal: gameAborter.signal });
+
+            function endRacer() {
+                if (ended) return;
+                ended = true;
+                presentGameOver(gameScore, 'racer', fa ? '💥 جاده بی‌قانون بردت!' : '💥 THE ROAD GOT YOU!', startTwinLaneRacer);
+            }
+            function triggerDeath(ts) {
+                if (dying || ended) return;
+                dying = true;
+                dyingStart = ts;
+                mAiGameHaptic('error');
+            }
+
+            let raf = null, lastTs = 0, scoreTimer = 0;
+            function loop(ts) {
+                raf = requestAnimationFrame(loop);
+                if (gamePaused) { lastTs = ts; return; }
+                if (!lastTs) lastTs = ts;
+                // rawDt is real elapsed ms (clamped so a backgrounded tab
+                // can't dump a huge gap in); dt is the same frame-ratio unit
+                // Cyber Flappy uses for its own speed math.
+                const rawDt = Math.min(ts - lastTs, 200);
+                const dt = rawDt / 16.67;
+                lastTs = ts;
+
+                if (dying) {
+                    if (ts - dyingStart >= DYING_MS) { dying = false; endRacer(); return; }
+                } else if (!ended) {
+                    updateChaos(rawDt);
+                    // Ease the actual multiplier toward its target every
+                    // frame — this is what turns the old instant jump into
+                    // a smooth ramp up (or down) over roughly a second.
+                    chaosSpeedMult += (chaosSpeedMultTarget - chaosSpeedMult) * Math.min(1, dt * 0.06);
+                    speed = (baseSpeed + maxSpeedGain * currentDifficulty()) * chaosSpeedMult;
+                    roadOffset = (roadOffset + speed * dt) % dashCycle;
+
+                    scoreTimer += rawDt;
+                    if (scoreTimer >= 300) { scoreTimer -= 300; gameScore += Math.round(1 * chaosScoreMult); updateScoreLabel(); }
+
+                    [0, 1].forEach(laneIdx => {
+                        distSinceSpawn[laneIdx] += speed * dt;
+                        if (distSinceSpawn[laneIdx] >= nextGap[laneIdx]) {
+                            distSinceSpawn[laneIdx] = 0;
+                            nextGap[laneIdx] = jitteredGap();
+                            spawnForLane(laneIdx);
+                        }
+                    });
+
+                    obstacles.forEach(o => {
+                        o.y += speed * dt;
+                        if (!o.passed && o.y > carRowY) {
+                            o.passed = true;
+                            obstaclesPassed++;
+                            gameScore += Math.round(5 * chaosScoreMult);
+                            updateScoreLabel();
+                            // Every 10 clean dodges, celebrate the speed-up
+                            // with a banner + flash instead of letting the
+                            // difficulty creep up silently.
+                            if (obstaclesPassed % 10 === 0 && obstaclesPassed !== lastMilestone) {
+                                lastMilestone = obstaclesPassed;
+                                flashAlpha = 0.5;
+                                bannerLife = bannerMax;
+                                bannerColor = '#ffd23f';
+                                bannerText = fa ? '🔥 سرعت بیشتر شد!' : '🔥 SPEED UP!';
+                                mAiGameHaptic('medium');
+                            }
+                        }
+                        const carCol = o.col < 2 ? car1Col : car2Col;
+                        if (o.col === carCol && Math.abs(o.y - carRowY) < (obsH + carH) / 2 - 4) {
+                            triggerDeath(ts);
+                        }
+                    });
+                    obstacles = obstacles.filter(o => o.y < height + obsH);
+
+                    bonuses.forEach(b => {
+                        if (b.taken) return;
+                        b.y += speed * dt;
+                        const carCol = b.col < 2 ? car1Col : car2Col;
+                        if (b.col === carCol && Math.abs(b.y - carRowY) < (obsH + carH) / 2 - 4) {
+                            b.taken = true;
+                            const gain = Math.round(25 * chaosScoreMult);
+                            gameScore += gain;
+                            updateScoreLabel();
+                            mAiGameHaptic('medium');
+                            spawnParticles(colCenterX(b.col), b.y, '#ffd23f', 14);
+                            spawnPopup(colCenterX(b.col), b.y, '+' + gain, '#ffd23f');
+                        }
+                    });
+                    bonuses = bonuses.filter(b => !b.taken && b.y < height + obsH);
+                }
+
+                if (ended) return;
+
+                // Ease the drawn car positions toward their (already-switched)
+                // logical column — faster than before, so the slide itself
+                // feels snappier, with the squash pop below adding the punch.
+                const targetX1 = colCenterX(car1Col), targetX2 = colCenterX(car2Col);
+                car1X += (targetX1 - car1X) * Math.min(1, dt * 0.55);
+                car2X += (targetX2 - car2X) * Math.min(1, dt * 0.55);
+                car1SquashT += rawDt;
+                car2SquashT += rawDt;
+                car1BankT += rawDt;
+                car2BankT += rawDt;
+
+                // A light, continuous exhaust trail behind each player car —
+                // throttled to a fixed cadence (not once a frame) so it
+                // reads as a stream of puffs rather than a solid smear.
+                exhaustTimer += rawDt;
+                if (!ended && !dying && exhaustTimer >= 45) {
+                    exhaustTimer = 0;
+                    spawnExhaust(car1X, carRowY + carH * 0.46, '#00d4ff');
+                    spawnExhaust(car2X, carRowY + carH * 0.46, '#ff2b4a');
+                }
+
+                particles.forEach(p => { p.life += rawDt; p.x += p.vx * (rawDt / 1000); p.y += p.vy * (rawDt / 1000); });
+                particles = particles.filter(p => p.life < p.maxLife);
+                popups.forEach(p => { p.life += rawDt; p.y -= (rawDt / 1000) * 24; });
+                popups = popups.filter(p => p.life < p.maxLife);
+                flashAlpha = Math.max(0, flashAlpha - rawDt / 260);
+                bannerLife = Math.max(0, bannerLife - rawDt);
+
+                // -------- draw --------
+                ctx.clearRect(0, 0, width, height);
+                // Screen Flip renders the entire world rotated 180° around
+                // the canvas center. Purely cosmetic — car columns, obstacle
+                // y-positions and the collision math underneath never move,
+                // so the flip is disorienting without ever being unfair.
+                ctx.save();
+                if (screenFlipped) {
+                    ctx.translate(width / 2, height / 2);
+                    ctx.rotate(Math.PI);
+                    ctx.translate(-width / 2, -height / 2);
+                }
+                // Flat, near-black backdrop — no multi-stop glow gradient.
+                ctx.fillStyle = '#08080b';
+                ctx.fillRect(0, 0, width, height);
+
+                // Asphalt — a moody colored wash per lane (deep teal on the
+                // left, deep magenta/plum on the right) instead of a flat
+                // neutral tone, matching the reference environment. Purely a
+                // fill color change — halfW/laneGap/colW (and everything
+                // derived from them for car/obstacle sizing) are untouched.
+                const asphaltL = ctx.createLinearGradient(0, 0, 0, height);
+                asphaltL.addColorStop(0, '#0a1e23');
+                asphaltL.addColorStop(1, '#0e2c33');
+                ctx.fillStyle = asphaltL;
+                ctx.fillRect(laneX[0], 0, halfW, height);
+                const asphaltR = ctx.createLinearGradient(0, 0, 0, height);
+                asphaltR.addColorStop(0, '#1f0f1f');
+                asphaltR.addColorStop(1, '#2c132b');
+                ctx.fillStyle = asphaltR;
+                ctx.fillRect(laneX[1], 0, halfW, height);
+
+                // Faint horizontal grid lines across each lane — a subtle
+                // texture so the colored asphalt doesn't read as a flat block.
+                ctx.strokeStyle = 'rgba(255,255,255,0.045)';
+                ctx.lineWidth = 1;
+                const gridSpacing = Math.max(40, height * 0.11);
+                for (let gy = 0; gy < height; gy += gridSpacing) {
+                    ctx.beginPath();
+                    ctx.moveTo(laneX[0], gy);
+                    ctx.lineTo(laneX[0] + halfW, gy);
+                    ctx.moveTo(laneX[1], gy);
+                    ctx.lineTo(laneX[1] + halfW, gy);
+                    ctx.stroke();
+                }
+
+                // One crisp, solid accent line per lane — but only on the
+                // top, bottom, and outer side. The inner edge (where the
+                // two lanes meet in the middle) is left unstroked on
+                // purpose, per request, so the two halves read as one
+                // connected road instead of two lanes split by a line.
+                ctx.lineWidth = Math.max(2, width * 0.01);
+                ctx.strokeStyle = '#00d4ff';
+                ctx.beginPath();
+                ctx.moveTo(halfW - 1, 1);
+                ctx.lineTo(laneX[0] + 1, 1);
+                ctx.lineTo(laneX[0] + 1, height - 1);
+                ctx.lineTo(halfW - 1, height - 1);
+                ctx.stroke();
+                ctx.strokeStyle = '#ff2b4a';
+                ctx.beginPath();
+                ctx.moveTo(laneX[1] + 1, 1);
+                ctx.lineTo(laneX[1] + halfW - 1, 1);
+                ctx.lineTo(laneX[1] + halfW - 1, height - 1);
+                ctx.lineTo(laneX[1] + 1, height - 1);
+                ctx.stroke();
+
+                // Yellow rumble strips along the outer edge of each lane.
+                ctx.strokeStyle = 'rgba(255,210,63,0.55)';
+                ctx.lineWidth = Math.max(2, width * 0.008);
+                ctx.setLineDash([dashLen * 0.5, dashGap * 0.7]);
+                ctx.lineDashOffset = -roadOffset;
+                ctx.beginPath(); ctx.moveTo(laneX[0] + 2, 0); ctx.lineTo(laneX[0] + 2, height); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(laneX[1] + halfW - 2, 0); ctx.lineTo(laneX[1] + halfW - 2, height); ctx.stroke();
+                ctx.setLineDash([]);
+
+                // Scrolling dashed divider between the two roads inside each lane.
+                ctx.strokeStyle = 'rgba(255,255,255,0.22)';
+                ctx.lineWidth = Math.max(2, width * 0.006);
+                ctx.setLineDash([dashLen, dashGap]);
+                [0, 1].forEach(lane => {
+                    const x = laneX[lane] + colW;
+                    ctx.beginPath();
+                    ctx.lineDashOffset = -roadOffset;
+                    ctx.moveTo(x, 0);
+                    ctx.lineTo(x, height);
+                    ctx.stroke();
+                });
+                ctx.setLineDash([]);
+                ctx.lineDashOffset = 0;
+
+                // Traffic stays deliberately muted/neutral so the two
+                // bold player colors are what the eye locks onto.
+                obstacles.forEach(o => drawObstacleBlock(colCenterX(o.col), o.y, obsW, o.col < 2 ? '#c9702a' : '#7d5bb3'));
+
+                bonuses.forEach(b => {
+                    if (b.taken) return;
+                    const bp = 1 + Math.sin(ts / 90) * 0.18;
+                    const s = obsW * 0.4 * bp;
+                    ctx.save();
+                    ctx.translate(colCenterX(b.col), b.y);
+                    ctx.rotate(Math.PI / 4);
+                    ctx.fillStyle = '#ffd23f';
+                    ctx.lineWidth = 2;
+                    ctx.strokeStyle = '#08080b';
+                    ctx.fillRect(-s / 2, -s / 2, s, s);
+                    ctx.strokeRect(-s / 2, -s / 2, s, s);
+                    ctx.restore();
+                });
+
+                // A brief decaying shake on crash, same "impact beat" trick
+                // Neon Snake uses, so a collision reads as a real hit.
+                ctx.save();
+                let shakeX = 0, shakeY = 0;
+                if (dying) {
+                    const remain = 1 - Math.min(1, (ts - dyingStart) / DYING_MS);
+                    const mag = 5 * remain;
+                    shakeX = (Math.random() * 2 - 1) * mag;
+                    shakeY = (Math.random() * 2 - 1) * mag;
+                }
+                ctx.translate(shakeX, shakeY);
+                const tilt1 = bankTilt(car1BankT, car1BankDir);
+                const tilt2 = bankTilt(car2BankT, car2BankDir);
+                const squash1 = squashScale(car1SquashT), squash2 = squashScale(car2SquashT);
+                drawPlayerCar(car1X, carRowY, carW, carH, '#00d4ff', { tilt: tilt1, beamColor: 'rgba(0,212,255,0.10)', squashX: squash1.sx, squashY: squash1.sy });
+                drawPlayerCar(car2X, carRowY, carW, carH, '#ff2b4a', { tilt: tilt2, beamColor: 'rgba(255,43,74,0.10)', squashX: squash2.sx, squashY: squash2.sy });
+                ctx.restore();
+                prevCar1X = car1X; prevCar2X = car2X;
+
+                ctx.globalAlpha = 1;
+                particles.forEach(p => {
+                    const a = Math.max(0, 1 - p.life / p.maxLife);
+                    ctx.globalAlpha = a;
+                    ctx.fillStyle = p.color;
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                    ctx.fill();
+                });
+                ctx.globalAlpha = 1;
+                ctx.font = `bold ${Math.max(12, width * 0.035)}px sans-serif`;
+                ctx.textAlign = 'center';
+                popups.forEach(p => {
+                    const a = Math.max(0, 1 - p.life / p.maxLife);
+                    ctx.globalAlpha = a;
+                    ctx.fillStyle = p.color;
+                    ctx.fillText(p.text, p.x, p.y);
+                });
+                ctx.globalAlpha = 1;
+                ctx.restore(); // end Screen Flip transform — UI below always renders upright
+
+                // Cinematic vignette — darkens the corners so the glowing
+                // lanes/cars in the middle pop more, cheap per-frame cost
+                // since it's one static-shaped radial gradient fill.
+                const vig = ctx.createRadialGradient(width / 2, height * 0.55, height * 0.3, width / 2, height * 0.55, height * 0.75);
+                vig.addColorStop(0, 'rgba(0,0,0,0)');
+                vig.addColorStop(1, 'rgba(0,0,0,0.38)');
+                ctx.fillStyle = vig;
+                ctx.fillRect(0, 0, width, height);
+
+                // Brief white flash + a scaling/fading "SPEED UP" banner on
+                // every 10-dodge milestone — turns a silent difficulty bump
+                // into a moment the player actually notices and enjoys.
+                if (flashAlpha > 0) {
+                    ctx.fillStyle = `rgba(255,255,255,${flashAlpha * 0.35})`;
+                    ctx.fillRect(0, 0, width, height);
+                }
+                if (bannerLife > 0) {
+                    const p = 1 - bannerLife / bannerMax;
+                    const a = p < 0.15 ? p / 0.15 : (1 - Math.max(0, (p - 0.7) / 0.3));
+                    const scale = 0.7 + Math.min(1, p / 0.15) * 0.3;
+                    ctx.save();
+                    ctx.globalAlpha = Math.max(0, Math.min(1, a));
+                    ctx.translate(width / 2, height * 0.32);
+                    ctx.scale(scale, scale);
+                    ctx.font = `bold ${Math.max(18, width * 0.09)}px sans-serif`;
+                    ctx.textAlign = 'center';
+                    ctx.shadowBlur = 8;
+                    ctx.shadowColor = bannerColor;
+                    ctx.fillStyle = bannerColor;
+                    ctx.fillText(bannerText, 0, 0);
+                    ctx.shadowBlur = 0;
+                    ctx.restore();
+                    ctx.globalAlpha = 1;
+                }
+
+                // Warning telegraph: a pulsing red strobe plus a heads-up
+                // line a beat before a chaos event actually lands, so it's
+                // always a reaction test, never a blindside.
+                if (chaosState === 'warning') {
+                    const pulse = 0.35 + 0.35 * Math.abs(Math.sin(ts / 90));
+                    ctx.fillStyle = `rgba(255,60,60,${pulse * 0.22})`;
+                    ctx.fillRect(0, 0, width, height);
+                    ctx.save();
+                    ctx.globalAlpha = 0.55 + pulse * 0.4;
+                    ctx.font = `bold ${Math.max(14, width * 0.045)}px sans-serif`;
+                    ctx.textAlign = 'center';
+                    ctx.fillStyle = '#ff3b3b';
+                    ctx.shadowBlur = 6;
+                    ctx.shadowColor = '#ff3b3b';
+                    ctx.fillText(fa ? chaosEvent.warnFa : chaosEvent.warnEn, width / 2, height * 0.14);
+                    ctx.shadowBlur = 0;
+                    ctx.restore();
+                    ctx.globalAlpha = 1;
+                }
+
+                // Small persistent badge + countdown bar while a chaos event
+                // is live, so the player always knows what's active and
+                // roughly how much longer it'll last.
+                if (chaosState === 'active') {
+                    const remain = Math.max(0, 1 - chaosPhaseTimer / chaosEvent.duration);
+                    const bw = Math.min(width * 0.62, 260), bh = Math.max(5, height * 0.012);
+                    const bx = width / 2 - bw / 2, by = height * 0.06;
+                    ctx.save();
+                    ctx.font = `bold ${Math.max(11, width * 0.03)}px sans-serif`;
+                    ctx.textAlign = 'center';
+                    ctx.fillStyle = chaosEvent.color;
+                    ctx.shadowBlur = 4;
+                    ctx.shadowColor = chaosEvent.color;
+                    ctx.fillText(chaosBadgeText, width / 2, by - 6);
+                    ctx.shadowBlur = 0;
+                    ctx.fillStyle = 'rgba(255,255,255,0.15)';
+                    ctx.beginPath(); ctx.roundRect(bx, by, bw, bh, bh / 2); ctx.fill();
+                    ctx.fillStyle = chaosEvent.color;
+                    ctx.beginPath(); ctx.roundRect(bx, by, bw * remain, bh, bh / 2); ctx.fill();
+                    ctx.restore();
+                }
             }
             raf = requestAnimationFrame(loop);
             gameStopFn = () => { if (raf) cancelAnimationFrame(raf); };
