@@ -1886,6 +1886,7 @@
             font-weight: bold; font-size: 12.5px; color: var(--text-color);
             background: rgba(255,255,255,0.06); padding: 4px 10px; border-radius: 999px;
         }
+        .game-topbar-nav { display: flex; align-items: center; gap: 8px; }
 
         .game-canvas-wrap {
             position: relative;
@@ -1983,6 +1984,54 @@
         .game-card.theme-racer .go-act-icon-restart::before { content: "\21BB"; font-size: 24px; color: #fff; }
         .game-card.theme-racer .go-act-icon-home::before { content: "\2302"; font-size: 22px; color: #fff; }
         .game-card.theme-racer .go-act-label { display: none; }
+
+        /* ---- Flappy Bird reference-matched theme ----
+           Same immersive-fullscreen treatment as .theme-racer above: a
+           transparent, absolutely-positioned topbar (title hidden) so the
+           sky/skyline art the game now draws goes edge-to-edge behind it,
+           plus a coin badge (top-left, icon + running total) and a big
+           centered score number — matching the reference clip's HUD.
+           Toggled only while Cyber Flappy is the active game (see
+           startCyberFlappy / openGameMenu / backToGameMenu / closeGame). */
+        .game-card.theme-flappy .game-topbar {
+            position: absolute; top: 0; left: 0; right: 0; z-index: 5;
+            background: transparent; border-bottom-color: transparent;
+            padding: 14px 16px; pointer-events: none;
+        }
+        .game-card.theme-flappy .game-topbar-title { display: none; }
+        .game-card.theme-flappy .game-topbar-actions {
+            pointer-events: auto; width: 100%; gap: 0;
+            justify-content: space-between; align-items: flex-start;
+        }
+        #flappyBadges { display: none; }
+        .game-card.theme-flappy #flappyBadges { display: flex; flex-direction: column; gap: 8px; }
+        .game-card.theme-flappy #flappyCoinBadge {
+            display: flex; align-items: center; gap: 6px;
+            background: rgba(20, 25, 20, 0.5); border: 1px solid rgba(255,255,255,0.25);
+            border-radius: 999px; padding: 5px 12px 5px 5px;
+            box-shadow: 0 6px 16px rgba(0,0,0,0.25);
+        }
+        .game-card.theme-flappy #flappyCoinBadge .coin-ic {
+            width: 19px; height: 19px; border-radius: 50%; flex: 0 0 auto;
+            background: radial-gradient(circle at 35% 30%, #fff6c9, #ffd23f 55%, #c97e00 100%);
+            border: 1px solid rgba(0,0,0,0.35);
+        }
+        .game-card.theme-flappy #flappyCoinBadge span:last-child {
+            font-size: 13px; font-weight: 800; color: #fff;
+        }
+        .game-card.theme-flappy .game-topbar-actions #gameScore {
+            background: none; padding: 0; font-size: 36px; font-weight: 800;
+            color: #fff; letter-spacing: 1px;
+            text-shadow: 0 3px 0 rgba(0,0,0,0.25), 0 0 14px rgba(0,0,0,0.3);
+            position: absolute; left: 50%; top: 10px; transform: translateX(-50%);
+        }
+        .game-card.theme-flappy .game-topbar-nav .img-btn {
+            width: 32px; height: 32px; padding: 0 !important; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center; font-size: 0 !important;
+            box-shadow: 0 6px 16px rgba(0,0,0,0.25);
+        }
+        .game-card.theme-flappy #btnGameMenu::before { content: "\2630"; font-size: 14px; color: #fff; }
+        .game-card.theme-flappy #btnGameExit::before { content: "\2715"; font-size: 14px; color: #fff; }
 
         .audio-wrapper {
             margin: 10px 0;
@@ -2850,9 +2899,14 @@ window.mu_syncHtmlBg = function(){
                         <p id="gameDescActive"></p>
                     </div>
                     <div class="game-topbar-actions">
+                        <div id="flappyBadges">
+                            <span id="flappyCoinBadge"><span class="coin-ic"></span><span id="flappyCoinCount">0</span></span>
+                        </div>
                         <span id="gameScore">امتیاز: 0</span>
-                        <button class="img-btn" id="btnGameMenu" style="padding: 7px 14px; background: rgba(255,255,255,0.13); color: #fff;" onclick="backToGameMenu()">منو</button>
-                        <button class="img-btn" id="btnGameExit" style="padding: 7px 14px; background: rgba(239, 68, 68, 0.75); color: #fff;" onclick="closeGame()">خروج</button>
+                        <div class="game-topbar-nav">
+                            <button class="img-btn" id="btnGameMenu" style="padding: 7px 14px; background: rgba(255,255,255,0.13); color: #fff;" onclick="backToGameMenu()">منو</button>
+                            <button class="img-btn" id="btnGameExit" style="padding: 7px 14px; background: rgba(239, 68, 68, 0.75); color: #fff;" onclick="closeGame()">خروج</button>
+                        </div>
                     </div>
                 </div>
                 <div class="game-canvas-wrap" id="gameCanvasWrap">
@@ -4536,6 +4590,7 @@ window.mu_syncHtmlBg = function(){
             document.getElementById('gamePlayArea').style.display = 'none';
             document.getElementById('gameCard').classList.remove('gc-playing');
             document.getElementById('gameCard').classList.remove('theme-racer');
+            document.getElementById('gameCard').classList.remove('theme-flappy');
             clearGameEvents();
             mAiGameTelegramChrome(true);
         }
@@ -4546,12 +4601,14 @@ window.mu_syncHtmlBg = function(){
             document.getElementById('gamePlayArea').style.display = 'none';
             document.getElementById('gameCard').classList.remove('gc-playing');
             document.getElementById('gameCard').classList.remove('theme-racer');
+            document.getElementById('gameCard').classList.remove('theme-flappy');
         }
 
         function closeGame() {
             document.getElementById('gameModal').style.display = 'none';
             document.getElementById('gameCard').classList.remove('gc-playing');
             document.getElementById('gameCard').classList.remove('theme-racer');
+            document.getElementById('gameCard').classList.remove('theme-flappy');
             clearGameEvents();
             mAiGameTelegramChrome(false);
         }
@@ -4708,7 +4765,10 @@ window.mu_syncHtmlBg = function(){
             gameResizeTimer = setTimeout(() => {
                 if (window.__markhinActiveGame === 'snake') startNeonSnake();
                 else if (window.__markhinActiveGame === 'flappy') startCyberFlappy();
-                else if (window.__markhinActiveGame === 'racer') startTwinLaneRacer();
+                else if (window.__markhinActiveGame === 'racer') {
+                    if (window.__markhinRacerVariant === 'modern') startTwinLaneRacerModern();
+                    else startTwinLaneRacerClassic();
+                }
             }, 200);
         }
         window.addEventListener('resize', mAiGameScheduleRefit);
@@ -5204,52 +5264,101 @@ window.mu_syncHtmlBg = function(){
         }
 
         /* --------------------------- Cyber Flappy ---------------------------- */
+        /* Redrawn to match the reference clip: a scrolling sky, a parallax
+           city skyline, a grass/dirt ground the bird can actually land on,
+           classic green capped pipes, and a coin the bird can collect
+           (counted in the top-left badge, separate from the pipe score).
+           Uses the same immersive fullscreen chrome as No Rules Road
+           (.theme-flappy, mirroring .theme-racer) instead of the old boxed
+           dark topbar.
+
+           No lives/shields: every pipe or ground touch ends the run
+           immediately, same as classic Flappy Bird. In place of that safety
+           net, the underlying feel is tuned to be gentler and more
+           forgiving on its own — see the physics constants and the
+           slightly-shrunk hit-radius below — so runs stay fair without
+           needing a banked "free hit" to paper over harsh physics. */
 
         function startCyberFlappy() {
             window.__markhinActiveGame = 'flappy';
             const fa = currentLang === 'fa';
             enterGamePlayMode();
+            document.getElementById('gameCard').classList.add('theme-flappy');
             document.getElementById('gameTitleActive').innerText = 'CYBER FLAPPY';
             document.getElementById('gameDescActive').innerText = fa
-                ? 'برای پرش لمس کن یا کلید Space را بزن!'
-                : 'Tap or press Space to fly!';
+                ? 'برای پرش لمس کن یا کلید Space را بزن! سکه‌ها رو جمع کن و از لوله‌ها رد شو.'
+                : 'Tap or press Space to fly! Grab coins and slip through the pipes.';
 
             clearGameEvents();
             const canvas = document.getElementById('cyberCanvas');
             const { width, height, ctx } = fitGameCanvas(canvas, 'fill');
 
-            const birdX = Math.max(50, width * 0.18);
-            const birdR = Math.max(10, Math.min(20, height * 0.026));
-            const gravity = height * 0.0016;
-            const jump = -height * 0.021;
-            const pipeW = Math.max(46, width * 0.11);
-            const pixelGap = width * 0.6;
+            // The bottom strip is a solid landable "ground" (grass + dirt),
+            // like the reference — pipes and the bird's death-floor both
+            // stop there instead of the old full-height dark canvas.
+            const groundH = Math.max(46, height * 0.13);
+            const groundTopY = height - groundH;
+            const skyH = groundTopY;
 
-            // Progressive-but-always-passable difficulty: speed and gap size
-            // both move along an asymptotic curve (pipesPassed / (pipesPassed + K))
-            // instead of a hard linear ramp to a nearby cap. That means the
-            // game keeps getting harder pipe after pipe, but the increments
-            // shrink over time and the values approach a fixed ceiling/floor
-            // they never cross — so no matter how far a run goes, the next
-            // pipe is always a little harder than the last but never becomes
-            // literally unbeatable.
-            const baseGapH = Math.max(140, height * 0.3);
-            const minGapH = Math.max(baseGapH * 0.6, birdR * 7.5, pipeW);
-            const basePipeSpeed = Math.max(2.4, width * 0.0045);
-            const maxPipeSpeedGain = basePipeSpeed * 1.3;
-            const difficultyRamp = 12; // pipes to reach ~50% of the way to max difficulty
+            const birdX = Math.max(50, width * 0.18);
+            const birdR = Math.max(11, Math.min(22, height * 0.028));
+            // Softer fall and a slightly floatier flap than before (lower
+            // gravity, gentler jump impulse) so the bird hangs in the air
+            // a beat longer and small mistimes are easier to correct.
+            const gravity = height * 0.00125;
+            const jump = -height * 0.0185;
+            const pipeW = Math.max(46, width * 0.12);
+            const pipeCapH = Math.max(14, pipeW * 0.26);
+            const pipeCapOver = pipeW * 0.16;
+            const pixelGap = width * 0.68;
+
+            // Same progressive-but-always-passable difficulty curve as
+            // before (speed/gap ease along an asymptote, never a hard
+            // linear ramp), just measured against the sky column height
+            // now that the ground eats a slice of the old full height.
+            // Gaps stay wider and the ramp climbs more slowly than before
+            // (higher minGapH floor, larger difficultyRamp, smaller speed
+            // ceiling) so the game reads as easier overall, not just
+            // "easier because mistakes are forgiven."
+            const baseGapH = Math.max(150, skyH * 0.38);
+            const minGapH = Math.max(baseGapH * 0.72, birdR * 8.5, pipeW);
+            const basePipeSpeed = Math.max(2.2, width * 0.004);
+            const maxPipeSpeedGain = basePipeSpeed * 1.05;
+            const difficultyRamp = 18;
             let pipesPassed = 0;
             function currentDifficulty() { return pipesPassed / (pipesPassed + difficultyRamp); }
             function currentGapH() { return baseGapH - (baseGapH - minGapH) * currentDifficulty(); }
-
             let pipeSpeed = basePipeSpeed;
 
-            let birdY = height / 2, birdVy = 0;
+            // A forgiving hit-radius for collision checks only — the bird
+            // is still drawn at full size, but a run only ends when it's
+            // meaningfully inside a pipe/ground, not on a hair-thin graze.
+            const hitR = birdR * 0.78;
+
+            let birdY = skyH / 2, birdVy = 0;
             let pipes = [];
+            let pickups = []; // {x, y, r, type: 'coin', taken}
             let ended = false;
             let distSinceSpawn = 0;
+            let skylineOffset = 0, groundOffset = 0;
+            let coinCount = 0;
             gameScore = 0;
-            document.getElementById('gameScore').innerText = (fa ? 'امتیاز: ' : 'Score: ') + gameScore;
+            document.getElementById('gameScore').innerText = gameScore;
+            const coinCountEl = document.getElementById('flappyCoinCount');
+            if (coinCountEl) coinCountEl.textContent = '0';
+            function updateCoinLabel() { if (coinCountEl) coinCountEl.textContent = String(coinCount); }
+
+            // Fixed-per-run skyline silhouette (regenerated on restart) so
+            // the buildings don't reshuffle every frame — only their scroll
+            // offset moves. Drawn twice back to back for a seamless loop.
+            const buildings = [];
+            { let bx = 0; while (bx < width + 200) {
+                const bw = 26 + Math.random() * 46;
+                const bh = skyH * (0.16 + Math.random() * 0.3);
+                buildings.push({ x: bx, w: bw, h: bh });
+                bx += bw + 6;
+            } }
+            const skylineSpanW = buildings.length ? (buildings[buildings.length - 1].x + buildings[buildings.length - 1].w + 6) : width;
 
             function triggerJump() { if (!gamePaused && !ended) { birdVy = jump; mAiGameHaptic('light'); } }
 
@@ -5279,6 +5388,65 @@ window.mu_syncHtmlBg = function(){
                 presentGameOver(gameScore, 'flappy', fa ? '🚀 برخورد کردی!' : '🚀 Crashed!', startCyberFlappy);
             }
 
+            // A crash always ends the run — no banked shields to absorb it.
+            function handleCrash() { endFlappy(); }
+
+            function drawCoin(cx, cy, r, ts) {
+                const scaleX = Math.max(0.18, Math.abs(Math.cos(ts / 260)));
+                ctx.save();
+                ctx.translate(cx, cy);
+                ctx.scale(scaleX, 1);
+                const g = ctx.createRadialGradient(-r * 0.3, -r * 0.3, r * 0.1, 0, 0, r);
+                g.addColorStop(0, '#fff6c9');
+                g.addColorStop(0.55, '#ffd23f');
+                g.addColorStop(1, '#c97e00');
+                ctx.beginPath();
+                ctx.arc(0, 0, r, 0, Math.PI * 2);
+                ctx.fillStyle = g;
+                ctx.fill();
+                ctx.lineWidth = Math.max(1, r * 0.12);
+                ctx.strokeStyle = 'rgba(120,70,0,0.55)';
+                ctx.stroke();
+                ctx.restore();
+            }
+
+            function drawPipeSeg(x, y, h) {
+                if (h <= 0) return;
+                const g = ctx.createLinearGradient(x, 0, x + pipeW, 0);
+                g.addColorStop(0, '#6fdb5a');
+                g.addColorStop(0.16, '#3fae3c');
+                g.addColorStop(0.5, '#2f9130');
+                g.addColorStop(0.84, '#237023');
+                g.addColorStop(1, '#1c5c1e');
+                ctx.fillStyle = g;
+                ctx.fillRect(x, y, pipeW, h);
+                ctx.strokeStyle = 'rgba(15,50,15,0.85)';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(x + 1, y, pipeW - 2, h);
+            }
+
+            function drawPipeCap(x, y) {
+                const cx = x - pipeCapOver, cw = pipeW + pipeCapOver * 2;
+                const g = ctx.createLinearGradient(cx, 0, cx + cw, 0);
+                g.addColorStop(0, '#7fe86a');
+                g.addColorStop(0.16, '#48ba45');
+                g.addColorStop(0.5, '#349534');
+                g.addColorStop(0.84, '#277627');
+                g.addColorStop(1, '#1e621f');
+                ctx.fillStyle = g;
+                ctx.fillRect(cx, y, cw, pipeCapH);
+                ctx.strokeStyle = 'rgba(15,50,15,0.85)';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(cx + 1, y + 1, cw - 2, pipeCapH - 2);
+            }
+
+            function drawPipePair(x, gapTop, gapBottom) {
+                drawPipeSeg(x, 0, Math.max(0, gapTop - pipeCapH));
+                drawPipeCap(x, Math.max(0, gapTop - pipeCapH));
+                drawPipeCap(x, gapBottom);
+                drawPipeSeg(x, gapBottom + pipeCapH, Math.max(0, groundTopY - (gapBottom + pipeCapH)));
+            }
+
             let raf = null, lastTs = 0;
             function loop(ts) {
                 raf = requestAnimationFrame(loop);
@@ -5293,65 +5461,140 @@ window.mu_syncHtmlBg = function(){
 
                 birdVy += gravity * dt;
                 birdY += birdVy * dt;
+                if (birdY - birdR < 0) { birdY = birdR; birdVy = Math.max(birdVy, 0); }
 
+                // ---- sky ----
                 ctx.clearRect(0, 0, width, height);
-                const bg = ctx.createLinearGradient(0, 0, 0, height);
-                bg.addColorStop(0, '#050505');
-                bg.addColorStop(1, '#0a0a14');
-                ctx.fillStyle = bg;
-                ctx.fillRect(0, 0, width, height);
+                const sky = ctx.createLinearGradient(0, 0, 0, groundTopY);
+                sky.addColorStop(0, '#57c4e5');
+                sky.addColorStop(1, '#9fe0e8');
+                ctx.fillStyle = sky;
+                ctx.fillRect(0, 0, width, groundTopY);
 
+                // ---- parallax skyline ----
+                skylineOffset = (skylineOffset - pipeSpeed * 0.28 * dt) % skylineSpanW;
+                ctx.fillStyle = 'rgba(170, 205, 215, 0.75)';
+                for (let rep = -1; rep <= 1; rep++) {
+                    buildings.forEach(b => {
+                        const bx = b.x + skylineOffset + rep * skylineSpanW;
+                        if (bx > width || bx + b.w < 0) return;
+                        ctx.fillRect(bx, groundTopY - b.h, b.w, b.h);
+                    });
+                }
+
+                // ---- pipes ----
                 distSinceSpawn += pipeSpeed * dt;
                 if (distSinceSpawn >= pixelGap) {
                     distSinceSpawn = 0;
                     const gapH = currentGapH();
-                    const topRange = Math.max(20, height - gapH - height * 0.16);
-                    const topH = Math.floor(Math.random() * topRange) + height * 0.08;
-                    pipes.push({ x: width, top: topH, bottom: height - topH - gapH, passed: false });
+                    const topRange = Math.max(20, skyH - gapH - skyH * 0.16);
+                    const topH = Math.floor(Math.random() * topRange) + skyH * 0.08;
+                    pipes.push({ x: width, top: topH, bottom: skyH - topH - gapH, passed: false });
+                    const roll = Math.random();
+                    const gapCenterY = topH + gapH / 2;
+                    if (roll < 0.62) {
+                        pickups.push({ x: width + pipeW / 2, y: gapCenterY, r: Math.max(9, pipeW * 0.15), type: 'coin', taken: false });
+                    }
                 }
 
-                ctx.fillStyle = '#00ff66';
-                ctx.shadowBlur = 10;
-                ctx.shadowColor = '#00ff66';
                 for (const p of pipes) {
                     p.x -= pipeSpeed * dt;
-                    ctx.fillRect(p.x, 0, pipeW, p.top);
-                    ctx.fillRect(p.x, height - p.bottom, pipeW, p.bottom);
+                    const gapTop = p.top, gapBottom = groundTopY - p.bottom;
+                    drawPipePair(p.x, gapTop, gapBottom);
 
                     if (!p.passed && p.x + pipeW < birdX) {
                         p.passed = true;
                         pipesPassed++;
-                        gameScore += 5;
-                        document.getElementById('gameScore').innerText = (fa ? 'امتیاز: ' : 'Score: ') + gameScore;
+                        gameScore += 1;
+                        document.getElementById('gameScore').innerText = gameScore;
                         pipeSpeed = basePipeSpeed + maxPipeSpeedGain * currentDifficulty();
                     }
 
-                    if (birdX + birdR > p.x && birdX - birdR < p.x + pipeW) {
-                        if (birdY - birdR < p.top || birdY + birdR > height - p.bottom) {
-                            endFlappy();
+                    if (birdX + hitR > p.x && birdX - hitR < p.x + pipeW) {
+                        if (birdY - hitR < gapTop || birdY + hitR > gapBottom) {
+                            handleCrash();
                         }
                     }
                 }
-                ctx.shadowBlur = 0;
-                pipes = pipes.filter(p => p.x > -pipeW - 5);
+                pipes = pipes.filter(p => p.x > -pipeW - pipeCapOver - 5);
 
-                if (birdY - birdR > height || birdY + birdR < 0) {
-                    endFlappy();
+                // ---- pickups (coins) ----
+                pickups.forEach(pk => {
+                    pk.x -= pipeSpeed * dt;
+                    if (pk.taken) return;
+                    drawCoin(pk.x, pk.y, pk.r, ts);
+                    const dx = pk.x - birdX, dy = pk.y - birdY;
+                    if (Math.sqrt(dx * dx + dy * dy) < pk.r + hitR) {
+                        pk.taken = true;
+                        coinCount++; gameScore += 2; updateCoinLabel();
+                        document.getElementById('gameScore').innerText = gameScore;
+                        mAiGameHaptic('light');
+                    }
+                });
+                pickups = pickups.filter(pk => !pk.taken && pk.x > -60);
+
+                // ---- ground (grass + dirt), drawn over the pipes' bottom ends ----
+                groundOffset = (groundOffset - pipeSpeed * dt) % 28;
+                ctx.fillStyle = '#7ec850';
+                ctx.fillRect(0, groundTopY, width, groundH * 0.32);
+                // scalloped cream edge between sky and grass, like the reference
+                ctx.fillStyle = '#f4ecd2';
+                const scallopR = 9;
+                for (let sx = groundOffset - scallopR; sx < width + scallopR; sx += scallopR * 1.7) {
+                    ctx.beginPath();
+                    ctx.arc(sx, groundTopY, scallopR, Math.PI, 0);
+                    ctx.fill();
+                }
+                ctx.fillStyle = '#deb887';
+                ctx.fillRect(0, groundTopY + groundH * 0.32, width, groundH - groundH * 0.32);
+                ctx.strokeStyle = 'rgba(120,80,40,0.35)';
+                ctx.lineWidth = 2;
+                for (let sx = groundOffset; sx < width + 28; sx += 28) {
+                    ctx.beginPath();
+                    ctx.moveTo(sx, groundTopY + groundH * 0.55);
+                    ctx.lineTo(sx + 14, groundTopY + groundH * 0.55);
+                    ctx.stroke();
                 }
 
-                ctx.beginPath();
+                // death: bird has settled into the ground
+                if (birdY + hitR > groundTopY) {
+                    birdY = groundTopY - hitR;
+                    handleCrash();
+                }
+
+                // ---- bird ----
                 const tilt = Math.max(-0.5, Math.min(0.9, birdVy / (height * 0.02)));
+                const flap = Math.sin(ts / 70) * 0.5 + 0.5;
                 ctx.save();
                 ctx.translate(birdX, birdY);
                 ctx.rotate(tilt * 0.5);
+                // belly/body
                 ctx.beginPath();
-                ctx.arc(0, 0, birdR, 0, Math.PI * 2);
-                ctx.fillStyle = '#00f0ff';
-                ctx.shadowBlur = 14;
-                ctx.shadowColor = '#00f0ff';
+                ctx.ellipse(0, 0, birdR, birdR * 0.86, 0, 0, Math.PI * 2);
+                ctx.fillStyle = '#ffcf3f';
+                ctx.fill();
+                ctx.strokeStyle = 'rgba(150,90,0,0.5)';
+                ctx.lineWidth = 1.5;
+                ctx.stroke();
+                // wing
+                ctx.beginPath();
+                ctx.ellipse(-birdR * 0.15, birdR * 0.1, birdR * 0.55, birdR * (0.3 + flap * 0.18), -0.3, 0, Math.PI * 2);
+                ctx.fillStyle = '#f2a71b';
+                ctx.fill();
+                // beak
+                ctx.beginPath();
+                ctx.moveTo(birdR * 0.75, -birdR * 0.12);
+                ctx.lineTo(birdR * 1.35, 0);
+                ctx.lineTo(birdR * 0.75, birdR * 0.3);
+                ctx.closePath();
+                ctx.fillStyle = '#ff7a3d';
+                ctx.fill();
+                // eye
+                ctx.beginPath();
+                ctx.arc(birdR * 0.32, -birdR * 0.28, birdR * 0.16, 0, Math.PI * 2);
+                ctx.fillStyle = '#241a05';
                 ctx.fill();
                 ctx.restore();
-                ctx.shadowBlur = 0;
             }
             raf = requestAnimationFrame(loop);
             gameStopFn = () => { if (raf) cancelAnimationFrame(raf); };
@@ -5369,25 +5612,21 @@ window.mu_syncHtmlBg = function(){
            crash is a missed dodge, never an unavoidable wall — same
            fairness principle Cyber Flappy already uses for its pipe gaps.
 
-           On top of that base game, "No Rules Road" periodically breaks its
-           own physics for a few seconds at a time: speed spikes or crawls,
-           the screen renders upside down (Screen Flip), or the tap zones
-           get mirrored (Controls Swapped). Every event is telegraphed with
-           a ~1.1s warning beat before it actually hits, only one event is
-           ever live at once, and none of them touch the underlying
-           hitboxes or spawn fairness — so the chaos is something to react
-           to, not an unavoidable cheap death. See the "Chaos / No Rules
-           physics" block below for the event list and scheduler. */
+           Difficulty ramps up smoothly and predictably as the run goes on
+           (see currentDifficulty() below) — no sudden random speed spikes,
+           slow-mo zones, or screen flips. The only thing to react to is the
+           road layout itself. */
 
-        function startTwinLaneRacer() {
+        function startTwinLaneRacerClassic() {
             window.__markhinActiveGame = 'racer';
+            window.__markhinRacerVariant = 'classic';
             const fa = currentLang === 'fa';
             enterGamePlayMode();
             document.getElementById('gameCard').classList.add('theme-racer');
             document.getElementById('gameTitleActive').innerText = fa ? '🏎️ جاده بی‌قانون' : '🏎️ NO RULES ROAD';
             document.getElementById('gameDescActive').innerText = fa
-                ? 'نیمه چپ رو بزن برای ماشین چپ، نیمه راست برای ماشین راست. این جاده قانون سرش نمی‌شه: هر از گاهی سرعت یا حتی خودِ صفحه دیوونه می‌شه!'
-                : "Tap left for the left car, right for the right car. This road has no rules — speed, even the screen itself, can go haywire without warning!";
+                ? 'نیمه چپ رو بزن برای ماشین چپ، نیمه راست برای ماشین راست. هر دو ماشین رو زنده نگه دار!'
+                : "Tap left for the left car, right for the right car. Keep both cars alive!";
 
             clearGameEvents();
             const canvas = document.getElementById('cyberCanvas');
@@ -5428,9 +5667,17 @@ window.mu_syncHtmlBg = function(){
             let car1Col = 1, car2Col = 2;
             let car1X = colCenterX(car1Col), car2X = colCenterX(car2Col);
             let prevCar1X = car1X, prevCar2X = car2X;
+            // Lane-switch tween: a fixed, short duration with an ease-out
+            // curve — snappy at the start of the dash, then settling
+            // cleanly into the new lane with no lingering drift (same fix
+            // already used by the Modern variant). car1MoveFromX/
+            // car2MoveFromX capture the on-screen position the instant a
+            // switch starts; car1BankT/car2BankT (below) double as the
+            // tween clock, since they already reset to 0 on every toggle.
+            let car1MoveFromX = car1X, car2MoveFromX = car2X;
+            const LANE_MOVE_MS = 170;
+            function easeOutCubic(p) { return 1 - Math.pow(1 - p, 3); }
             let roadOffset = 0;
-            let flashAlpha = 0;          // brief white flash on a speed-up milestone
-            let bannerLife = 0, bannerMax = 900, bannerText = '', bannerColor = '#ffd23f';
             let lastMilestone = 0;
             let exhaustTimer = 0;
 
@@ -5448,100 +5695,6 @@ window.mu_syncHtmlBg = function(){
             const CAR1_COLOR = '#f13866';
             const CAR2_COLOR = '#00a9c0';
             function colColor(col) { return col < 2 ? CAR1_COLOR : CAR2_COLOR; }
-
-            // ------------------------- Chaos / "No Rules" physics -------------------------
-            // Every so often the road's rules break for a few seconds: speed
-            // spikes or crawls, or the screen renders upside down. Always
-            // telegraphed with a short warning beat first, and only one
-            // event runs at a time, so the chaos is a twist to react to —
-            // never an unfair ambush and never stacked into something
-            // unbeatable.
-            let chaosSpeedMult = 1;       // smoothed multiplier actually used for speed
-            let chaosSpeedMultTarget = 1; // where chaosSpeedMult is easing toward
-            let screenFlipped = false;    // true: canvas is rendered rotated 180°
-            let chaosScoreMult = 1;       // reward bonus while an event is live
-            let chaosState = 'idle';      // 'idle' | 'warning' | 'active'
-            let chaosPhaseTimer = 0;
-            let chaosSinceLast = 0;
-            let chaosNextIn = 9500 + Math.random() * 4000; // first event ~9.5-13.5s in
-            let chaosEvent = null;
-            let chaosBadgeText = '';
-
-            const CHAOS_EVENTS = [
-                {
-                    id: 'speedUp', warnFa: '⚠️ سرعت داره می‌ره رو هوا...', warnEn: '⚠️ Speed is spiking...',
-                    labelFa: '🔥 سرعت جنون‌آمیز!', labelEn: '🔥 INSANE SPEED!', duration: 4200, color: '#ff2f2f',
-                    // Sets a target only — chaosSpeedMult itself eases toward
-                    // it every frame (see the loop below), so the speed-up
-                    // ramps in over about a second instead of snapping.
-                    start() { chaosSpeedMultTarget = 1.55; }, end() { chaosSpeedMultTarget = 1; }
-                },
-                {
-                    id: 'slowMo', warnFa: '⚠️ زمان داره کند می‌شه...', warnEn: '⚠️ Time is slowing...',
-                    labelFa: '🐌 دنیا آروم شد!', labelEn: '🐌 SLOW-MO ZONE!', duration: 3600, color: '#3fd2ff',
-                    start() { chaosSpeedMultTarget = 0.6; }, end() { chaosSpeedMultTarget = 1; }
-                },
-                {
-                    id: 'screenFlip', warnFa: '⚠️ صفحه داره وارونه می‌شه...', warnEn: '⚠️ Screen is flipping...',
-                    labelFa: '🔄 صفحه وارونه شد!', labelEn: '🔄 SCREEN FLIPPED!', duration: 4600, color: '#ffd23f',
-                    start() { screenFlipped = true; }, end() { screenFlipped = false; }
-                }
-            ];
-
-            function roadClearForFlip() {
-                // Only safe to flip when nothing is in front of us at all —
-                // any obstacle still on screen must be right at the far
-                // end of the road (just spawned near the top), not
-                // anywhere in the stretch the player actually has to react to.
-                const farLimit = height * 0.2;
-                return obstacles.every(o => o.y < farLimit);
-            }
-
-            function updateChaos(rawDt) {
-                if (chaosState === 'idle') {
-                    chaosSinceLast += rawDt;
-                    if (chaosSinceLast >= chaosNextIn) {
-                        // Pick anything but a repeat of the event that just
-                        // ran, so the same twist can't fire back-to-back.
-                        const pool = CHAOS_EVENTS.filter(e => e !== chaosEvent);
-                        const candidate = pool[Math.floor(Math.random() * pool.length)];
-                        // Never flip the screen unless the road ahead is
-                        // clear — that would disorient the player right
-                        // when they need to react cleanly to something
-                        // close. Wait for a clearer moment; re-checked
-                        // every frame.
-                        if (candidate.id === 'screenFlip' && !roadClearForFlip()) return;
-                        chaosState = 'warning';
-                        chaosPhaseTimer = 0;
-                        chaosEvent = candidate;
-                        mAiGameHaptic('light');
-                    }
-                } else if (chaosState === 'warning') {
-                    chaosPhaseTimer += rawDt;
-                    if (chaosPhaseTimer >= 1100) {
-                        chaosState = 'active';
-                        chaosPhaseTimer = 0;
-                        chaosEvent.start();
-                        chaosScoreMult = 1.5;
-                        flashAlpha = 0.5;
-                        bannerLife = bannerMax;
-                        bannerColor = chaosEvent.color;
-                        bannerText = fa ? chaosEvent.labelFa : chaosEvent.labelEn;
-                        chaosBadgeText = bannerText;
-                        mAiGameHaptic('heavy');
-                    }
-                } else if (chaosState === 'active') {
-                    chaosPhaseTimer += rawDt;
-                    if (chaosPhaseTimer >= chaosEvent.duration) {
-                        chaosEvent.end();
-                        chaosScoreMult = 1;
-                        chaosState = 'idle';
-                        chaosSinceLast = 0;
-                        chaosNextIn = 9000 + Math.random() * 5000;
-                        chaosBadgeText = '';
-                    }
-                }
-            }
 
             // Reference shows just the bare number, top-right, no label.
             function updateScoreLabel() {
@@ -5821,12 +5974,722 @@ window.mu_syncHtmlBg = function(){
                     car1Col = newCol;
                     car1SquashT = 0;
                     car1BankT = 0;
+                    car1MoveFromX = car1X;
                 } else {
                     const newCol = car2Col === 2 ? 3 : 2;
                     car2BankDir = newCol > car2Col ? 1 : -1;
                     car2Col = newCol;
                     car2SquashT = 0;
                     car2BankT = 0;
+                    car2MoveFromX = car2X;
+                }
+                mAiGameHaptic('light');
+            }
+
+            function sideForLeft(isLeftSide) {
+                return isLeftSide ? 1 : 2;
+            }
+
+            // Bound to the wrapper (whole area under the top bar) like the
+            // other games, split down the middle: left half steers the left
+            // car, right half steers the right car. Skips taps that land on
+            // the pause/game-over overlay so those cards keep working.
+            const wrap = document.getElementById('gameCanvasWrap');
+            function handleTap(clientX) {
+                const rect = wrap.getBoundingClientRect();
+                const relX = clientX - rect.left;
+                toggleCar(sideForLeft(relX < width / 2));
+            }
+            wrap.addEventListener('mousedown', (e) => {
+                if (e.target.closest('.game-overlay-panel')) return;
+                handleTap(e.clientX);
+                e.preventDefault();
+            }, { signal: gameAborter.signal });
+            // Two-finger support: a real simultaneous tap on both halves
+            // arrives as ONE touchstart event whose touches list already
+            // holds both fingers, so reading only touches[0] silently
+            // dropped the second one. Walking e.changedTouches instead
+            // (only the finger(s) that just went down in this event) and
+            // toggling each side at most once means both cars swap
+            // together on a genuine two-finger tap, while a third finger
+            // landing later still can't double-toggle a side that was
+            // already handled.
+            wrap.addEventListener('touchstart', (e) => {
+                if (e.target.closest('.game-overlay-panel')) return;
+                const rect = wrap.getBoundingClientRect();
+                let hitLeft = false, hitRight = false;
+                for (let i = 0; i < e.changedTouches.length; i++) {
+                    const relX = e.changedTouches[i].clientX - rect.left;
+                    if (relX < width / 2) hitLeft = true; else hitRight = true;
+                }
+                if (hitLeft) toggleCar(sideForLeft(true));
+                if (hitRight) toggleCar(sideForLeft(false));
+                e.preventDefault();
+            }, { passive: false, signal: gameAborter.signal });
+
+            window.addEventListener('keydown', (e) => {
+                if (['ArrowLeft', 'ArrowRight', 'a', 'A', 'd', 'D'].includes(e.key)) e.preventDefault();
+                if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') toggleCar(sideForLeft(true));
+                if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') toggleCar(sideForLeft(false));
+            }, { signal: gameAborter.signal });
+
+            function endRacer() {
+                if (ended) return;
+                ended = true;
+                presentGameOver(gameScore, 'racer', fa ? '💥 جاده بی‌قانون بردت!' : '💥 THE ROAD GOT YOU!', startTwinLaneRacerClassic);
+            }
+            function triggerDeath(ts) {
+                if (dying || ended) return;
+                dying = true;
+                dyingStart = ts;
+                mAiGameHaptic('error');
+            }
+
+            let raf = null, lastTs = 0, scoreTimer = 0;
+            function loop(ts) {
+                raf = requestAnimationFrame(loop);
+                if (gamePaused) { lastTs = ts; return; }
+                if (!lastTs) lastTs = ts;
+                // rawDt is real elapsed ms (clamped so a backgrounded tab
+                // can't dump a huge gap in); dt is the same frame-ratio unit
+                // Cyber Flappy uses for its own speed math.
+                const rawDt = Math.min(ts - lastTs, 200);
+                const dt = rawDt / 16.67;
+                lastTs = ts;
+
+                if (dying) {
+                    if (ts - dyingStart >= DYING_MS) { dying = false; endRacer(); return; }
+                } else if (!ended) {
+                    // Speed ramps up smoothly and predictably toward its
+                    // ceiling — no random spikes or slow-mo zones.
+                    speed = baseSpeed + maxSpeedGain * currentDifficulty();
+                    roadOffset = (roadOffset + speed * dt) % dashCycle;
+
+                    scoreTimer += rawDt;
+                    if (scoreTimer >= 300) { scoreTimer -= 300; gameScore += 1; updateScoreLabel(); }
+
+                    [0, 1].forEach(laneIdx => {
+                        distSinceSpawn[laneIdx] += speed * dt;
+                        if (distSinceSpawn[laneIdx] >= nextGap[laneIdx]) {
+                            distSinceSpawn[laneIdx] = 0;
+                            nextGap[laneIdx] = jitteredGap();
+                            spawnForLane(laneIdx);
+                        }
+                    });
+
+                    obstacles.forEach(o => {
+                        o.y += speed * dt;
+                        if (!o.passed && o.y > carRowY) {
+                            o.passed = true;
+                            obstaclesPassed++;
+                            gameScore += 5;
+                            updateScoreLabel();
+                            // Every 10 clean dodges, a haptic buzz marks the
+                            // speed-up milestone quietly, nothing on screen.
+                            if (obstaclesPassed % 10 === 0 && obstaclesPassed !== lastMilestone) {
+                                lastMilestone = obstaclesPassed;
+                                mAiGameHaptic('medium');
+                            }
+                        }
+                        const carCol = o.col < 2 ? car1Col : car2Col;
+                        if (o.col === carCol && Math.abs(o.y - carRowY) < (obsH + carH) / 2 - 4) {
+                            triggerDeath(ts);
+                        }
+                    });
+                    obstacles = obstacles.filter(o => o.y < height + obsH);
+
+                    bonuses.forEach(b => {
+                        if (b.taken) return;
+                        b.y += speed * dt;
+                        const carCol = b.col < 2 ? car1Col : car2Col;
+                        if (b.col === carCol && Math.abs(b.y - carRowY) < (obsH + carH) / 2 - 4) {
+                            b.taken = true;
+                            const gain = 25;
+                            gameScore += gain;
+                            updateScoreLabel();
+                            mAiGameHaptic('medium');
+                            spawnParticles(colCenterX(b.col), b.y, '#ffd23f', 14);
+                            spawnPopup(colCenterX(b.col), b.y, '+' + gain, '#ffd23f');
+                        }
+                    });
+                    bonuses = bonuses.filter(b => !b.taken && b.y < height + obsH);
+                }
+
+                if (ended) return;
+
+                // Move the drawn car positions toward their (already-switched)
+                // logical column on a fixed-duration ease-out tween — the
+                // whole dash completes in LANE_MOVE_MS with a quick start and
+                // a clean, precise stop in the new lane (no lingering drift),
+                // with the squash pop below adding the punch.
+                const targetX1 = colCenterX(car1Col), targetX2 = colCenterX(car2Col);
+                const moveP1 = easeOutCubic(Math.min(1, car1BankT / LANE_MOVE_MS));
+                const moveP2 = easeOutCubic(Math.min(1, car2BankT / LANE_MOVE_MS));
+                car1X = car1MoveFromX + (targetX1 - car1MoveFromX) * moveP1;
+                car2X = car2MoveFromX + (targetX2 - car2MoveFromX) * moveP2;
+                car1SquashT += rawDt;
+                car2SquashT += rawDt;
+                car1BankT += rawDt;
+                car2BankT += rawDt;
+
+                // No exhaust trail — the reference clip's cars leave no
+                // particle smear behind them, just the plain capsule body.
+
+                particles.forEach(p => { p.life += rawDt; p.x += p.vx * (rawDt / 1000); p.y += p.vy * (rawDt / 1000); });
+                particles = particles.filter(p => p.life < p.maxLife);
+                popups.forEach(p => { p.life += rawDt; p.y -= (rawDt / 1000) * 24; });
+                popups = popups.filter(p => p.life < p.maxLife);
+                // -------- draw --------
+                ctx.clearRect(0, 0, width, height);
+                // Flat solid navy road — one continuous surface across all
+                // four lanes, matching the reference (no per-half tint, no
+                // texture/grid, no rumble strips).
+                ctx.fillStyle = ROAD_BG;
+                ctx.fillRect(0, 0, width, height);
+
+                // Thin static divider lines at each of the 3 internal lane
+                // boundaries — plain and non-scrolling, exactly like the
+                // reference's four-lane road.
+                ctx.strokeStyle = LANE_LINE;
+                ctx.lineWidth = Math.max(1, width * 0.0035);
+                [1, 2, 3].forEach(i => {
+                    const x = colW * i;
+                    ctx.beginPath();
+                    ctx.moveTo(x, 0);
+                    ctx.lineTo(x, height);
+                    ctx.stroke();
+                });
+
+                // Obstacles and bonuses are both colored to match whichever
+                // pair of lanes they're in — same badge motif, square for
+                // "avoid", circle for "collect".
+                obstacles.forEach(o => drawObstacleBlock(colCenterX(o.col), o.y, obsW, colColor(o.col)));
+
+                bonuses.forEach(b => {
+                    if (b.taken) return;
+                    const bp = 1 + Math.sin(ts / 90) * 0.12;
+                    drawBonusRing(colCenterX(b.col), b.y, obsW * bp, colColor(b.col));
+                });
+
+                // A brief decaying shake on crash, same "impact beat" trick
+                // Neon Snake uses, so a collision reads as a real hit.
+                ctx.save();
+                let shakeX = 0, shakeY = 0;
+                if (dying) {
+                    const remain = 1 - Math.min(1, (ts - dyingStart) / DYING_MS);
+                    const mag = 5 * remain;
+                    shakeX = (Math.random() * 2 - 1) * mag;
+                    shakeY = (Math.random() * 2 - 1) * mag;
+                }
+                ctx.translate(shakeX, shakeY);
+                const tilt1 = bankTilt(car1BankT, car1BankDir);
+                const tilt2 = bankTilt(car2BankT, car2BankDir);
+                const squash1 = squashScale(car1SquashT), squash2 = squashScale(car2SquashT);
+                drawPlayerCar(car1X, carRowY, carW, carH, CAR1_COLOR, { tilt: tilt1, squashX: squash1.sx, squashY: squash1.sy });
+                drawPlayerCar(car2X, carRowY, carW, carH, CAR2_COLOR, { tilt: tilt2, squashX: squash2.sx, squashY: squash2.sy });
+                ctx.restore();
+                prevCar1X = car1X; prevCar2X = car2X;
+
+                ctx.globalAlpha = 1;
+                particles.forEach(p => {
+                    const a = Math.max(0, 1 - p.life / p.maxLife);
+                    ctx.globalAlpha = a;
+                    ctx.fillStyle = p.color;
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                    ctx.fill();
+                });
+                ctx.globalAlpha = 1;
+                ctx.font = `bold ${Math.max(12, width * 0.035)}px sans-serif`;
+                ctx.textAlign = 'center';
+                popups.forEach(p => {
+                    const a = Math.max(0, 1 - p.life / p.maxLife);
+                    ctx.globalAlpha = a;
+                    ctx.fillStyle = p.color;
+                    ctx.fillText(p.text, p.x, p.y);
+                });
+                ctx.globalAlpha = 1;
+
+                // Cinematic vignette — darkens the corners so the glowing
+                // lanes/cars in the middle pop more, cheap per-frame cost
+                // since it's one static-shaped radial gradient fill.
+                const vig = ctx.createRadialGradient(width / 2, height * 0.55, height * 0.3, width / 2, height * 0.55, height * 0.75);
+                vig.addColorStop(0, 'rgba(0,0,0,0)');
+                vig.addColorStop(1, 'rgba(0,0,0,0.38)');
+                ctx.fillStyle = vig;
+                ctx.fillRect(0, 0, width, height);
+            }
+            raf = requestAnimationFrame(loop);
+            gameStopFn = () => { if (raf) cancelAnimationFrame(raf); };
+        }
+
+
+        function startTwinLaneRacerModern() {
+            window.__markhinActiveGame = 'racer';
+            window.__markhinRacerVariant = 'modern';
+            const fa = currentLang === 'fa';
+            enterGamePlayMode();
+            document.getElementById('gameCard').classList.add('theme-racer');
+            document.getElementById('gameTitleActive').innerText = fa ? '🏎️ جاده بی‌قانون' : '🏎️ NO RULES ROAD';
+            document.getElementById('gameDescActive').innerText = fa
+                ? 'نیمه چپ رو بزن برای ماشین چپ، نیمه راست برای ماشین راست. این جاده قانون سرش نمی‌شه: هر از گاهی سرعت یا حتی خودِ صفحه دیوونه می‌شه!'
+                : "Tap left for the left car, right for the right car. This road has no rules — speed, even the screen itself, can go haywire without warning!";
+
+            clearGameEvents();
+            const canvas = document.getElementById('cyberCanvas');
+            const { width, height, ctx } = fitGameCanvas(canvas, 'fill');
+
+            // ---- layout: two lanes side by side, each made of two roads ----
+            // No gap between the two lanes anymore — they sit directly
+            // against each other as one continuous road, per request.
+            const laneGap = 0;
+            const halfW = (width - laneGap) / 2;
+            const laneX = [0, halfW + laneGap]; // left edge of lane 0 (left car) / lane 1 (right car)
+            const colW = halfW / 2;             // width of a single road inside a lane
+
+            // Absolute column indices: 0-1 = the left lane's two roads,
+            // 2-3 = the right lane's two roads.
+            function colCenterX(col) {
+                const lane = col < 2 ? 0 : 1;
+                const sub = col % 2;
+                return laneX[lane] + sub * colW + colW / 2;
+            }
+
+            // baseUnit is the shared size reference; the player's own car
+            // is drawn a bit larger than it for easier visibility, while
+            // obstacle sizing below stays tied to baseUnit so it doesn't
+            // grow along with it.
+            const baseUnit = Math.min(colW * 0.2, height * 0.028);
+            const carW = baseUnit * 1.25;
+            const carH = carW * 1.65;
+            const carRowY = height * 0.8;
+            // Obstacles are no longer little cars — flat square hazard
+            // blocks, and a bit bigger than the old car-shaped obstacles
+            // so they read as clearly "different from traffic".
+            const obsW = baseUnit * 1.5, obsH = obsW;
+            const dashLen = height * 0.05, dashGap = height * 0.04, dashCycle = dashLen + dashGap;
+
+            // Logical column state switches instantly on tap (same "arcade
+            // fair" instant-response feel as Flappy's jump); only the drawn
+            // position eases toward it, so a switch never gets silently
+            // dropped mid-animation.
+            let car1Col = 0, car2Col = 2;
+            let car1X = colCenterX(car1Col), car2X = colCenterX(car2Col);
+            let prevCar1X = car1X, prevCar2X = car2X;
+            // Lane-switch tween: instead of easing toward the target lane
+            // with a per-frame decay (which lingers on with a soft, floaty
+            // tail), each switch now plays out over a fixed, short
+            // duration with an ease-out curve — snappy at the start of the
+            // dash, then settling cleanly into the new lane with no drift.
+            // car1MoveFromX/car2MoveFromX capture the on-screen position at
+            // the instant a switch starts, and the shared *BankT timer
+            // below (already reset to 0 on every toggle) also drives this.
+            let car1MoveFromX = car1X, car2MoveFromX = car2X;
+            const LANE_MOVE_MS = 170;
+            function easeOutCubic(p) { return 1 - Math.pow(1 - p, 3); }
+            let roadOffset = 0;
+            let flashAlpha = 0;          // brief white flash on a speed-up milestone
+            let bannerLife = 0, bannerMax = 900, bannerText = '', bannerColor = '#ffd23f';
+            let lastMilestone = 0;
+            let exhaustTimer = 0;
+
+            let obstacles = []; // {col, y, passed}
+            let bonuses = [];   // {col, y, taken}
+            let particles = [];
+            let popups = [];
+            gameScore = 0;
+
+            // ------------------------- Chaos / "No Rules" physics -------------------------
+            // Every so often the road's rules break for a few seconds: speed
+            // spikes or crawls, or the screen renders upside down. Always
+            // telegraphed with a short warning beat first, and only one
+            // event runs at a time, so the chaos is a twist to react to —
+            // never an unfair ambush and never stacked into something
+            // unbeatable.
+            let chaosSpeedMult = 1;       // smoothed multiplier actually used for speed
+            let chaosSpeedMultTarget = 1; // where chaosSpeedMult is easing toward
+            let screenFlipped = false;    // true: canvas is rendered rotated 180°
+            let chaosScoreMult = 1;       // reward bonus while an event is live
+            let chaosState = 'idle';      // 'idle' | 'warning' | 'active'
+            let chaosPhaseTimer = 0;
+            let chaosSinceLast = 0;
+            let chaosNextIn = 9500 + Math.random() * 4000; // first event ~9.5-13.5s in
+            let chaosEvent = null;
+            let chaosBadgeText = '';
+
+            const CHAOS_EVENTS = [
+                {
+                    id: 'speedUp', warnFa: '⚠️ سرعت داره می‌ره رو هوا...', warnEn: '⚠️ Speed is spiking...',
+                    labelFa: '🔥 سرعت جنون‌آمیز!', labelEn: '🔥 INSANE SPEED!', duration: 4200, color: '#ff2f2f',
+                    // Sets a target only — chaosSpeedMult itself eases toward
+                    // it every frame (see the loop below), so the speed-up
+                    // ramps in over about a second instead of snapping.
+                    start() { chaosSpeedMultTarget = 1.2; }, end() { chaosSpeedMultTarget = 1; }
+                },
+                {
+                    id: 'slowMo', warnFa: '⚠️ زمان داره کند می‌شه...', warnEn: '⚠️ Time is slowing...',
+                    labelFa: '🐌 دنیا آروم شد!', labelEn: '🐌 SLOW-MO ZONE!', duration: 3600, color: '#3fd2ff',
+                    start() { chaosSpeedMultTarget = 0.6; }, end() { chaosSpeedMultTarget = 1; }
+                },
+                {
+                    id: 'screenFlip', warnFa: '⚠️ صفحه داره وارونه می‌شه...', warnEn: '⚠️ Screen is flipping...',
+                    labelFa: '🔄 صفحه وارونه شد!', labelEn: '🔄 SCREEN FLIPPED!', duration: 4600, color: '#ffd23f',
+                    start() { screenFlipped = true; }, end() { screenFlipped = false; }
+                }
+            ];
+
+            function roadClearForFlip() {
+                // Only safe to flip when nothing is in front of us at all —
+                // any obstacle still on screen must be right at the far
+                // end of the road (just spawned near the top), not
+                // anywhere in the stretch the player actually has to react to.
+                const farLimit = height * 0.2;
+                return obstacles.every(o => o.y < farLimit);
+            }
+
+            function updateChaos(rawDt) {
+                if (chaosState === 'idle') {
+                    chaosSinceLast += rawDt;
+                    if (chaosSinceLast >= chaosNextIn) {
+                        // Pick anything but a repeat of the event that just
+                        // ran, so the same twist can't fire back-to-back.
+                        const pool = CHAOS_EVENTS.filter(e => e !== chaosEvent);
+                        const candidate = pool[Math.floor(Math.random() * pool.length)];
+                        // Never flip the screen unless the road ahead is
+                        // clear — that would disorient the player right
+                        // when they need to react cleanly to something
+                        // close. Wait for a clearer moment; re-checked
+                        // every frame.
+                        if (candidate.id === 'screenFlip' && !roadClearForFlip()) return;
+                        chaosState = 'warning';
+                        chaosPhaseTimer = 0;
+                        chaosEvent = candidate;
+                        mAiGameHaptic('light');
+                    }
+                } else if (chaosState === 'warning') {
+                    chaosPhaseTimer += rawDt;
+                    if (chaosPhaseTimer >= 1100) {
+                        chaosState = 'active';
+                        chaosPhaseTimer = 0;
+                        chaosEvent.start();
+                        chaosScoreMult = 1.5;
+                        flashAlpha = 0.5;
+                        bannerLife = bannerMax;
+                        bannerColor = chaosEvent.color;
+                        bannerText = fa ? chaosEvent.labelFa : chaosEvent.labelEn;
+                        chaosBadgeText = bannerText;
+                        mAiGameHaptic('heavy');
+                    }
+                } else if (chaosState === 'active') {
+                    chaosPhaseTimer += rawDt;
+                    if (chaosPhaseTimer >= chaosEvent.duration) {
+                        chaosEvent.end();
+                        chaosScoreMult = 1;
+                        chaosState = 'idle';
+                        chaosSinceLast = 0;
+                        chaosNextIn = 9000 + Math.random() * 5000;
+                        chaosBadgeText = '';
+                    }
+                }
+            }
+
+            function updateScoreLabel() {
+                document.getElementById('gameScore').innerText = (fa ? 'امتیاز: ' : 'Score: ') + gameScore;
+            }
+            updateScoreLabel();
+
+            // Same asymptotic difficulty curve as Cyber Flappy: speed keeps
+            // creeping up but always approaches a fixed ceiling instead of
+            // running away to something unbeatable.
+            const baseSpeed = Math.max(2.6, height * 0.0055);
+            const maxSpeedGain = baseSpeed * 1.6;
+            const difficultyRamp = 14;
+            let obstaclesPassed = 0;
+            function currentDifficulty() { return obstaclesPassed / (obstaclesPassed + difficultyRamp); }
+            let speed = baseSpeed;
+
+            const basePixelGap = Math.max(150, height * 0.62);
+            let distSinceSpawn = [0, 0];
+            // Slightly offset starting gaps so the two lanes don't spawn in
+            // lockstep the moment the run begins.
+            let nextGap = [basePixelGap, basePixelGap * 1.35];
+            function jitteredGap() { return basePixelGap * (0.82 + Math.random() * 0.5); }
+
+            function spawnForLane(laneIdx) {
+                const sub = Math.random() < 0.5 ? 0 : 1;
+                const col = laneIdx * 2 + sub;
+                obstacles.push({ col, y: -obsH, passed: false });
+                // The other road in this lane is guaranteed clear right now,
+                // so it's a safe spot for an occasional bonus — rewards
+                // deliberately picking the open road, not just luck.
+                if (Math.random() < 0.4) {
+                    bonuses.push({ col: laneIdx * 2 + (1 - sub), y: -obsH, taken: false });
+                }
+            }
+
+            function spawnParticles(px, py, color, count) {
+                for (let i = 0; i < count; i++) {
+                    const ang = Math.random() * Math.PI * 2;
+                    const spd = 40 + Math.random() * 100;
+                    particles.push({ x: px, y: py, vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd, life: 0, maxLife: 320 + Math.random() * 180, color, size: 2 + Math.random() * 2 });
+                }
+            }
+            function spawnPopup(px, py, text, color) {
+                popups.push({ x: px, y: py, text, color, life: 0, maxLife: 650 });
+            }
+            function spawnExhaust(px, py, color) {
+                particles.push({
+                    x: px + (Math.random() * 10 - 5), y: py,
+                    vx: (Math.random() * 20 - 10), vy: 55 + Math.random() * 35,
+                    life: 0, maxLife: 260 + Math.random() * 100,
+                    color, size: 2 + Math.random() * 2.2
+                });
+            }
+
+            // Obstacle = a flat square hazard block, not a car: solid
+            // color, dark outline, diagonal hazard-tape stripes clipped to
+            // the square. Reads instantly as "thing to avoid" and is never
+            // confused with the player's own car silhouette.
+            function drawObstacleBlock(cx, cy, s, color) {
+                ctx.save();
+                ctx.translate(cx, cy);
+                ctx.beginPath();
+                ctx.roundRect(-s / 2, -s / 2, s, s, s * 0.14);
+                ctx.fillStyle = color;
+                ctx.fill();
+                ctx.lineWidth = Math.max(1, s * 0.07);
+                ctx.strokeStyle = 'rgba(5,5,8,0.9)';
+                ctx.stroke();
+
+                ctx.save();
+                ctx.beginPath();
+                ctx.roundRect(-s / 2, -s / 2, s, s, s * 0.14);
+                ctx.clip();
+                ctx.strokeStyle = 'rgba(255,255,255,0.32)';
+                ctx.lineWidth = s * 0.16;
+                for (let x = -s; x < s; x += s * 0.36) {
+                    ctx.beginPath();
+                    ctx.moveTo(x, -s);
+                    ctx.lineTo(x + s * 2, s);
+                    ctx.stroke();
+                }
+                ctx.restore();
+                ctx.restore();
+            }
+
+            // Body outline per shape — 'rect' is the player's own silhouette
+            // (kept exclusive to the player so it's always instantly
+            // recognizable); 'block'/'wedge'/'wide' are the traffic pool,
+            // deliberately different from 'rect' and from each other so
+            // oncoming cars read as a mixed crowd, not one repeated shape.
+            function carBodyPath(w, h, shape) {
+                ctx.beginPath();
+                if (shape === 'wedge') {
+                    // Long pointed nose, narrow tapered tail — a sports coupe.
+                    ctx.moveTo(0, -h / 2);
+                    ctx.lineTo(w * 0.36, -h * 0.05);
+                    ctx.lineTo(w * 0.26, h / 2);
+                    ctx.lineTo(-w * 0.26, h / 2);
+                    ctx.lineTo(-w * 0.36, -h * 0.05);
+                } else if (shape === 'block') {
+                    // Flat nose and tail, boxy sides — a van/truck.
+                    ctx.moveTo(-w * 0.4, -h / 2);
+                    ctx.lineTo(w * 0.4, -h / 2);
+                    ctx.lineTo(w * 0.44, h / 2);
+                    ctx.lineTo(-w * 0.44, h / 2);
+                } else if (shape === 'wide') {
+                    // Short and stubby — a compact/SUV silhouette.
+                    ctx.moveTo(0, -h * 0.46);
+                    ctx.lineTo(w * 0.48, -h * 0.16);
+                    ctx.lineTo(w * 0.48, h * 0.2);
+                    ctx.lineTo(w * 0.3, h * 0.46);
+                    ctx.lineTo(-w * 0.3, h * 0.46);
+                    ctx.lineTo(-w * 0.48, h * 0.2);
+                    ctx.lineTo(-w * 0.48, -h * 0.16);
+                } else {
+                    // 'rect' (player only) — a clean straight-edged
+                    // rectangle, flat nose and tail, square corners.
+                    ctx.moveTo(-w * 0.4, -h / 2);
+                    ctx.lineTo(w * 0.4, -h / 2);
+                    ctx.lineTo(w * 0.4, h / 2);
+                    ctx.lineTo(-w * 0.4, h / 2);
+                }
+                ctx.closePath();
+            }
+
+            // Player car — a hollow neon-outlined pill: dark fill, glowing
+            // colored border, nothing else. Matches the reference look the
+            // person shared: an outline shape, not a filled silhouette.
+            function drawPlayerCar(cx, cy, w, h, color, opts) {
+                opts = opts || {};
+                const tilt = opts.tilt || 0;
+                const sx = opts.squashX || 1, sy = opts.squashY || 1;
+                ctx.save();
+                ctx.translate(cx, cy);
+                ctx.rotate(tilt);
+                ctx.scale(sx, sy);
+
+                // Thin, crisp headlight wedge.
+                if (opts.beamColor) {
+                    ctx.save();
+                    ctx.globalCompositeOperation = 'lighter';
+                    ctx.fillStyle = opts.beamColor;
+                    ctx.beginPath();
+                    ctx.moveTo(-w * 0.2, -h * 0.5);
+                    ctx.lineTo(-w * 0.65, -h * 2.1);
+                    ctx.lineTo(w * 0.65, -h * 2.1);
+                    ctx.lineTo(w * 0.2, -h * 0.5);
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.restore();
+                }
+
+                // Sharper wedge/dart silhouette — a pointed nose, flared
+                // mid-body "shoulders", and a tapered rounded tail —
+                // a fresh, more aggressive race-car look. Still a hollow
+                // neon outline. Same w×h bounding box as before, so the
+                // car's size is unchanged.
+                ctx.beginPath();
+                ctx.moveTo(0, -h / 2);
+                ctx.lineTo(w * 0.34, -h * 0.2);
+                ctx.lineTo(w * 0.46, h * 0.08);
+                ctx.lineTo(w * 0.4, h * 0.4);
+                ctx.quadraticCurveTo(w * 0.4, h / 2, w * 0.24, h / 2);
+                ctx.lineTo(-w * 0.24, h / 2);
+                ctx.quadraticCurveTo(-w * 0.4, h / 2, -w * 0.4, h * 0.4);
+                ctx.lineTo(-w * 0.46, h * 0.08);
+                ctx.lineTo(-w * 0.34, -h * 0.2);
+                ctx.closePath();
+                ctx.fillStyle = '#0a0e1f';
+                ctx.fill();
+                ctx.lineWidth = Math.max(2, w * 0.16);
+                ctx.shadowBlur = 14;
+                ctx.shadowColor = color;
+                ctx.strokeStyle = color;
+                ctx.stroke();
+                ctx.shadowBlur = 0;
+
+                // Cockpit accent near the nose.
+                ctx.beginPath();
+                ctx.moveTo(-w * 0.18, -h * 0.14);
+                ctx.lineTo(w * 0.18, -h * 0.14);
+                ctx.lineWidth = Math.max(1, w * 0.07);
+                ctx.strokeStyle = color;
+                ctx.globalAlpha = 0.5;
+                ctx.stroke();
+                ctx.globalAlpha = 1;
+
+                // Rear spoiler — a short glowing bar near the tail.
+                ctx.beginPath();
+                ctx.moveTo(-w * 0.3, h * 0.36);
+                ctx.lineTo(w * 0.3, h * 0.36);
+                ctx.lineWidth = Math.max(1, w * 0.09);
+                ctx.strokeStyle = color;
+                ctx.globalAlpha = 0.4;
+                ctx.stroke();
+                ctx.globalAlpha = 1;
+
+                ctx.restore();
+            }
+
+            // opts: { tilt, shape, squashX, squashY } — tilt leans the car
+            // into a lane change; shape picks the silhouette (see
+            // carBodyPath); squashX/squashY give the car a brief
+            // stretch/squeeze right as it swaps lanes. Traffic only — the
+            // player's own cars are drawn by drawPlayerCar above.
+            function drawCar(cx, cy, w, h, color, opts) {
+                opts = opts || {};
+                const tilt = opts.tilt || 0;
+                const shape = opts.shape || 'block';
+                const sx = opts.squashX || 1, sy = opts.squashY || 1;
+                ctx.save();
+                ctx.translate(cx, cy);
+                ctx.rotate(tilt);
+                ctx.scale(sx, sy);
+
+                // Wheels — flat dark slabs, just enough to read as "vehicle".
+                ctx.fillStyle = '#0a0a0d';
+                const wheelW = w * 0.14, wheelH = h * 0.22;
+                ctx.fillRect(-w / 2 - wheelW * 0.3, -h * 0.22, wheelW, wheelH);
+                ctx.fillRect(w / 2 - wheelW * 0.7, -h * 0.22, wheelW, wheelH);
+                ctx.fillRect(-w / 2 - wheelW * 0.3, h * 0.1, wheelW, wheelH);
+                ctx.fillRect(w / 2 - wheelW * 0.7, h * 0.1, wheelW, wheelH);
+
+                // Body — a single flat fill on the shape's outline, plus a
+                // dark stroke.
+                carBodyPath(w, h, shape);
+                ctx.fillStyle = color;
+                ctx.fill();
+                ctx.lineWidth = Math.max(1, w * 0.05);
+                ctx.strokeStyle = 'rgba(5,5,8,0.85)';
+                ctx.stroke();
+
+                // Canopy — one flat dark panel, sized to sit inside any shape.
+                ctx.fillStyle = 'rgba(5,6,10,0.75)';
+                ctx.beginPath();
+                ctx.moveTo(0, -h * 0.22);
+                ctx.lineTo(w * 0.2, h * 0.02);
+                ctx.lineTo(w * 0.18, h * 0.24);
+                ctx.lineTo(-w * 0.18, h * 0.24);
+                ctx.lineTo(-w * 0.2, h * 0.02);
+                ctx.closePath();
+                ctx.fill();
+
+                // One accent stripe down the spine.
+                ctx.fillStyle = 'rgba(255,255,255,0.85)';
+                ctx.fillRect(-w * 0.05, -h * 0.4, w * 0.1, h * 0.14);
+                ctx.fillRect(-w * 0.05, h * 0.28, w * 0.1, h * 0.12);
+
+                // Taillights — two flat squares, no glow.
+                ctx.fillStyle = 'rgba(255,70,70,0.9)';
+                ctx.fillRect(-w * 0.26, h * 0.4, w * 0.13, h * 0.06);
+                ctx.fillRect(w * 0.13, h * 0.4, w * 0.13, h * 0.06);
+
+                ctx.restore();
+            }
+
+            let ended = false, dying = false, dyingStart = 0;
+            const DYING_MS = 240;
+
+            // Lane-change feedback: the car itself banks hard toward the
+            // new lane and eases back — no separate trail/streak drawn on
+            // the road — plus a brief squash/stretch pop (see squashScale
+            // below). The switch reads as a quick, punchy dash-and-lean.
+            let car1SquashT = 9999, car2SquashT = 9999;
+            let car1BankT = 9999, car2BankT = 9999;
+            let car1BankDir = 1, car2BankDir = 1;
+            const SQUASH_MS = 220;
+            const BANK_MS = 260;
+            function squashScale(t) {
+                if (t >= SQUASH_MS) return { sx: 1, sy: 1 };
+                const p = t / SQUASH_MS;
+                const s = Math.sin(p * Math.PI);
+                return { sx: 1 + s * 0.24, sy: 1 - s * 0.16 };
+            }
+            // A quick, pronounced lean into the direction of travel that
+            // eases back to upright — the nose visibly turns toward the
+            // new lane instead of the car just sliding over flat.
+            function bankTilt(t, dir) {
+                if (t >= BANK_MS) return 0;
+                const p = t / BANK_MS;
+                return dir * Math.sin(p * Math.PI) * 0.5;
+            }
+            function toggleCar(which) {
+                if (gamePaused || ended || dying) return;
+                if (which === 1) {
+                    const newCol = car1Col === 0 ? 1 : 0;
+                    car1BankDir = newCol > car1Col ? 1 : -1;
+                    car1Col = newCol;
+                    car1SquashT = 0;
+                    car1BankT = 0;
+                    car1MoveFromX = car1X;
+                } else {
+                    const newCol = car2Col === 2 ? 3 : 2;
+                    car2BankDir = newCol > car2Col ? 1 : -1;
+                    car2Col = newCol;
+                    car2SquashT = 0;
+                    car2BankT = 0;
+                    car2MoveFromX = car2X;
                 }
                 mAiGameHaptic('light');
             }
@@ -5885,7 +6748,7 @@ window.mu_syncHtmlBg = function(){
             function endRacer() {
                 if (ended) return;
                 ended = true;
-                presentGameOver(gameScore, 'racer', fa ? '💥 جاده بی‌قانون بردت!' : '💥 THE ROAD GOT YOU!', startTwinLaneRacer);
+                presentGameOver(gameScore, 'racer', fa ? '💥 جاده بی‌قانون بردت!' : '💥 THE ROAD GOT YOU!', startTwinLaneRacerModern);
             }
             function triggerDeath(ts) {
                 if (dying || ended) return;
@@ -5936,15 +6799,10 @@ window.mu_syncHtmlBg = function(){
                             obstaclesPassed++;
                             gameScore += Math.round(5 * chaosScoreMult);
                             updateScoreLabel();
-                            // Every 10 clean dodges, celebrate the speed-up
-                            // with a banner + flash instead of letting the
-                            // difficulty creep up silently.
+                            // Every 10 clean dodges, a haptic buzz marks the
+                            // speed-up milestone quietly, nothing on screen.
                             if (obstaclesPassed % 10 === 0 && obstaclesPassed !== lastMilestone) {
                                 lastMilestone = obstaclesPassed;
-                                flashAlpha = 0.5;
-                                bannerLife = bannerMax;
-                                bannerColor = '#ffd23f';
-                                bannerText = fa ? '🔥 سرعت بیشتر شد!' : '🔥 SPEED UP!';
                                 mAiGameHaptic('medium');
                             }
                         }
@@ -5974,19 +6832,31 @@ window.mu_syncHtmlBg = function(){
 
                 if (ended) return;
 
-                // Ease the drawn car positions toward their (already-switched)
-                // logical column — faster than before, so the slide itself
-                // feels snappier, with the squash pop below adding the punch.
+                // Move the drawn car positions toward their (already-switched)
+                // logical column on a fixed-duration ease-out tween, instead
+                // of the old per-frame decay — the whole dash completes in
+                // LANE_MOVE_MS with a quick start and a clean, precise stop
+                // in the new lane (no lingering asymptotic drift), with the
+                // squash pop below adding the punch.
                 const targetX1 = colCenterX(car1Col), targetX2 = colCenterX(car2Col);
-                car1X += (targetX1 - car1X) * Math.min(1, dt * 0.55);
-                car2X += (targetX2 - car2X) * Math.min(1, dt * 0.55);
+                const moveP1 = easeOutCubic(Math.min(1, car1BankT / LANE_MOVE_MS));
+                const moveP2 = easeOutCubic(Math.min(1, car2BankT / LANE_MOVE_MS));
+                car1X = car1MoveFromX + (targetX1 - car1MoveFromX) * moveP1;
+                car2X = car2MoveFromX + (targetX2 - car2MoveFromX) * moveP2;
                 car1SquashT += rawDt;
                 car2SquashT += rawDt;
                 car1BankT += rawDt;
                 car2BankT += rawDt;
 
-                // No exhaust trail — the reference clip's cars leave no
-                // particle smear behind them, just the plain capsule body.
+                // A light, continuous exhaust trail behind each player car —
+                // throttled to a fixed cadence (not once a frame) so it
+                // reads as a stream of puffs rather than a solid smear.
+                exhaustTimer += rawDt;
+                if (!ended && !dying && exhaustTimer >= 45) {
+                    exhaustTimer = 0;
+                    spawnExhaust(car1X, carRowY + carH * 0.46, '#00d4ff');
+                    spawnExhaust(car2X, carRowY + carH * 0.46, '#ff2b4a');
+                }
 
                 particles.forEach(p => { p.life += rawDt; p.x += p.vx * (rawDt / 1000); p.y += p.vy * (rawDt / 1000); });
                 particles = particles.filter(p => p.life < p.maxLife);
@@ -6007,34 +6877,102 @@ window.mu_syncHtmlBg = function(){
                     ctx.rotate(Math.PI);
                     ctx.translate(-width / 2, -height / 2);
                 }
-                // Flat solid navy road — one continuous surface across all
-                // four lanes, matching the reference (no per-half tint, no
-                // texture/grid, no rumble strips).
-                ctx.fillStyle = ROAD_BG;
+                // Flat, near-black backdrop — no multi-stop glow gradient.
+                ctx.fillStyle = '#08080b';
                 ctx.fillRect(0, 0, width, height);
 
-                // Thin static divider lines at each of the 3 internal lane
-                // boundaries — plain and non-scrolling, exactly like the
-                // reference's four-lane road.
-                ctx.strokeStyle = LANE_LINE;
-                ctx.lineWidth = Math.max(1, width * 0.0035);
-                [1, 2, 3].forEach(i => {
-                    const x = colW * i;
+                // Asphalt — a moody colored wash per lane (deep teal on the
+                // left, deep magenta/plum on the right) instead of a flat
+                // neutral tone, matching the reference environment. Purely a
+                // fill color change — halfW/laneGap/colW (and everything
+                // derived from them for car/obstacle sizing) are untouched.
+                const asphaltL = ctx.createLinearGradient(0, 0, 0, height);
+                asphaltL.addColorStop(0, '#0a1e23');
+                asphaltL.addColorStop(1, '#0e2c33');
+                ctx.fillStyle = asphaltL;
+                ctx.fillRect(laneX[0], 0, halfW, height);
+                const asphaltR = ctx.createLinearGradient(0, 0, 0, height);
+                asphaltR.addColorStop(0, '#1f0f1f');
+                asphaltR.addColorStop(1, '#2c132b');
+                ctx.fillStyle = asphaltR;
+                ctx.fillRect(laneX[1], 0, halfW, height);
+
+                // Faint horizontal grid lines across each lane — a subtle
+                // texture so the colored asphalt doesn't read as a flat block.
+                ctx.strokeStyle = 'rgba(255,255,255,0.045)';
+                ctx.lineWidth = 1;
+                const gridSpacing = Math.max(40, height * 0.11);
+                for (let gy = 0; gy < height; gy += gridSpacing) {
                     ctx.beginPath();
+                    ctx.moveTo(laneX[0], gy);
+                    ctx.lineTo(laneX[0] + halfW, gy);
+                    ctx.moveTo(laneX[1], gy);
+                    ctx.lineTo(laneX[1] + halfW, gy);
+                    ctx.stroke();
+                }
+
+                // One crisp, solid accent line per lane — but only on the
+                // top, bottom, and outer side. The inner edge (where the
+                // two lanes meet in the middle) is left unstroked on
+                // purpose, per request, so the two halves read as one
+                // connected road instead of two lanes split by a line.
+                ctx.lineWidth = Math.max(2, width * 0.01);
+                ctx.strokeStyle = '#00d4ff';
+                ctx.beginPath();
+                ctx.moveTo(halfW - 1, 1);
+                ctx.lineTo(laneX[0] + 1, 1);
+                ctx.lineTo(laneX[0] + 1, height - 1);
+                ctx.lineTo(halfW - 1, height - 1);
+                ctx.stroke();
+                ctx.strokeStyle = '#ff2b4a';
+                ctx.beginPath();
+                ctx.moveTo(laneX[1] + 1, 1);
+                ctx.lineTo(laneX[1] + halfW - 1, 1);
+                ctx.lineTo(laneX[1] + halfW - 1, height - 1);
+                ctx.lineTo(laneX[1] + 1, height - 1);
+                ctx.stroke();
+
+                // Yellow rumble strips along the outer edge of each lane.
+                ctx.strokeStyle = 'rgba(255,210,63,0.55)';
+                ctx.lineWidth = Math.max(2, width * 0.008);
+                ctx.setLineDash([dashLen * 0.5, dashGap * 0.7]);
+                ctx.lineDashOffset = -roadOffset;
+                ctx.beginPath(); ctx.moveTo(laneX[0] + 2, 0); ctx.lineTo(laneX[0] + 2, height); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(laneX[1] + halfW - 2, 0); ctx.lineTo(laneX[1] + halfW - 2, height); ctx.stroke();
+                ctx.setLineDash([]);
+
+                // Scrolling dashed divider between the two roads inside each lane.
+                ctx.strokeStyle = 'rgba(255,255,255,0.22)';
+                ctx.lineWidth = Math.max(2, width * 0.006);
+                ctx.setLineDash([dashLen, dashGap]);
+                [0, 1].forEach(lane => {
+                    const x = laneX[lane] + colW;
+                    ctx.beginPath();
+                    ctx.lineDashOffset = -roadOffset;
                     ctx.moveTo(x, 0);
                     ctx.lineTo(x, height);
                     ctx.stroke();
                 });
+                ctx.setLineDash([]);
+                ctx.lineDashOffset = 0;
 
-                // Obstacles and bonuses are both colored to match whichever
-                // pair of lanes they're in — same badge motif, square for
-                // "avoid", circle for "collect".
-                obstacles.forEach(o => drawObstacleBlock(colCenterX(o.col), o.y, obsW, colColor(o.col)));
+                // Traffic stays deliberately muted/neutral so the two
+                // bold player colors are what the eye locks onto.
+                obstacles.forEach(o => drawObstacleBlock(colCenterX(o.col), o.y, obsW, o.col < 2 ? '#c9702a' : '#7d5bb3'));
 
                 bonuses.forEach(b => {
                     if (b.taken) return;
-                    const bp = 1 + Math.sin(ts / 90) * 0.12;
-                    drawBonusRing(colCenterX(b.col), b.y, obsW * bp, colColor(b.col));
+                    const bp = 1 + Math.sin(ts / 90) * 0.18;
+                    const s = obsW * 0.4 * bp;
+                    ctx.save();
+                    ctx.translate(colCenterX(b.col), b.y);
+                    ctx.rotate(Math.PI / 4);
+                    ctx.fillStyle = '#ffd23f';
+                    ctx.lineWidth = 2;
+                    ctx.strokeStyle = '#08080b';
+                    ctx.fillRect(-s / 2, -s / 2, s, s);
+                    ctx.strokeRect(-s / 2, -s / 2, s, s);
+                    ctx.restore();
                 });
 
                 // A brief decaying shake on crash, same "impact beat" trick
@@ -6051,8 +6989,8 @@ window.mu_syncHtmlBg = function(){
                 const tilt1 = bankTilt(car1BankT, car1BankDir);
                 const tilt2 = bankTilt(car2BankT, car2BankDir);
                 const squash1 = squashScale(car1SquashT), squash2 = squashScale(car2SquashT);
-                drawPlayerCar(car1X, carRowY, carW, carH, CAR1_COLOR, { tilt: tilt1, squashX: squash1.sx, squashY: squash1.sy });
-                drawPlayerCar(car2X, carRowY, carW, carH, CAR2_COLOR, { tilt: tilt2, squashX: squash2.sx, squashY: squash2.sy });
+                drawPlayerCar(car1X, carRowY, carW, carH, '#00d4ff', { tilt: tilt1, beamColor: 'rgba(0,212,255,0.10)', squashX: squash1.sx, squashY: squash1.sy });
+                drawPlayerCar(car2X, carRowY, carW, carH, '#ff2b4a', { tilt: tilt2, beamColor: 'rgba(255,43,74,0.10)', squashX: squash2.sx, squashY: squash2.sy });
                 ctx.restore();
                 prevCar1X = car1X; prevCar2X = car2X;
 
@@ -6138,7 +7076,10 @@ window.mu_syncHtmlBg = function(){
                 if (chaosState === 'active') {
                     const remain = Math.max(0, 1 - chaosPhaseTimer / chaosEvent.duration);
                     const bw = Math.min(width * 0.62, 260), bh = Math.max(5, height * 0.012);
-                    const bx = width / 2 - bw / 2, by = height * 0.06;
+                    // Pushed down below the topbar's menu/exit buttons (which
+                    // sit absolutely positioned over the canvas at top:0) so
+                    // this badge + countdown never overlaps them.
+                    const bx = width / 2 - bw / 2, by = height * 0.16;
                     ctx.save();
                     ctx.font = `bold ${Math.max(11, width * 0.03)}px sans-serif`;
                     ctx.textAlign = 'center';
@@ -6158,6 +7099,35 @@ window.mu_syncHtmlBg = function(){
             gameStopFn = () => { if (raf) cancelAnimationFrame(raf); };
         }
 
+
+
+
+        // ---- "جاده بی‌قانون" variant chooser ----------------------------
+        // The button now opens a lightweight two-option picker (Classic /
+        // Modern) instead of jumping straight into a game. Whichever
+        // variant is chosen sets window.__markhinRacerVariant so that the
+        // resize/orientation "refit" handler above (mAiGameScheduleRefit)
+        // and the tab-restore logic can relaunch the SAME variant instead
+        // of re-showing this menu every time.
+        function startTwinLaneRacer() {
+            const fa = currentLang === 'fa';
+            const existing = document.getElementById('racerVariantChooser');
+            if (existing) existing.remove();
+            const overlay = document.createElement('div');
+            overlay.id = 'racerVariantChooser';
+            overlay.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(3,16,28,0.94);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;padding:24px;text-align:center;backdrop-filter:blur(2px);';
+            overlay.innerHTML =
+                '<div style="font-size:19px;font-weight:700;color:#fff;">' + (fa ? '🏎️ جاده بی‌قانون رو انتخاب کن' : '🏎️ Choose your Road') + '</div>' +
+                '<div style="display:flex;gap:16px;flex-wrap:wrap;justify-content:center;">' +
+                    '<button class="btn-main" id="racerChooseClassic" style="padding:14px 26px;font-size:15px;">' + (fa ? '🏛️ کلاسیک' : '🏛️ Classic') + '</button>' +
+                    '<button class="btn-main" id="racerChooseModern" style="padding:14px 26px;font-size:15px;">' + (fa ? '🚀 مدرن' : '🚀 Modern') + '</button>' +
+                '</div>' +
+                '<button id="racerChooserCancel" style="margin-top:4px;background:none;border:none;color:rgba(255,255,255,0.6);font-size:13px;text-decoration:underline;">' + (fa ? 'انصراف' : 'Cancel') + '</button>';
+            document.body.appendChild(overlay);
+            document.getElementById('racerChooseClassic').onclick = function () { overlay.remove(); startTwinLaneRacerClassic(); };
+            document.getElementById('racerChooseModern').onclick = function () { overlay.remove(); startTwinLaneRacerModern(); };
+            document.getElementById('racerChooserCancel').onclick = function () { overlay.remove(); };
+        }
 
         function applyBold(id) {
             const textEl = document.getElementById(`text-${id}`);
