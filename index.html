@@ -1941,6 +1941,49 @@
         .go-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
         .go-best { font-size: 11px; opacity: .5; margin-top: -10px; margin-bottom: 16px; }
 
+        /* ---- "جاده بی‌قانون" (Twin Lane Racer) reference-matched theme ----
+           Scoped to .theme-racer (added/removed on #gameCard only while the
+           racer game is the active one — see startTwinLaneRacer /
+           openGameMenu / backToGameMenu / closeGame) so Snake and Flappy's
+           game-over cards and score pill keep their original look. Mirrors
+           the reference: a plain number top-right, a two-tone blue capsule
+           "SCORE / BEST" bar, and two round icon-only buttons on game over. */
+        .game-card.theme-racer .game-topbar {
+            position: absolute; top: 0; left: 0; right: 0; z-index: 5;
+            background: transparent; border-bottom-color: transparent;
+            justify-content: flex-start; pointer-events: none;
+        }
+        .game-card.theme-racer .game-topbar-title { display: none; }
+        .game-card.theme-racer .game-topbar-actions { pointer-events: auto; }
+        .game-card.theme-racer .game-topbar-actions #gameScore {
+            background: none; padding: 0 4px 0 0; font-size: 26px; font-weight: 800;
+            color: #fff; letter-spacing: 0.5px;
+        }
+        .game-card.theme-racer .go-card {
+            background: none; border: none; box-shadow: none; padding: 0;
+        }
+        .game-card.theme-racer .go-card h3 { display: none; }
+        .game-card.theme-racer .go-scoreboard {
+            display: flex; border-radius: 999px; overflow: hidden;
+            margin-bottom: 22px; box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+        }
+        .game-card.theme-racer .go-scoreboard p {
+            margin: 0 !important; opacity: 1 !important;
+            padding: 13px 24px; font-size: 15px; font-weight: 800;
+            color: #fff; background: #4488fd;
+        }
+        .game-card.theme-racer .go-scoreboard #goScoreText { border-inline-end: 1px solid rgba(255,255,255,0.35); }
+        .game-card.theme-racer .go-actions { gap: 16px; }
+        .game-card.theme-racer .go-actions .btn-main {
+            width: 56px; height: 56px; padding: 0; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            background: rgba(255,255,255,0.1); border: 1.5px solid rgba(255,255,255,0.55);
+        }
+        .game-card.theme-racer .go-act-icon { font-size: 0; line-height: 1; }
+        .game-card.theme-racer .go-act-icon-restart::before { content: "\21BB"; font-size: 24px; color: #fff; }
+        .game-card.theme-racer .go-act-icon-home::before { content: "\2302"; font-size: 22px; color: #fff; }
+        .game-card.theme-racer .go-act-label { display: none; }
+
         .audio-wrapper {
             margin: 10px 0;
             display: flex;
@@ -2823,11 +2866,13 @@ window.mu_syncHtmlBg = function(){
                     <div class="game-overlay-panel" id="gameOverOverlay">
                         <div class="go-card">
                             <h3 id="goTitle">🏁 بازی تمام شد!</h3>
-                            <p id="goScoreText">امتیاز: 0</p>
-                            <p class="go-best" id="goBestText"></p>
+                            <div class="go-scoreboard">
+                                <p id="goScoreText">امتیاز: 0</p>
+                                <p class="go-best" id="goBestText"></p>
+                            </div>
                             <div class="go-actions">
-                                <button class="btn-main" id="btnGoRestart">🔁 دوباره</button>
-                                <button class="btn-main" id="btnGoMenu">🏠 منو</button>
+                                <button class="btn-main" id="btnGoRestart"><span class="go-act-icon go-act-icon-restart">🔁</span><span class="go-act-label">دوباره</span></button>
+                                <button class="btn-main" id="btnGoMenu"><span class="go-act-icon go-act-icon-home">🏠</span><span class="go-act-label">منو</span></button>
                             </div>
                         </div>
                     </div>
@@ -4490,6 +4535,7 @@ window.mu_syncHtmlBg = function(){
             document.getElementById('gameSelectMenu').style.display = 'block';
             document.getElementById('gamePlayArea').style.display = 'none';
             document.getElementById('gameCard').classList.remove('gc-playing');
+            document.getElementById('gameCard').classList.remove('theme-racer');
             clearGameEvents();
             mAiGameTelegramChrome(true);
         }
@@ -4499,11 +4545,13 @@ window.mu_syncHtmlBg = function(){
             document.getElementById('gameSelectMenu').style.display = 'block';
             document.getElementById('gamePlayArea').style.display = 'none';
             document.getElementById('gameCard').classList.remove('gc-playing');
+            document.getElementById('gameCard').classList.remove('theme-racer');
         }
 
         function closeGame() {
             document.getElementById('gameModal').style.display = 'none';
             document.getElementById('gameCard').classList.remove('gc-playing');
+            document.getElementById('gameCard').classList.remove('theme-racer');
             clearGameEvents();
             mAiGameTelegramChrome(false);
         }
@@ -5335,6 +5383,7 @@ window.mu_syncHtmlBg = function(){
             window.__markhinActiveGame = 'racer';
             const fa = currentLang === 'fa';
             enterGamePlayMode();
+            document.getElementById('gameCard').classList.add('theme-racer');
             document.getElementById('gameTitleActive').innerText = fa ? '🏎️ جاده بی‌قانون' : '🏎️ NO RULES ROAD';
             document.getElementById('gameDescActive').innerText = fa
                 ? 'نیمه چپ رو بزن برای ماشین چپ، نیمه راست برای ماشین راست. این جاده قانون سرش نمی‌شه: هر از گاهی سرعت یا حتی خودِ صفحه دیوونه می‌شه!'
@@ -5360,25 +5409,23 @@ window.mu_syncHtmlBg = function(){
                 return laneX[lane] + sub * colW + colW / 2;
             }
 
-            // baseUnit is the shared size reference; the player's own car
-            // is drawn a bit larger than it for easier visibility, while
-            // obstacle sizing below stays tied to baseUnit so it doesn't
-            // grow along with it.
-            const baseUnit = Math.min(colW * 0.2, height * 0.028);
-            const carW = baseUnit * 1.25;
-            const carH = carW * 1.65;
+            // Sized to match the reference clip: the car's width is ~0.36 of
+            // a single lane's width, with a tall, slightly-more-than-double
+            // height/width ratio, and obstacles/bonuses share that same
+            // footprint so everything reads as one consistent scale.
+            const carW = colW * 0.36;
+            const carH = carW * 1.85;
             const carRowY = height * 0.8;
-            // Obstacles are no longer little cars — flat square hazard
-            // blocks, and a bit bigger than the old car-shaped obstacles
-            // so they read as clearly "different from traffic".
-            const obsW = baseUnit * 1.5, obsH = obsW;
+            const obsW = colW * 0.34, obsH = obsW;
             const dashLen = height * 0.05, dashGap = height * 0.04, dashCycle = dashLen + dashGap;
 
             // Logical column state switches instantly on tap (same "arcade
             // fair" instant-response feel as Flappy's jump); only the drawn
             // position eases toward it, so a switch never gets silently
-            // dropped mid-animation.
-            let car1Col = 0, car2Col = 2;
+            // dropped mid-animation. Cars start on the two inner lanes,
+            // right next to each other at the road's centerline, matching
+            // the reference's starting layout.
+            let car1Col = 1, car2Col = 2;
             let car1X = colCenterX(car1Col), car2X = colCenterX(car2Col);
             let prevCar1X = car1X, prevCar2X = car2X;
             let roadOffset = 0;
@@ -5392,6 +5439,15 @@ window.mu_syncHtmlBg = function(){
             let particles = [];
             let popups = [];
             gameScore = 0;
+
+            // Reference palette: solid navy road, a pink/red car on the
+            // left pair of lanes, a cyan car on the right pair — and every
+            // obstacle/bonus is colored to match whichever pair it's in.
+            const ROAD_BG = '#242f76';
+            const LANE_LINE = 'rgba(255,255,255,0.22)';
+            const CAR1_COLOR = '#f13866';
+            const CAR2_COLOR = '#00a9c0';
+            function colColor(col) { return col < 2 ? CAR1_COLOR : CAR2_COLOR; }
 
             // ------------------------- Chaos / "No Rules" physics -------------------------
             // Every so often the road's rules break for a few seconds: speed
@@ -5487,8 +5543,9 @@ window.mu_syncHtmlBg = function(){
                 }
             }
 
+            // Reference shows just the bare number, top-right, no label.
             function updateScoreLabel() {
-                document.getElementById('gameScore').innerText = (fa ? 'امتیاز: ' : 'Score: ') + gameScore;
+                document.getElementById('gameScore').innerText = gameScore;
             }
             updateScoreLabel();
 
@@ -5540,34 +5597,43 @@ window.mu_syncHtmlBg = function(){
                 });
             }
 
-            // Obstacle = a flat square hazard block, not a car: solid
-            // color, dark outline, diagonal hazard-tape stripes clipped to
-            // the square. Reads instantly as "thing to avoid" and is never
-            // confused with the player's own car silhouette.
+            // Obstacle = a rounded, color-matched "hazard badge": solid
+            // fill, a white ring inset from the edge, and the same color
+            // showing through the center — the flat bullseye-square look
+            // from the reference clip. Matching a car's own color means
+            // "avoid this in your lanes".
             function drawObstacleBlock(cx, cy, s, color) {
                 ctx.save();
                 ctx.translate(cx, cy);
                 ctx.beginPath();
-                ctx.roundRect(-s / 2, -s / 2, s, s, s * 0.14);
+                ctx.roundRect(-s / 2, -s / 2, s, s, s * 0.32);
                 ctx.fillStyle = color;
                 ctx.fill();
-                ctx.lineWidth = Math.max(1, s * 0.07);
-                ctx.strokeStyle = 'rgba(5,5,8,0.9)';
-                ctx.stroke();
-
-                ctx.save();
+                const ringInset = s * 0.16;
                 ctx.beginPath();
-                ctx.roundRect(-s / 2, -s / 2, s, s, s * 0.14);
-                ctx.clip();
-                ctx.strokeStyle = 'rgba(255,255,255,0.32)';
+                ctx.roundRect(-s / 2 + ringInset, -s / 2 + ringInset, s - ringInset * 2, s - ringInset * 2, s * 0.22);
                 ctx.lineWidth = s * 0.16;
-                for (let x = -s; x < s; x += s * 0.36) {
-                    ctx.beginPath();
-                    ctx.moveTo(x, -s);
-                    ctx.lineTo(x + s * 2, s);
-                    ctx.stroke();
-                }
+                ctx.strokeStyle = 'rgba(255,255,255,0.92)';
+                ctx.stroke();
                 ctx.restore();
+            }
+
+            // Bonus = the same badge motif as a circle: solid fill, a
+            // white ring, color showing through the middle again — the
+            // reference's collectible "target" look.
+            function drawBonusRing(cx, cy, d, color) {
+                const r = d / 2;
+                ctx.save();
+                ctx.translate(cx, cy);
+                ctx.beginPath();
+                ctx.arc(0, 0, r, 0, Math.PI * 2);
+                ctx.fillStyle = color;
+                ctx.fill();
+                ctx.beginPath();
+                ctx.arc(0, 0, r * 0.62, 0, Math.PI * 2);
+                ctx.lineWidth = r * 0.5;
+                ctx.strokeStyle = 'rgba(255,255,255,0.92)';
+                ctx.stroke();
                 ctx.restore();
             }
 
@@ -5611,77 +5677,56 @@ window.mu_syncHtmlBg = function(){
                 ctx.closePath();
             }
 
-            // Player car — a hollow neon-outlined pill: dark fill, glowing
-            // colored border, nothing else. Matches the reference look the
-            // person shared: an outline shape, not a filled silhouette.
+            // Player car — the reference's simple top-down capsule: a
+            // rounded pill outlined in the car's own color, a white body,
+            // and a colored band across the middle (with the very top/
+            // bottom caps left open to the road color, like a windshield
+            // and rear window cut into the shell).
             function drawPlayerCar(cx, cy, w, h, color, opts) {
                 opts = opts || {};
                 const tilt = opts.tilt || 0;
                 const sx = opts.squashX || 1, sy = opts.squashY || 1;
+                const rGeo = w * 0.44;
                 ctx.save();
                 ctx.translate(cx, cy);
                 ctx.rotate(tilt);
                 ctx.scale(sx, sy);
 
-                // Thin, crisp headlight wedge.
-                if (opts.beamColor) {
-                    ctx.save();
-                    ctx.globalCompositeOperation = 'lighter';
-                    ctx.fillStyle = opts.beamColor;
-                    ctx.beginPath();
-                    ctx.moveTo(-w * 0.2, -h * 0.5);
-                    ctx.lineTo(-w * 0.65, -h * 2.1);
-                    ctx.lineTo(w * 0.65, -h * 2.1);
-                    ctx.lineTo(w * 0.2, -h * 0.5);
-                    ctx.closePath();
-                    ctx.fill();
-                    ctx.restore();
-                }
-
-                // Sharper wedge/dart silhouette — a pointed nose, flared
-                // mid-body "shoulders", and a tapered rounded tail —
-                // a fresh, more aggressive race-car look. Still a hollow
-                // neon outline. Same w×h bounding box as before, so the
-                // car's size is unchanged.
+                // Outer capsule — solid color, this is what reads as the
+                // car's outline/rim.
                 ctx.beginPath();
-                ctx.moveTo(0, -h / 2);
-                ctx.lineTo(w * 0.34, -h * 0.2);
-                ctx.lineTo(w * 0.46, h * 0.08);
-                ctx.lineTo(w * 0.4, h * 0.4);
-                ctx.quadraticCurveTo(w * 0.4, h / 2, w * 0.24, h / 2);
-                ctx.lineTo(-w * 0.24, h / 2);
-                ctx.quadraticCurveTo(-w * 0.4, h / 2, -w * 0.4, h * 0.4);
-                ctx.lineTo(-w * 0.46, h * 0.08);
-                ctx.lineTo(-w * 0.34, -h * 0.2);
-                ctx.closePath();
-                ctx.fillStyle = '#0a0e1f';
+                ctx.roundRect(-w / 2, -h / 2, w, h, rGeo);
+                ctx.fillStyle = color;
                 ctx.fill();
-                ctx.lineWidth = Math.max(2, w * 0.16);
-                ctx.shadowBlur = 14;
-                ctx.shadowColor = color;
-                ctx.strokeStyle = color;
-                ctx.stroke();
-                ctx.shadowBlur = 0;
 
-                // Cockpit accent near the nose.
+                // White body inset from the rim.
+                const inset = w * 0.16;
                 ctx.beginPath();
-                ctx.moveTo(-w * 0.18, -h * 0.14);
-                ctx.lineTo(w * 0.18, -h * 0.14);
-                ctx.lineWidth = Math.max(1, w * 0.07);
-                ctx.strokeStyle = color;
-                ctx.globalAlpha = 0.5;
-                ctx.stroke();
-                ctx.globalAlpha = 1;
+                ctx.roundRect(-w / 2 + inset, -h / 2 + inset, w - inset * 2, h - inset * 2, rGeo * 0.7);
+                ctx.fillStyle = '#ffffff';
+                ctx.fill();
 
-                // Rear spoiler — a short glowing bar near the tail.
+                // Windshield / rear-window: two open "cutouts" showing the
+                // road color, tapered like a car's glass viewed from above.
+                ctx.fillStyle = ROAD_BG;
                 ctx.beginPath();
-                ctx.moveTo(-w * 0.3, h * 0.36);
-                ctx.lineTo(w * 0.3, h * 0.36);
-                ctx.lineWidth = Math.max(1, w * 0.09);
-                ctx.strokeStyle = color;
-                ctx.globalAlpha = 0.4;
-                ctx.stroke();
-                ctx.globalAlpha = 1;
+                ctx.moveTo(-w * 0.28, -h * 0.38);
+                ctx.lineTo(w * 0.28, -h * 0.38);
+                ctx.lineTo(w * 0.16, -h * 0.06);
+                ctx.lineTo(-w * 0.16, -h * 0.06);
+                ctx.closePath();
+                ctx.fill();
+                ctx.beginPath();
+                ctx.moveTo(-w * 0.16, h * 0.06);
+                ctx.lineTo(w * 0.16, h * 0.06);
+                ctx.lineTo(w * 0.28, h * 0.38);
+                ctx.lineTo(-w * 0.28, h * 0.38);
+                ctx.closePath();
+                ctx.fill();
+
+                // Colored mid-body band between the two windows.
+                ctx.fillStyle = color;
+                ctx.fillRect(-w * 0.34, -h * 0.08, w * 0.68, h * 0.16);
 
                 ctx.restore();
             }
@@ -5940,15 +5985,8 @@ window.mu_syncHtmlBg = function(){
                 car1BankT += rawDt;
                 car2BankT += rawDt;
 
-                // A light, continuous exhaust trail behind each player car —
-                // throttled to a fixed cadence (not once a frame) so it
-                // reads as a stream of puffs rather than a solid smear.
-                exhaustTimer += rawDt;
-                if (!ended && !dying && exhaustTimer >= 45) {
-                    exhaustTimer = 0;
-                    spawnExhaust(car1X, carRowY + carH * 0.46, '#00d4ff');
-                    spawnExhaust(car2X, carRowY + carH * 0.46, '#ff2b4a');
-                }
+                // No exhaust trail — the reference clip's cars leave no
+                // particle smear behind them, just the plain capsule body.
 
                 particles.forEach(p => { p.life += rawDt; p.x += p.vx * (rawDt / 1000); p.y += p.vy * (rawDt / 1000); });
                 particles = particles.filter(p => p.life < p.maxLife);
@@ -5969,102 +6007,34 @@ window.mu_syncHtmlBg = function(){
                     ctx.rotate(Math.PI);
                     ctx.translate(-width / 2, -height / 2);
                 }
-                // Flat, near-black backdrop — no multi-stop glow gradient.
-                ctx.fillStyle = '#08080b';
+                // Flat solid navy road — one continuous surface across all
+                // four lanes, matching the reference (no per-half tint, no
+                // texture/grid, no rumble strips).
+                ctx.fillStyle = ROAD_BG;
                 ctx.fillRect(0, 0, width, height);
 
-                // Asphalt — a moody colored wash per lane (deep teal on the
-                // left, deep magenta/plum on the right) instead of a flat
-                // neutral tone, matching the reference environment. Purely a
-                // fill color change — halfW/laneGap/colW (and everything
-                // derived from them for car/obstacle sizing) are untouched.
-                const asphaltL = ctx.createLinearGradient(0, 0, 0, height);
-                asphaltL.addColorStop(0, '#0a1e23');
-                asphaltL.addColorStop(1, '#0e2c33');
-                ctx.fillStyle = asphaltL;
-                ctx.fillRect(laneX[0], 0, halfW, height);
-                const asphaltR = ctx.createLinearGradient(0, 0, 0, height);
-                asphaltR.addColorStop(0, '#1f0f1f');
-                asphaltR.addColorStop(1, '#2c132b');
-                ctx.fillStyle = asphaltR;
-                ctx.fillRect(laneX[1], 0, halfW, height);
-
-                // Faint horizontal grid lines across each lane — a subtle
-                // texture so the colored asphalt doesn't read as a flat block.
-                ctx.strokeStyle = 'rgba(255,255,255,0.045)';
-                ctx.lineWidth = 1;
-                const gridSpacing = Math.max(40, height * 0.11);
-                for (let gy = 0; gy < height; gy += gridSpacing) {
+                // Thin static divider lines at each of the 3 internal lane
+                // boundaries — plain and non-scrolling, exactly like the
+                // reference's four-lane road.
+                ctx.strokeStyle = LANE_LINE;
+                ctx.lineWidth = Math.max(1, width * 0.0035);
+                [1, 2, 3].forEach(i => {
+                    const x = colW * i;
                     ctx.beginPath();
-                    ctx.moveTo(laneX[0], gy);
-                    ctx.lineTo(laneX[0] + halfW, gy);
-                    ctx.moveTo(laneX[1], gy);
-                    ctx.lineTo(laneX[1] + halfW, gy);
-                    ctx.stroke();
-                }
-
-                // One crisp, solid accent line per lane — but only on the
-                // top, bottom, and outer side. The inner edge (where the
-                // two lanes meet in the middle) is left unstroked on
-                // purpose, per request, so the two halves read as one
-                // connected road instead of two lanes split by a line.
-                ctx.lineWidth = Math.max(2, width * 0.01);
-                ctx.strokeStyle = '#00d4ff';
-                ctx.beginPath();
-                ctx.moveTo(halfW - 1, 1);
-                ctx.lineTo(laneX[0] + 1, 1);
-                ctx.lineTo(laneX[0] + 1, height - 1);
-                ctx.lineTo(halfW - 1, height - 1);
-                ctx.stroke();
-                ctx.strokeStyle = '#ff2b4a';
-                ctx.beginPath();
-                ctx.moveTo(laneX[1] + 1, 1);
-                ctx.lineTo(laneX[1] + halfW - 1, 1);
-                ctx.lineTo(laneX[1] + halfW - 1, height - 1);
-                ctx.lineTo(laneX[1] + 1, height - 1);
-                ctx.stroke();
-
-                // Yellow rumble strips along the outer edge of each lane.
-                ctx.strokeStyle = 'rgba(255,210,63,0.55)';
-                ctx.lineWidth = Math.max(2, width * 0.008);
-                ctx.setLineDash([dashLen * 0.5, dashGap * 0.7]);
-                ctx.lineDashOffset = -roadOffset;
-                ctx.beginPath(); ctx.moveTo(laneX[0] + 2, 0); ctx.lineTo(laneX[0] + 2, height); ctx.stroke();
-                ctx.beginPath(); ctx.moveTo(laneX[1] + halfW - 2, 0); ctx.lineTo(laneX[1] + halfW - 2, height); ctx.stroke();
-                ctx.setLineDash([]);
-
-                // Scrolling dashed divider between the two roads inside each lane.
-                ctx.strokeStyle = 'rgba(255,255,255,0.22)';
-                ctx.lineWidth = Math.max(2, width * 0.006);
-                ctx.setLineDash([dashLen, dashGap]);
-                [0, 1].forEach(lane => {
-                    const x = laneX[lane] + colW;
-                    ctx.beginPath();
-                    ctx.lineDashOffset = -roadOffset;
                     ctx.moveTo(x, 0);
                     ctx.lineTo(x, height);
                     ctx.stroke();
                 });
-                ctx.setLineDash([]);
-                ctx.lineDashOffset = 0;
 
-                // Traffic stays deliberately muted/neutral so the two
-                // bold player colors are what the eye locks onto.
-                obstacles.forEach(o => drawObstacleBlock(colCenterX(o.col), o.y, obsW, o.col < 2 ? '#c9702a' : '#7d5bb3'));
+                // Obstacles and bonuses are both colored to match whichever
+                // pair of lanes they're in — same badge motif, square for
+                // "avoid", circle for "collect".
+                obstacles.forEach(o => drawObstacleBlock(colCenterX(o.col), o.y, obsW, colColor(o.col)));
 
                 bonuses.forEach(b => {
                     if (b.taken) return;
-                    const bp = 1 + Math.sin(ts / 90) * 0.18;
-                    const s = obsW * 0.4 * bp;
-                    ctx.save();
-                    ctx.translate(colCenterX(b.col), b.y);
-                    ctx.rotate(Math.PI / 4);
-                    ctx.fillStyle = '#ffd23f';
-                    ctx.lineWidth = 2;
-                    ctx.strokeStyle = '#08080b';
-                    ctx.fillRect(-s / 2, -s / 2, s, s);
-                    ctx.strokeRect(-s / 2, -s / 2, s, s);
-                    ctx.restore();
+                    const bp = 1 + Math.sin(ts / 90) * 0.12;
+                    drawBonusRing(colCenterX(b.col), b.y, obsW * bp, colColor(b.col));
                 });
 
                 // A brief decaying shake on crash, same "impact beat" trick
@@ -6081,8 +6051,8 @@ window.mu_syncHtmlBg = function(){
                 const tilt1 = bankTilt(car1BankT, car1BankDir);
                 const tilt2 = bankTilt(car2BankT, car2BankDir);
                 const squash1 = squashScale(car1SquashT), squash2 = squashScale(car2SquashT);
-                drawPlayerCar(car1X, carRowY, carW, carH, '#00d4ff', { tilt: tilt1, beamColor: 'rgba(0,212,255,0.10)', squashX: squash1.sx, squashY: squash1.sy });
-                drawPlayerCar(car2X, carRowY, carW, carH, '#ff2b4a', { tilt: tilt2, beamColor: 'rgba(255,43,74,0.10)', squashX: squash2.sx, squashY: squash2.sy });
+                drawPlayerCar(car1X, carRowY, carW, carH, CAR1_COLOR, { tilt: tilt1, squashX: squash1.sx, squashY: squash1.sy });
+                drawPlayerCar(car2X, carRowY, carW, carH, CAR2_COLOR, { tilt: tilt2, squashX: squash2.sx, squashY: squash2.sy });
                 ctx.restore();
                 prevCar1X = car1X; prevCar2X = car2X;
 
