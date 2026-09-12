@@ -3483,6 +3483,100 @@ window.mu_syncHtmlBg = function(){
             { id: 'acid', emoji: '🧪', nameFa: 'تم اسید', nameEn: 'Acid', class: 'theme-acid' }
         ];
 
+        /* =====================================================================
+           INDEXEDDB STORAGE LAYER
+           ---------------------------------------------------------------------
+           Notes/categories (below) can include embedded base64 images and grow
+           well past what localStorage comfortably holds — its per-origin quota
+           is normally somewhere around 5-10MB, and every write there is a
+           synchronous, UI-blocking call that re-serializes the *entire* blob.
+           IndexedDB has a much larger quota (commonly tens to hundreds of MB,
+           scaling with free disk space) and every operation is async, so a
+           save never blocks rendering/typing.
+
+           This is a minimal key/value shim over IndexedDB with the same
+           get/set/remove shape as localStorage (just async), used as the
+           primary store for the two keys that can actually grow large:
+           'app_categories_v13' (notes) and the AI chat history key further
+           down. Everything else (theme, language, small settings) is tiny
+           and stays in plain localStorage — no reason to move it.
+
+           Every method here resolves to a safe fallback value (null/false)
+           instead of throwing, the same defensive spirit as the localStorage
+           shim at the very top of this file: some of the same locked-down
+           in-app WebViews that occasionally block localStorage also block or
+           simply don't implement IndexedDB, and every caller below is written
+           to keep working (falling back to localStorage alone) when that
+           happens.
+           ===================================================================== */
+        const MU_IDB_DB_NAME = 'markhinStorage';
+        const MU_IDB_STORE_NAME = 'kv';
+        let mu_idbOpenPromise = null;
+        function mu_idbOpen() {
+            if (mu_idbOpenPromise) return mu_idbOpenPromise;
+            mu_idbOpenPromise = new Promise(function(resolve){
+                if (typeof indexedDB === 'undefined' || !indexedDB) { resolve(null); return; }
+                try {
+                    const req = indexedDB.open(MU_IDB_DB_NAME, 1);
+                    req.onupgradeneeded = function(){
+                        try { if (!req.result.objectStoreNames.contains(MU_IDB_STORE_NAME)) req.result.createObjectStore(MU_IDB_STORE_NAME); }
+                        catch (_) {}
+                    };
+                    req.onsuccess = function(){ resolve(req.result); };
+                    req.onerror = function(){ resolve(null); };
+                    req.onblocked = function(){ resolve(null); };
+                } catch (_) { resolve(null); }
+            });
+            return mu_idbOpenPromise;
+        }
+        const MU_IDB = {
+            // Resolves true only once an open+readable database is confirmed —
+            // used at startup to decide whether IndexedDB or localStorage is
+            // this session's primary store for the big keys.
+            available: async function(){ return !!(await mu_idbOpen()); },
+            getItem: async function(key){
+                const db = await mu_idbOpen();
+                if (!db) return null;
+                return new Promise(function(resolve){
+                    try {
+                        const tx = db.transaction(MU_IDB_STORE_NAME, 'readonly');
+                        const req = tx.objectStore(MU_IDB_STORE_NAME).get(key);
+                        req.onsuccess = function(){ resolve(req.result === undefined ? null : req.result); };
+                        req.onerror = function(){ resolve(null); };
+                    } catch (_) { resolve(null); }
+                });
+            },
+            setItem: async function(key, value){
+                const db = await mu_idbOpen();
+                if (!db) return false;
+                return new Promise(function(resolve){
+                    try {
+                        const tx = db.transaction(MU_IDB_STORE_NAME, 'readwrite');
+                        tx.objectStore(MU_IDB_STORE_NAME).put(value, key);
+                        tx.oncomplete = function(){ resolve(true); };
+                        tx.onerror = function(){ resolve(false); };
+                        tx.onabort = function(){ resolve(false); };
+                    } catch (_) { resolve(false); }
+                });
+            },
+            removeItem: async function(key){
+                const db = await mu_idbOpen();
+                if (!db) return false;
+                return new Promise(function(resolve){
+                    try {
+                        const tx = db.transaction(MU_IDB_STORE_NAME, 'readwrite');
+                        tx.objectStore(MU_IDB_STORE_NAME).delete(key);
+                        tx.oncomplete = function(){ resolve(true); };
+                        tx.onerror = function(){ resolve(false); };
+                    } catch (_) { resolve(false); }
+                });
+            }
+        };
+        // Set once, at startup, by the DOMContentLoaded handler below after it
+        // probes IndexedDB — consulted by saveToLocalStorage() so a full
+        // localStorage quota isn't treated as fatal once notes have moved over.
+        let mu_idbAvailable = false;
+
         let DEFAULT_FOLDER = i18n[currentLang].allFolders;
         let categories = [];
         let folders = [DEFAULT_FOLDER];
@@ -3773,12 +3867,30 @@ window.mu_syncHtmlBg = function(){
             DEFAULT_FOLDER = i18n[currentLang].allFolders;
             folders = [DEFAULT_FOLDER];
 
-            const savedData = localStorage.getItem('app_categories_v13');
             const savedFolders = localStorage.getItem('app_folders_v13');
             const savedFolderHistory = localStorage.getItem('app_folder_rename_history_v1');
             const savedThemeIdx = localStorage.getItem('app_theme_index_v13');
             folderRenameHistory = safeParseJSON(savedFolderHistory, {});
             if(!folderRenameHistory || typeof folderRenameHistory !== 'object' || Array.isArray(folderRenameHistory)) folderRenameHistory = {};
+
+            /* Notes/categories now live in IndexedDB — see the INDEXEDDB
+               STORAGE LAYER block above for why. localStorage is only
+               consulted here as a one-time migration source (for people
+               upgrading from an older version of this app) or as the
+               fallback store on the rare device where IndexedDB itself is
+               unavailable. mu_idbAvailable, set here, is what
+               saveToLocalStorage() checks later to decide whether a full
+               localStorage quota is fatal or just means "the mirror copy
+               stopped being kept in sync, no big deal". */
+            mu_idbAvailable = await MU_IDB.available();
+            let savedData = mu_idbAvailable ? await MU_IDB.getItem('app_categories_v13') : null;
+            if (savedData === null) {
+                const legacy = localStorage.getItem('app_categories_v13');
+                if (legacy !== null) {
+                    savedData = legacy;
+                    if (mu_idbAvailable) MU_IDB.setItem('app_categories_v13', legacy);
+                }
+            }
 
             if (savedData) {
                 const parsed = safeParseJSON(savedData, []);
@@ -4037,19 +4149,39 @@ window.mu_syncHtmlBg = function(){
 
         let lastGoodStorageSnapshot = null;
         function saveToLocalStorage() {
+            const payload = JSON.stringify(serializeCategoriesForStorage());
+            /* Primary store: fire-and-forget async write to IndexedDB, which
+               has a far larger quota than localStorage and never blocks the
+               UI thread. Not awaited on purpose — every one of the ~70 call
+               sites of saveToLocalStorage() in this file calls it as a plain
+               synchronous-looking statement and none use its return value,
+               so turning this into a Promise would mean auditing all of them
+               for no real benefit; the write still starts immediately. */
+            const idbWrite = mu_idbAvailable ? MU_IDB.setItem('app_categories_v13', payload) : null;
             try {
-                const payload = JSON.stringify(serializeCategoriesForStorage());
+                // Kept as a best-effort mirror (instant on reload if IndexedDB
+                // is ever cleared, and it's the *only* copy on devices where
+                // IndexedDB isn't available at all) — but once notes outgrow
+                // it, hitting its quota here is no longer treated as fatal
+                // below, since IndexedDB already has the current data.
                 localStorage.setItem('app_categories_v13', payload);
                 lastGoodStorageSnapshot = payload;
-                scheduleCloudBackup();
-                return true;
             } catch (error) {
-                if (lastGoodStorageSnapshot) {
-                    try { localStorage.setItem('app_categories_v13', lastGoodStorageSnapshot); } catch (_) {}
+                if (!mu_idbAvailable) {
+                    if (lastGoodStorageSnapshot) {
+                        try { localStorage.setItem('app_categories_v13', lastGoodStorageSnapshot); } catch (_) {}
+                    }
+                    showToast(currentLang === 'fa' ? '⚠️ ذخیره‌سازی ناموفق بود — فضای مرورگر پر است. یک بکاپ (JSON) بگیر و چند یادداشت/تصویر حجیم را حذف کن.' : '⚠️ Save failed — browser storage is full. Export a backup (JSON) and remove a few large notes/images.', 4200);
+                    return false;
                 }
-                showToast(currentLang === 'fa' ? '⚠️ ذخیره‌سازی ناموفق بود — فضای مرورگر پر است. یک بکاپ (JSON) بگیر و چند یادداشت/تصویر حجیم را حذف کن.' : '⚠️ Save failed — browser storage is full. Export a backup (JSON) and remove a few large notes/images.', 4200);
-                return false;
             }
+            if (idbWrite) {
+                idbWrite.then(function(ok){
+                    if (!ok) showToast(currentLang === 'fa' ? '⚠️ ذخیره‌سازی ناموفق بود.' : '⚠️ Save failed.', 4200);
+                });
+            }
+            scheduleCloudBackup();
+            return true;
         }
 
         function saveFoldersToLocalStorage() {
@@ -14668,6 +14800,23 @@ window.attachWrapperEvents = function(categoryId){
     // mAiHistory — see markhinAiChat_send() and mAiRender() below.
     let mAiStreamText = '';
     try { mAiHistory = JSON.parse(localStorage.getItem(MAI_HISTORY_KEY) || '[]'); if(!Array.isArray(mAiHistory)) mAiHistory = []; } catch(e){ mAiHistory = []; }
+    /* The synchronous localStorage read above gives an instant (possibly
+       slightly stale) history so the chat isn't blank for a moment.
+       IndexedDB — probed here — is the real primary store going forward
+       (see mAiSave() below and the INDEXEDDB STORAGE LAYER block near the
+       top of this file), since a long conversation can otherwise nudge
+       this key past localStorage's tighter per-origin quota. Once it
+       answers, swap in its copy and re-render so the chat catches up
+       without the user doing anything. */
+    if (typeof MU_IDB !== 'undefined') {
+        MU_IDB.getItem(MAI_HISTORY_KEY).then(function(idbRaw){
+            if (idbRaw === null) return;
+            try {
+                const parsed = JSON.parse(idbRaw);
+                if (Array.isArray(parsed)) { mAiHistory = parsed; if (typeof mAiRender === 'function') mAiRender(); }
+            } catch(e){}
+        });
+    }
 
     /* ---------------------------------------------------------------
        Reply-to-message feature: every message (assistant or the
@@ -14882,7 +15031,12 @@ window.attachWrapperEvents = function(categoryId){
     // that should make earlier turns unrecoverable.
     const MAI_HISTORY_STORE_CAP = 4000;
     function mAiSave(){
-        try { localStorage.setItem(MAI_HISTORY_KEY, JSON.stringify(mAiHistory.slice(-MAI_HISTORY_STORE_CAP))); } catch(e){}
+        const payload = JSON.stringify(mAiHistory.slice(-MAI_HISTORY_STORE_CAP));
+        // Best-effort, same spirit as saveToLocalStorage() above: IndexedDB
+        // is the primary store (see the load at the top of this IIFE),
+        // localStorage stays as an instant-on-reload mirror.
+        if (typeof MU_IDB !== 'undefined') MU_IDB.setItem(MAI_HISTORY_KEY, payload);
+        try { localStorage.setItem(MAI_HISTORY_KEY, payload); } catch(e){}
     }
 
     function mAiFormat(t){
