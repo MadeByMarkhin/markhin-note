@@ -4777,7 +4777,14 @@ window.mu_syncHtmlBg = function(){
                 const side = Math.max(120, Math.min(w, h));
                 w = side; h = side;
             }
-            const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+            // Perf fix for weaker devices (common in Telegram's Android
+            // in-app WebView): every pixel drawn each frame costs fill-
+            // rate, and that cost scales with dpr squared — capping at 2x
+            // instead of 2.5x cuts total pixels by roughly a third on the
+            // 3x-DPR Android phones this app runs on most, with no
+            // visible sharpness difference on a phone screen, in exchange
+            // for meaningfully more headroom against dropped frames.
+            const dpr = Math.min(window.devicePixelRatio || 1, 2);
             canvas.width = Math.round(w * dpr);
             canvas.height = Math.round(h * dpr);
             canvas.style.width = w + 'px';
@@ -5938,6 +5945,71 @@ window.mu_syncHtmlBg = function(){
                 ctx.restore();
             }
 
+            // Perf/smoothness fix (Telegram Mini App in particular — its
+            // in-app WebView on mid/low-end Android phones has noticeably
+            // less headroom than a full browser): drawObstacleBlock/
+            // drawBonusRing above rebuilt their rounded-rect/circle paths
+            // and re-filled/re-stroked them from scratch for every single
+            // obstacle and bonus on screen, every single frame — even
+            // though only two colors ever exist (one per lane pair) and
+            // the shapes themselves never change, only their Y position
+            // (and the bonus's gentle pulse size). Same fix already
+            // applied to the Modern variant's obstacles: draw each look
+            // ONCE to a small offscreen canvas here, then every frame just
+            // blit the finished bitmap with a single drawImage() — the
+            // bonus's pulse still scales smoothly since drawImage can
+            // stretch a cached bitmap to any destination size for free.
+            // Less per-frame canvas work means fewer dropped frames, which
+            // is also what was causing obstacles to visibly jerk forward
+            // in bigger jumps (see the frame-drop fix in loop() above).
+            function makeBadgeSprite(color, s) {
+                const pad = Math.ceil(s * 0.2);
+                const size = Math.ceil(s + pad * 2);
+                const off = document.createElement('canvas');
+                off.width = size; off.height = size;
+                const octx = off.getContext('2d');
+                octx.translate(size / 2, size / 2);
+                octx.beginPath();
+                octx.roundRect(-s / 2, -s / 2, s, s, s * 0.32);
+                octx.fillStyle = color;
+                octx.fill();
+                const ringInset = s * 0.16;
+                octx.beginPath();
+                octx.roundRect(-s / 2 + ringInset, -s / 2 + ringInset, s - ringInset * 2, s - ringInset * 2, s * 0.22);
+                octx.lineWidth = s * 0.16;
+                octx.strokeStyle = 'rgba(255,255,255,0.92)';
+                octx.stroke();
+                return off;
+            }
+            function makeBonusSprite(color, d) {
+                const r = d / 2;
+                const pad = Math.ceil(d * 0.12);
+                const size = Math.ceil(d + pad * 2);
+                const off = document.createElement('canvas');
+                off.width = size; off.height = size;
+                const octx = off.getContext('2d');
+                octx.translate(size / 2, size / 2);
+                octx.beginPath();
+                octx.arc(0, 0, r, 0, Math.PI * 2);
+                octx.fillStyle = color;
+                octx.fill();
+                octx.beginPath();
+                octx.arc(0, 0, r * 0.62, 0, Math.PI * 2);
+                octx.lineWidth = r * 0.5;
+                octx.strokeStyle = 'rgba(255,255,255,0.92)';
+                octx.stroke();
+                return off;
+            }
+            const badgeSprite1 = makeBadgeSprite(CAR1_COLOR, obsW);
+            const badgeSprite2 = makeBadgeSprite(CAR2_COLOR, obsW);
+            // Sized at the pulse's largest extent (bp maxes out at 1.12 —
+            // see the draw loop below) so scaling down for smaller frames
+            // of the pulse never has to upscale a smaller bitmap.
+            const bonusSprite1 = makeBonusSprite(CAR1_COLOR, obsW * 1.15);
+            const bonusSprite2 = makeBonusSprite(CAR2_COLOR, obsW * 1.15);
+            function badgeSpriteFor(col) { return col < 2 ? badgeSprite1 : badgeSprite2; }
+            function bonusSpriteFor(col) { return col < 2 ? bonusSprite1 : bonusSprite2; }
+
             // Body outline per shape — 'rect' is the player's own silhouette
             // (kept exclusive to the player so it's always instantly
             // recognizable); 'block'/'wedge'/'wide' are the traffic pool,
@@ -6223,59 +6295,86 @@ window.mu_syncHtmlBg = function(){
                 if (dying) {
                     if (ts - dyingStart >= DYING_MS) { dying = false; endRacer(); return; }
                 } else if (!ended) {
-                    // Speed ramps up smoothly and predictably toward its
-                    // ceiling — no random spikes or slow-mo zones.
-                    speed = baseSpeed + maxSpeedGain * currentDifficulty();
-                    roadOffset = (roadOffset + speed * dt) % dashCycle;
+                    // Bug fix ("obstacles suddenly jerk/leap forward"): on a
+                    // phone or in-app WebView that occasionally drops
+                    // frames (weak hardware, a GC pause, background
+                    // throttling), rawDt for the next rendered frame can be
+                    // much bigger than a normal ~16.67ms tick. Moving every
+                    // obstacle by speed*dt in ONE step used to cover that
+                    // entire gap in a single jump the instant the frame
+                    // finally rendered — reading exactly like the road
+                    // "teleporting"/twitching forward instead of scrolling
+                    // smoothly. Splitting a big gap into several small,
+                    // fixed-size simulation steps keeps each individual
+                    // step's movement bounded to roughly two normal frames'
+                    // worth, so the total distance covered over the gap is
+                    // still correct (nothing slows down or speeds up on
+                    // average) but it's never rendered as one big leap.
+                    const MAX_STEP_DT = 2; // ~2 frame-units (~33ms) per step
+                    let dtRemaining = dt;
+                    while (dtRemaining > 0) {
+                        const stepDt = Math.min(MAX_STEP_DT, dtRemaining);
+                        dtRemaining -= stepDt;
+
+                        // Speed ramps up smoothly and predictably toward its
+                        // ceiling — no random spikes or slow-mo zones.
+                        speed = baseSpeed + maxSpeedGain * currentDifficulty();
+                        roadOffset = (roadOffset + speed * stepDt) % dashCycle;
+
+                        [0, 1].forEach(laneIdx => {
+                            distSinceSpawn[laneIdx] += speed * stepDt;
+                            if (distSinceSpawn[laneIdx] >= nextGap[laneIdx]) {
+                                distSinceSpawn[laneIdx] = 0;
+                                nextGap[laneIdx] = jitteredGap();
+                                spawnForLane(laneIdx);
+                            }
+                        });
+
+                        obstacles.forEach(o => {
+                            o.y += speed * stepDt;
+                            if (!o.passed && o.y > carRowY) {
+                                o.passed = true;
+                                obstaclesPassed++;
+                                gameScore += 5;
+                                updateScoreLabel();
+                                // Every 10 clean dodges, a haptic buzz marks the
+                                // speed-up milestone quietly, nothing on screen.
+                                if (obstaclesPassed % 10 === 0 && obstaclesPassed !== lastMilestone) {
+                                    lastMilestone = obstaclesPassed;
+                                    mAiGameHaptic('medium');
+                                }
+                            }
+                            const carCol = o.col < 2 ? car1Col : car2Col;
+                            if (o.col === carCol && Math.abs(o.y - carRowY) < (obsH + carH) / 2 - 4) {
+                                triggerDeath(ts);
+                            }
+                        });
+                        obstacles = obstacles.filter(o => o.y < height + obsH);
+
+                        bonuses.forEach(b => {
+                            if (b.taken) return;
+                            b.y += speed * stepDt;
+                            const carCol = b.col < 2 ? car1Col : car2Col;
+                            if (b.col === carCol && Math.abs(b.y - carRowY) < (obsH + carH) / 2 - 4) {
+                                b.taken = true;
+                                const gain = 25;
+                                gameScore += gain;
+                                updateScoreLabel();
+                                mAiGameHaptic('medium');
+                                spawnParticles(colCenterX(b.col), b.y, '#ffd23f', 14);
+                                spawnPopup(colCenterX(b.col), b.y, '+' + gain, '#ffd23f');
+                            }
+                        });
+                        bonuses = bonuses.filter(b => !b.taken && b.y < height + obsH);
+
+                        // A hit mid-gap should stop the road instantly, not
+                        // keep advancing through the rest of this frame's
+                        // leftover steps.
+                        if (dying || ended) break;
+                    }
 
                     scoreTimer += rawDt;
                     if (scoreTimer >= 300) { scoreTimer -= 300; gameScore += 1; updateScoreLabel(); }
-
-                    [0, 1].forEach(laneIdx => {
-                        distSinceSpawn[laneIdx] += speed * dt;
-                        if (distSinceSpawn[laneIdx] >= nextGap[laneIdx]) {
-                            distSinceSpawn[laneIdx] = 0;
-                            nextGap[laneIdx] = jitteredGap();
-                            spawnForLane(laneIdx);
-                        }
-                    });
-
-                    obstacles.forEach(o => {
-                        o.y += speed * dt;
-                        if (!o.passed && o.y > carRowY) {
-                            o.passed = true;
-                            obstaclesPassed++;
-                            gameScore += 5;
-                            updateScoreLabel();
-                            // Every 10 clean dodges, a haptic buzz marks the
-                            // speed-up milestone quietly, nothing on screen.
-                            if (obstaclesPassed % 10 === 0 && obstaclesPassed !== lastMilestone) {
-                                lastMilestone = obstaclesPassed;
-                                mAiGameHaptic('medium');
-                            }
-                        }
-                        const carCol = o.col < 2 ? car1Col : car2Col;
-                        if (o.col === carCol && Math.abs(o.y - carRowY) < (obsH + carH) / 2 - 4) {
-                            triggerDeath(ts);
-                        }
-                    });
-                    obstacles = obstacles.filter(o => o.y < height + obsH);
-
-                    bonuses.forEach(b => {
-                        if (b.taken) return;
-                        b.y += speed * dt;
-                        const carCol = b.col < 2 ? car1Col : car2Col;
-                        if (b.col === carCol && Math.abs(b.y - carRowY) < (obsH + carH) / 2 - 4) {
-                            b.taken = true;
-                            const gain = 25;
-                            gameScore += gain;
-                            updateScoreLabel();
-                            mAiGameHaptic('medium');
-                            spawnParticles(colCenterX(b.col), b.y, '#ffd23f', 14);
-                            spawnPopup(colCenterX(b.col), b.y, '+' + gain, '#ffd23f');
-                        }
-                    });
-                    bonuses = bonuses.filter(b => !b.taken && b.y < height + obsH);
                 }
 
                 if (ended) return;
@@ -6325,13 +6424,20 @@ window.mu_syncHtmlBg = function(){
 
                 // Obstacles and bonuses are both colored to match whichever
                 // pair of lanes they're in — same badge motif, square for
-                // "avoid", circle for "collect".
-                obstacles.forEach(o => drawObstacleBlock(colCenterX(o.col), o.y, obsW, colColor(o.col)));
+                // "avoid", circle for "collect". Drawn from the cached
+                // sprites above (drawImage) instead of rebuilding each
+                // shape's path live every frame.
+                obstacles.forEach(o => {
+                    const spr = badgeSpriteFor(o.col);
+                    ctx.drawImage(spr, colCenterX(o.col) - spr.width / 2, o.y - spr.height / 2, spr.width, spr.height);
+                });
 
                 bonuses.forEach(b => {
                     if (b.taken) return;
                     const bp = 1 + Math.sin(ts / 90) * 0.12;
-                    drawBonusRing(colCenterX(b.col), b.y, obsW * bp, colColor(b.col));
+                    const spr = bonusSpriteFor(b.col);
+                    const s = spr.width * (bp / 1.15);
+                    ctx.drawImage(spr, colCenterX(b.col) - s / 2, b.y - s / 2, s, s);
                 });
 
                 // A brief decaying shake on crash, same "impact beat" trick
@@ -6704,6 +6810,110 @@ window.mu_syncHtmlBg = function(){
             const obstacleSpriteA = makeObstacleSprite('#c9702a', obsW);
             const obstacleSpriteB = makeObstacleSprite('#7d5bb3', obsW);
 
+            // Perf/smoothness fix ("obstacles suddenly jerk/leap forward" —
+            // same user-visible symptom as the frame-drop fix above, but a
+            // different cause): drawPlayerCar's glowing neon outline used
+            // ctx.shadowBlur, one of the single most expensive Canvas 2D
+            // operations — paid twice per frame (once per player car),
+            // every frame, for the whole run. On weaker phones/WebViews
+            // that's enough on its own to make the browser miss its frame
+            // budget and drop frames, which is exactly what produces the
+            // big rawDt spikes the fix above has to compensate for — so
+            // fixing the actual cost here is the more direct fix. Since
+            // neither car's look ever changes after it's created (only its
+            // on-screen transform — position/tilt/squash — moves each
+            // frame), the whole glowing shape is drawn ONCE to a small
+            // offscreen canvas here, and the live loop below just
+            // translates/rotates/scales and blits that finished bitmap —
+            // pixel-identical result, without paying for the blur again on
+            // every single frame.
+            function makePlayerCarSprite(color, beamColor, w, h) {
+                // Bounding box of everything drawPlayerCar draws, relative
+                // to its own (0,0) origin: the headlight beam reaches up to
+                // 2.1h above and 0.65w to each side; the body sits within
+                // ±0.46w / ±0.5h. Padding covers the stroke width and the
+                // shadow blur radius so neither gets clipped at the edges.
+                const pad = 24 + w * 0.2;
+                const left = w * 0.65, right = w * 0.65;
+                const top = h * 2.1, bottom = h * 0.5;
+                const sw = Math.ceil(left + right + pad * 2);
+                const sh = Math.ceil(top + bottom + pad * 2);
+                const originX = Math.ceil(left + pad);
+                const originY = Math.ceil(top + pad);
+                const off = document.createElement('canvas');
+                off.width = sw; off.height = sh;
+                const octx = off.getContext('2d');
+                octx.translate(originX, originY);
+
+                if (beamColor) {
+                    octx.save();
+                    octx.globalCompositeOperation = 'lighter';
+                    octx.fillStyle = beamColor;
+                    octx.beginPath();
+                    octx.moveTo(-w * 0.2, -h * 0.5);
+                    octx.lineTo(-w * 0.65, -h * 2.1);
+                    octx.lineTo(w * 0.65, -h * 2.1);
+                    octx.lineTo(w * 0.2, -h * 0.5);
+                    octx.closePath();
+                    octx.fill();
+                    octx.restore();
+                }
+
+                octx.beginPath();
+                octx.moveTo(0, -h / 2);
+                octx.lineTo(w * 0.34, -h * 0.2);
+                octx.lineTo(w * 0.46, h * 0.08);
+                octx.lineTo(w * 0.4, h * 0.4);
+                octx.quadraticCurveTo(w * 0.4, h / 2, w * 0.24, h / 2);
+                octx.lineTo(-w * 0.24, h / 2);
+                octx.quadraticCurveTo(-w * 0.4, h / 2, -w * 0.4, h * 0.4);
+                octx.lineTo(-w * 0.46, h * 0.08);
+                octx.lineTo(-w * 0.34, -h * 0.2);
+                octx.closePath();
+                octx.fillStyle = '#0a0e1f';
+                octx.fill();
+                octx.lineWidth = Math.max(2, w * 0.16);
+                octx.shadowBlur = 14;
+                octx.shadowColor = color;
+                octx.strokeStyle = color;
+                octx.stroke();
+                octx.shadowBlur = 0;
+
+                octx.beginPath();
+                octx.moveTo(-w * 0.18, -h * 0.14);
+                octx.lineTo(w * 0.18, -h * 0.14);
+                octx.lineWidth = Math.max(1, w * 0.07);
+                octx.strokeStyle = color;
+                octx.globalAlpha = 0.5;
+                octx.stroke();
+                octx.globalAlpha = 1;
+
+                octx.beginPath();
+                octx.moveTo(-w * 0.3, h * 0.36);
+                octx.lineTo(w * 0.3, h * 0.36);
+                octx.lineWidth = Math.max(1, w * 0.09);
+                octx.strokeStyle = color;
+                octx.globalAlpha = 0.4;
+                octx.stroke();
+                octx.globalAlpha = 1;
+
+                return { canvas: off, originX, originY };
+            }
+            const playerCarSprite1 = makePlayerCarSprite('#00d4ff', 'rgba(0,212,255,0.10)', carW, carH);
+            const playerCarSprite2 = makePlayerCarSprite('#ff2b4a', 'rgba(255,43,74,0.10)', carW, carH);
+            // Same transform drawPlayerCar used to apply live (translate to
+            // the car's screen position, rotate for the lane-change bank,
+            // scale for the squash/stretch pop) — just blitting the cached
+            // bitmap at the end instead of redrawing every shape.
+            function drawPlayerCarFast(cx, cy, sprite, tilt, sx, sy) {
+                ctx.save();
+                ctx.translate(cx, cy);
+                ctx.rotate(tilt);
+                ctx.scale(sx, sy);
+                ctx.drawImage(sprite.canvas, -sprite.originX, -sprite.originY);
+                ctx.restore();
+            }
+
             // Body outline per shape — 'rect' is the player's own silhouette
             // (kept exclusive to the player so it's always instantly
             // recognizable); 'block'/'wedge'/'wide' are the traffic pool,
@@ -7017,57 +7227,85 @@ window.mu_syncHtmlBg = function(){
                     // frame — this is what turns the old instant jump into
                     // a smooth ramp up (or down) over roughly a second.
                     chaosSpeedMult += (chaosSpeedMultTarget - chaosSpeedMult) * Math.min(1, dt * 0.06);
-                    speed = (baseSpeed + maxSpeedGain * currentDifficulty()) * chaosSpeedMult;
-                    roadOffset = (roadOffset + speed * dt) % dashCycle;
+
+                    // Bug fix ("obstacles suddenly jerk/leap forward"): on a
+                    // phone or in-app WebView that occasionally drops
+                    // frames (weak hardware, a GC pause, background
+                    // throttling), rawDt for the next rendered frame can be
+                    // much bigger than a normal ~16.67ms tick. Moving every
+                    // obstacle by speed*dt in ONE step used to cover that
+                    // entire gap in a single jump the instant the frame
+                    // finally rendered — reading exactly like the road
+                    // "teleporting"/twitching forward instead of scrolling
+                    // smoothly. Splitting a big gap into several small,
+                    // fixed-size simulation steps keeps each individual
+                    // step's movement bounded to roughly two normal frames'
+                    // worth, so the total distance covered over the gap is
+                    // still correct (nothing slows down or speeds up on
+                    // average) but it's never rendered as one big leap.
+                    const MAX_STEP_DT = 2; // ~2 frame-units (~33ms) per step
+                    let dtRemaining = dt;
+                    while (dtRemaining > 0) {
+                        const stepDt = Math.min(MAX_STEP_DT, dtRemaining);
+                        dtRemaining -= stepDt;
+
+                        speed = (baseSpeed + maxSpeedGain * currentDifficulty()) * chaosSpeedMult;
+                        roadOffset = (roadOffset + speed * stepDt) % dashCycle;
+
+                        [0, 1].forEach(laneIdx => {
+                            distSinceSpawn[laneIdx] += speed * stepDt;
+                            if (distSinceSpawn[laneIdx] >= nextGap[laneIdx]) {
+                                distSinceSpawn[laneIdx] = 0;
+                                nextGap[laneIdx] = jitteredGap();
+                                spawnForLane(laneIdx);
+                            }
+                        });
+
+                        obstacles.forEach(o => {
+                            o.y += speed * stepDt;
+                            if (!o.passed && o.y > carRowY) {
+                                o.passed = true;
+                                obstaclesPassed++;
+                                gameScore += Math.round(5 * chaosScoreMult);
+                                updateScoreLabel();
+                                // Every 10 clean dodges, a haptic buzz marks the
+                                // speed-up milestone quietly, nothing on screen.
+                                if (obstaclesPassed % 10 === 0 && obstaclesPassed !== lastMilestone) {
+                                    lastMilestone = obstaclesPassed;
+                                    mAiGameHaptic('medium');
+                                }
+                            }
+                            const carCol = o.col < 2 ? car1Col : car2Col;
+                            if (o.col === carCol && Math.abs(o.y - carRowY) < (obsH + carH) / 2 - 4) {
+                                triggerDeath(ts);
+                            }
+                        });
+                        obstacles = obstacles.filter(o => o.y < height + obsH);
+
+                        bonuses.forEach(b => {
+                            if (b.taken) return;
+                            b.y += speed * stepDt;
+                            const carCol = b.col < 2 ? car1Col : car2Col;
+                            if (b.col === carCol && Math.abs(b.y - carRowY) < (obsH + carH) / 2 - 4) {
+                                b.taken = true;
+                                const gain = Math.round(25 * chaosScoreMult);
+                                gameScore += gain;
+                                updateScoreLabel();
+                                mAiGameHaptic('medium');
+                                spawnParticles(colCenterX(b.col), b.y, '#ffd23f', 14);
+                                spawnPopup(colCenterX(b.col), b.y, '+' + gain, '#ffd23f');
+                            }
+                        });
+                        bonuses = bonuses.filter(b => !b.taken && b.y < height + obsH);
+
+                        // A hit mid-gap should stop the road instantly, not
+                        // keep advancing through the rest of this frame's
+                        // leftover steps.
+                        if (dying || ended) break;
+                    }
 
                     scoreTimer += rawDt;
                     if (scoreTimer >= 300) { scoreTimer -= 300; gameScore += Math.round(1 * chaosScoreMult); updateScoreLabel(); }
-
-                    [0, 1].forEach(laneIdx => {
-                        distSinceSpawn[laneIdx] += speed * dt;
-                        if (distSinceSpawn[laneIdx] >= nextGap[laneIdx]) {
-                            distSinceSpawn[laneIdx] = 0;
-                            nextGap[laneIdx] = jitteredGap();
-                            spawnForLane(laneIdx);
-                        }
-                    });
-
-                    obstacles.forEach(o => {
-                        o.y += speed * dt;
-                        if (!o.passed && o.y > carRowY) {
-                            o.passed = true;
-                            obstaclesPassed++;
-                            gameScore += Math.round(5 * chaosScoreMult);
-                            updateScoreLabel();
-                            // Every 10 clean dodges, a haptic buzz marks the
-                            // speed-up milestone quietly, nothing on screen.
-                            if (obstaclesPassed % 10 === 0 && obstaclesPassed !== lastMilestone) {
-                                lastMilestone = obstaclesPassed;
-                                mAiGameHaptic('medium');
-                            }
-                        }
-                        const carCol = o.col < 2 ? car1Col : car2Col;
-                        if (o.col === carCol && Math.abs(o.y - carRowY) < (obsH + carH) / 2 - 4) {
-                            triggerDeath(ts);
-                        }
-                    });
-                    obstacles = obstacles.filter(o => o.y < height + obsH);
-
-                    bonuses.forEach(b => {
-                        if (b.taken) return;
-                        b.y += speed * dt;
-                        const carCol = b.col < 2 ? car1Col : car2Col;
-                        if (b.col === carCol && Math.abs(b.y - carRowY) < (obsH + carH) / 2 - 4) {
-                            b.taken = true;
-                            const gain = Math.round(25 * chaosScoreMult);
-                            gameScore += gain;
-                            updateScoreLabel();
-                            mAiGameHaptic('medium');
-                            spawnParticles(colCenterX(b.col), b.y, '#ffd23f', 14);
-                            spawnPopup(colCenterX(b.col), b.y, '+' + gain, '#ffd23f');
-                        }
-                    });
-                    bonuses = bonuses.filter(b => !b.taken && b.y < height + obsH);
                 }
 
                 if (ended) return;
@@ -7226,8 +7464,8 @@ window.mu_syncHtmlBg = function(){
                 const tilt1 = bankTilt(car1BankT, car1BankDir);
                 const tilt2 = bankTilt(car2BankT, car2BankDir);
                 const squash1 = squashScale(car1SquashT), squash2 = squashScale(car2SquashT);
-                drawPlayerCar(car1X, carRowY, carW, carH, '#00d4ff', { tilt: tilt1, beamColor: 'rgba(0,212,255,0.10)', squashX: squash1.sx, squashY: squash1.sy });
-                drawPlayerCar(car2X, carRowY, carW, carH, '#ff2b4a', { tilt: tilt2, beamColor: 'rgba(255,43,74,0.10)', squashX: squash2.sx, squashY: squash2.sy });
+                drawPlayerCarFast(car1X, carRowY, playerCarSprite1, tilt1, squash1.sx, squash1.sy);
+                drawPlayerCarFast(car2X, carRowY, playerCarSprite2, tilt2, squash2.sx, squash2.sy);
                 ctx.restore();
                 prevCar1X = car1X; prevCar2X = car2X;
 
