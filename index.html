@@ -231,6 +231,21 @@
             backdrop-filter: none !important;
             -webkit-backdrop-filter: none !important;
         }
+        /* Same idea as the scroll fix above, extended to game sessions.
+           The game modal already sits on top of these layers at full
+           opacity (see #gameModal's own comment on why its backdrop-filter
+           was dropped), so the background is completely hidden anyway —
+           but hidden isn't the same as stopped: a paused/off-screen CSS
+           animation keeps consuming GPU/CPU if its layer is still
+           compositing underneath. A game runs for minutes, not the ~150ms
+           of a scroll settle, so this pause is applied for the whole time
+           #gameModal is open (toggled in openGameMenu()/closeGame() in the
+           script below) rather than on a short timer. */
+        body.mu-game-open[class*="theme-"]::before,
+        body.mu-game-open[class*="theme-"]::after {
+            animation-play-state: paused !important;
+            filter: none !important;
+        }
         /* Respect the OS-level "reduce motion" setting some people turn on
            specifically because animated UI causes them discomfort or performance
            trouble on their device — honor it by turning the same decorative
@@ -1819,7 +1834,21 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            backdrop-filter: blur(7px);
+            /* Smoothness fix: this modal covers the full viewport for the
+               ENTIRE time any game is open, sitting directly on top of the
+               continuously-animating themed background layers (the same
+               oceanCaustics/auroraDrift/etc. layers noted elsewhere in this
+               file). A backdrop-filter blur here isn't a one-off cost like
+               it is on a normal popup — it has to be recomputed every time
+               that background animates behind it, i.e. every frame, for as
+               long as a game is being played, directly competing with the
+               game's own 60fps canvas loop for the same GPU/CPU budget.
+               This is exactly the kind of cost noted elsewhere in this file
+               as "worst inside Telegram's in-app browser". The modal's
+               background is already 82% opaque black, so the blur added
+               very little visible effect anyway — dropping the previous
+               "backdrop-filter: blur(7px)" declaration removes a continuous
+               full-screen cost for effectively no visual loss. */
             /* Telegram's in-app WebView otherwise shows a text-selection/
                "save image" callout on long-press over the canvas, and lets a
                stray drag bleed through as a rubber-band scroll of the page
@@ -1914,6 +1943,19 @@
             display: block;
             box-shadow: inset 0 0 30px rgba(255,255,255,0.03);
             touch-action: none;
+            /* Telegram's Android in-app browser (a system WebView, often
+               with weaker/less consistent GPU compositing than a full
+               Chrome browser) can end up repainting this canvas as part of
+               the same layer as its surrounding UI, so every one of the
+               60 redraws a second during gameplay also re-composites
+               everything around it — the exact same class of issue the
+               theme background layers above already work around with this
+               same transform/will-change combo. Forcing the canvas onto
+               its own dedicated compositor layer means only the canvas
+               itself needs repainting each frame. */
+            transform: translateZ(0);
+            backface-visibility: hidden;
+            will-change: transform;
         }
 
         .game-overlay-panel {
@@ -1942,7 +1984,7 @@
         .go-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
         .go-best { font-size: 11px; opacity: .5; margin-top: -10px; margin-bottom: 16px; }
 
-        /* ---- "جاده بی‌قانون" (Twin Lane Racer) reference-matched theme ----
+        /* ---- "ریسر دوخطه" (Twin Lane Racer) reference-matched theme ----
            Scoped to .theme-racer (added/removed on #gameCard only while the
            racer game is the active one — see startTwinLaneRacer /
            openGameMenu / backToGameMenu / closeGame) so Snake and Flappy's
@@ -2886,7 +2928,7 @@ window.mu_syncHtmlBg = function(){
                 <p id="gameMenuDesc" style="font-size: 12px; color: rgba(255,255,255,0.5); margin-bottom: 20px;">یک بازی را انتخاب کنید:</p>
                 <div style="display: flex; gap: 12px; justify-content: center; margin-bottom: 20px; flex-wrap: wrap;">
                     <button class="btn-main" id="btnGameSnake" onclick="startNeonSnake()" style="padding: 10px 20px; font-size: 13px;">🐍 مار نئونی</button>
-                    <button class="btn-main" id="btnGameRacer" onclick="startTwinLaneRacer()" style="padding: 10px 20px; font-size: 13px;">🏎️ جاده بی‌قانون</button>
+                    <button class="btn-main" id="btnGameRacer" onclick="startTwinLaneRacer()" style="padding: 10px 20px; font-size: 13px;">🏎️ ریسر دوخطه</button>
                     <button class="btn-main" id="btnGameFlappy" onclick="startCyberFlappy()" style="padding: 10px 20px; font-size: 13px;">🚀 عبور از موانع</button>
                 </div>
                 <button class="img-btn" id="btnGameClose" style="padding: 8px 25px; background: rgba(239, 68, 68, 0.75); color: #fff; font-size: 13px;" onclick="closeGame()">بستن</button>
@@ -3227,7 +3269,7 @@ window.mu_syncHtmlBg = function(){
                 gameMenuP: "یک بازی را انتخاب کنید:",
                 snakeBtn: "🐍 مار نئونی",
                 flappyBtn: "🚀 عبور از موانع",
-                racerBtn: "🏎️ جاده بی‌قانون",
+                racerBtn: "🏎️ ریسر دوخطه",
                 closeBtn: "بستن",
                 menuBtn: "منو",
                 exitBtn: "خروج",
@@ -3328,7 +3370,7 @@ window.mu_syncHtmlBg = function(){
                 gameMenuP: "Select a game:",
                 snakeBtn: "🐍 Neon Snake",
                 flappyBtn: "🚀 Cyber Flappy",
-                racerBtn: "🏎️ No Rules Road",
+                racerBtn: "🏎️ Twin Lane Racer",
                 closeBtn: "Close",
                 menuBtn: "Menu",
                 exitBtn: "Exit",
@@ -4584,7 +4626,24 @@ window.mu_syncHtmlBg = function(){
             };
         }
 
+        // Bug fix: the "ریسر دوخطه" (racer) Classic/Modern picker is a
+        // one-off overlay appended straight to document.body (see
+        // startTwinLaneRacer below), completely outside #gameModal, so
+        // none of the normal show/hide logic above ever touched it. If the
+        // player opened the picker and then left via the Telegram hardware
+        // back button, the "×" exit, or the in-menu "بستن/خروج" buttons
+        // instead of tapping Classic/Modern/Cancel, the picker used to be
+        // left floating on top of the whole app — fully interactive but
+        // completely disconnected from a game/modal that was now "closed",
+        // effectively soft-locking the UI behind an invisible dead click
+        // layer. Every exit path now clears it defensively.
+        function removeRacerChooser() {
+            const el = document.getElementById('racerVariantChooser');
+            if (el) el.remove();
+        }
+
         function openGameMenu() {
+            removeRacerChooser();
             document.getElementById('gameModal').style.display = 'flex';
             document.getElementById('gameSelectMenu').style.display = 'block';
             document.getElementById('gamePlayArea').style.display = 'none';
@@ -4593,9 +4652,14 @@ window.mu_syncHtmlBg = function(){
             document.getElementById('gameCard').classList.remove('theme-flappy');
             clearGameEvents();
             mAiGameTelegramChrome(true);
+            // Pauses the animated theme background for as long as any game
+            // is open — see the body.mu-game-open rule near the top of the
+            // stylesheet for why.
+            document.body.classList.add('mu-game-open');
         }
 
         function backToGameMenu() {
+            removeRacerChooser();
             clearGameEvents();
             document.getElementById('gameSelectMenu').style.display = 'block';
             document.getElementById('gamePlayArea').style.display = 'none';
@@ -4605,12 +4669,14 @@ window.mu_syncHtmlBg = function(){
         }
 
         function closeGame() {
+            removeRacerChooser();
             document.getElementById('gameModal').style.display = 'none';
             document.getElementById('gameCard').classList.remove('gc-playing');
             document.getElementById('gameCard').classList.remove('theme-racer');
             document.getElementById('gameCard').classList.remove('theme-flappy');
             clearGameEvents();
             mAiGameTelegramChrome(false);
+            document.body.classList.remove('mu-game-open');
         }
 
         // Adapts Telegram's native chrome to the game modal's lifetime:
@@ -4624,6 +4690,12 @@ window.mu_syncHtmlBg = function(){
         //    closing the whole Mini App by mistake.
         // Everything is feature-detected and no-ops instantly outside Telegram.
         function mAiGameBackHandler() {
+            // If the racer variant picker is open, a back-gesture should
+            // just dismiss that small picker (same as its own "انصراف"
+            // button) and land back on the game list — not skip past it
+            // and close the whole modal, which is what happened before
+            // this overlay was wired into the back-handler at all.
+            if (document.getElementById('racerVariantChooser')) { removeRacerChooser(); return; }
             const playing = document.getElementById('gamePlayArea').style.display === 'flex';
             if (playing) backToGameMenu(); else closeGame();
         }
@@ -4712,6 +4784,11 @@ window.mu_syncHtmlBg = function(){
             canvas.style.height = h + 'px';
             const ctx = canvas.getContext('2d');
             ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            // Remembered so mAiGameScheduleRefit (below) can tell a real
+            // resize apart from cosmetic viewport jitter and skip needless
+            // restarts — see the bug fix there.
+            window.__markhinFitW = w;
+            window.__markhinFitH = h;
             return { width: w, height: h, ctx };
         }
 
@@ -4763,6 +4840,25 @@ window.mu_syncHtmlBg = function(){
             if (!playing) return;
             clearTimeout(gameResizeTimer);
             gameResizeTimer = setTimeout(() => {
+                // Bug fix: this used to unconditionally restart the active
+                // game from zero on every single 'resize'/'viewportChanged'
+                // firing — but those fire for far more than real rotations
+                // or window resizes. Telegram in particular can fire
+                // viewportChanged for tiny safe-area/keyboard jitter, and
+                // mobile browsers fire 'resize' when the address bar
+                // shows/hides during ordinary scrolling. Each one was
+                // silently wiping the player's live score/progress for no
+                // visible reason — exactly the "game keeps resetting
+                // itself" complaint this fixes. Only restart when the play
+                // area's actual size moved by more than a small threshold;
+                // ignore anything smaller as pure UI chrome noise.
+                const wrap = document.getElementById('gameCanvasWrap');
+                if (wrap) {
+                    const rect = wrap.getBoundingClientRect();
+                    const dw = Math.abs(rect.width - (window.__markhinFitW || 0));
+                    const dh = Math.abs(rect.height - (window.__markhinFitH || 0));
+                    if (dw < 30 && dh < 30) return;
+                }
                 if (window.__markhinActiveGame === 'snake') startNeonSnake();
                 else if (window.__markhinActiveGame === 'flappy') startCyberFlappy();
                 else if (window.__markhinActiveGame === 'racer') {
@@ -5222,14 +5318,26 @@ window.mu_syncHtmlBg = function(){
                 // timing as before, just smoother to look at. Frozen at the
                 // exact final position while dying/no snapshot available.
                 const progress = (dying || !frameStartSnake) ? 1 : Math.min(1, acc / stepMs);
+                // Further trim on the fix above: this used to write
+                // ctx.shadowBlur once per segment (14 for the head, 0 for
+                // every body segment) — one canvas state write per segment,
+                // every frame, scaling with snake length. shadowBlur is only
+                // ever 14 (head) or 0 (body), so it's set at most twice per
+                // frame now: once for the head, once right after it for the
+                // whole rest of the body.
+                ctx.shadowBlur = 14;
                 snake.forEach((part, index) => {
                     const prev = (frameStartSnake && frameStartSnake[index]) ? frameStartSnake[index]
                         : (frameStartSnake && frameStartSnake[index - 1]) ? frameStartSnake[index - 1] : part;
                     const rx = prev.x + (part.x - prev.x) * progress;
                     const ry = prev.y + (part.y - prev.y) * progress;
-                    const t = index / Math.max(1, snake.length - 1);
-                    ctx.fillStyle = index === 0 ? '#c4fbff' : `hsl(${188 + t * 20}, 100%, ${62 - t * 22}%)`;
-                    ctx.shadowBlur = index === 0 ? 14 : 0;
+                    if (index === 1) ctx.shadowBlur = 0;
+                    if (index === 0) {
+                        ctx.fillStyle = '#c4fbff';
+                    } else {
+                        const t = index / Math.max(1, snake.length - 1);
+                        ctx.fillStyle = `hsl(${188 + t * 20}, 100%, ${62 - t * 22}%)`;
+                    }
                     ctx.beginPath();
                     ctx.roundRect(rx + 1, ry + 1, gridSize - 2, gridSize - 2, 5);
                     ctx.fill();
@@ -5268,7 +5376,7 @@ window.mu_syncHtmlBg = function(){
            city skyline, a grass/dirt ground the bird can actually land on,
            classic green capped pipes, and a coin the bird can collect
            (counted in the top-left badge, separate from the pipe score).
-           Uses the same immersive fullscreen chrome as No Rules Road
+           Uses the same immersive fullscreen chrome as Twin Lane Racer
            (.theme-flappy, mirroring .theme-racer) instead of the old boxed
            dark topbar.
 
@@ -5391,18 +5499,53 @@ window.mu_syncHtmlBg = function(){
             // A crash always ends the run — no banked shields to absorb it.
             function handleCrash() { endFlappy(); }
 
+            // Perf/smoothness fix: the sky gradient and every pipe body,
+            // pipe cap, and coin were each building a brand new gradient
+            // with ctx.createLinearGradient()/createRadialGradient() every
+            // single frame. With 2-3 pipes on screen (4 gradients each —
+            // two body segments plus two caps) and every visible coin, that
+            // was a dozen-plus fresh gradient objects 60 times a second —
+            // none of which actually needed to change frame to frame: the
+            // sky's colors/height are fixed for the run, the pipe/cap
+            // gradients only depend on the pipe's own fixed width (not its
+            // scrolling x position — drawPipeSeg/drawPipeCap below now
+            // translate to the pipe's x first and paint the cached gradient
+            // at local x=0), and the coin gradient only depends on the coin
+            // radius, which is the same fixed value for every coin. All
+            // built once here, reused for the life of the run.
+            const skyGradient = ctx.createLinearGradient(0, 0, 0, groundTopY);
+            skyGradient.addColorStop(0, '#57c4e5');
+            skyGradient.addColorStop(1, '#9fe0e8');
+
+            const pipeBodyGradient = ctx.createLinearGradient(0, 0, pipeW, 0);
+            pipeBodyGradient.addColorStop(0, '#6fdb5a');
+            pipeBodyGradient.addColorStop(0.16, '#3fae3c');
+            pipeBodyGradient.addColorStop(0.5, '#2f9130');
+            pipeBodyGradient.addColorStop(0.84, '#237023');
+            pipeBodyGradient.addColorStop(1, '#1c5c1e');
+
+            const pipeCapW = pipeW + pipeCapOver * 2;
+            const pipeCapGradient = ctx.createLinearGradient(0, 0, pipeCapW, 0);
+            pipeCapGradient.addColorStop(0, '#7fe86a');
+            pipeCapGradient.addColorStop(0.16, '#48ba45');
+            pipeCapGradient.addColorStop(0.5, '#349534');
+            pipeCapGradient.addColorStop(0.84, '#277627');
+            pipeCapGradient.addColorStop(1, '#1e621f');
+
+            const coinR = Math.max(9, pipeW * 0.15);
+            const coinGradient = ctx.createRadialGradient(-coinR * 0.3, -coinR * 0.3, coinR * 0.1, 0, 0, coinR);
+            coinGradient.addColorStop(0, '#fff6c9');
+            coinGradient.addColorStop(0.55, '#ffd23f');
+            coinGradient.addColorStop(1, '#c97e00');
+
             function drawCoin(cx, cy, r, ts) {
                 const scaleX = Math.max(0.18, Math.abs(Math.cos(ts / 260)));
                 ctx.save();
                 ctx.translate(cx, cy);
                 ctx.scale(scaleX, 1);
-                const g = ctx.createRadialGradient(-r * 0.3, -r * 0.3, r * 0.1, 0, 0, r);
-                g.addColorStop(0, '#fff6c9');
-                g.addColorStop(0.55, '#ffd23f');
-                g.addColorStop(1, '#c97e00');
                 ctx.beginPath();
                 ctx.arc(0, 0, r, 0, Math.PI * 2);
-                ctx.fillStyle = g;
+                ctx.fillStyle = coinGradient;
                 ctx.fill();
                 ctx.lineWidth = Math.max(1, r * 0.12);
                 ctx.strokeStyle = 'rgba(120,70,0,0.55)';
@@ -5412,32 +5555,25 @@ window.mu_syncHtmlBg = function(){
 
             function drawPipeSeg(x, y, h) {
                 if (h <= 0) return;
-                const g = ctx.createLinearGradient(x, 0, x + pipeW, 0);
-                g.addColorStop(0, '#6fdb5a');
-                g.addColorStop(0.16, '#3fae3c');
-                g.addColorStop(0.5, '#2f9130');
-                g.addColorStop(0.84, '#237023');
-                g.addColorStop(1, '#1c5c1e');
-                ctx.fillStyle = g;
-                ctx.fillRect(x, y, pipeW, h);
+                ctx.save();
+                ctx.translate(x, 0);
+                ctx.fillStyle = pipeBodyGradient;
+                ctx.fillRect(0, y, pipeW, h);
                 ctx.strokeStyle = 'rgba(15,50,15,0.85)';
                 ctx.lineWidth = 2;
-                ctx.strokeRect(x + 1, y, pipeW - 2, h);
+                ctx.strokeRect(1, y, pipeW - 2, h);
+                ctx.restore();
             }
 
             function drawPipeCap(x, y) {
-                const cx = x - pipeCapOver, cw = pipeW + pipeCapOver * 2;
-                const g = ctx.createLinearGradient(cx, 0, cx + cw, 0);
-                g.addColorStop(0, '#7fe86a');
-                g.addColorStop(0.16, '#48ba45');
-                g.addColorStop(0.5, '#349534');
-                g.addColorStop(0.84, '#277627');
-                g.addColorStop(1, '#1e621f');
-                ctx.fillStyle = g;
-                ctx.fillRect(cx, y, cw, pipeCapH);
+                ctx.save();
+                ctx.translate(x - pipeCapOver, 0);
+                ctx.fillStyle = pipeCapGradient;
+                ctx.fillRect(0, y, pipeCapW, pipeCapH);
                 ctx.strokeStyle = 'rgba(15,50,15,0.85)';
                 ctx.lineWidth = 2;
-                ctx.strokeRect(cx + 1, y + 1, cw - 2, pipeCapH - 2);
+                ctx.strokeRect(1, y + 1, pipeCapW - 2, pipeCapH - 2);
+                ctx.restore();
             }
 
             function drawPipePair(x, gapTop, gapBottom) {
@@ -5465,10 +5601,7 @@ window.mu_syncHtmlBg = function(){
 
                 // ---- sky ----
                 ctx.clearRect(0, 0, width, height);
-                const sky = ctx.createLinearGradient(0, 0, 0, groundTopY);
-                sky.addColorStop(0, '#57c4e5');
-                sky.addColorStop(1, '#9fe0e8');
-                ctx.fillStyle = sky;
+                ctx.fillStyle = skyGradient;
                 ctx.fillRect(0, 0, width, groundTopY);
 
                 // ---- parallax skyline ----
@@ -5600,7 +5733,7 @@ window.mu_syncHtmlBg = function(){
             gameStopFn = () => { if (raf) cancelAnimationFrame(raf); };
         }
 
-        /* ------------------------- No Rules Road -------------------------
+        /* ------------------------- Twin Lane Racer -------------------------
            Two independent lanes side by side (left car / right car), each
            lane split into two roads the car can hop between. Tapping the
            left half of the play area swaps the left car's road; tapping the
@@ -5623,7 +5756,7 @@ window.mu_syncHtmlBg = function(){
             const fa = currentLang === 'fa';
             enterGamePlayMode();
             document.getElementById('gameCard').classList.add('theme-racer');
-            document.getElementById('gameTitleActive').innerText = fa ? '🏎️ جاده بی‌قانون' : '🏎️ NO RULES ROAD';
+            document.getElementById('gameTitleActive').innerText = fa ? '🏎️ ریسر دوخطه' : '🏎️ Twin Lane Racer';
             document.getElementById('gameDescActive').innerText = fa
                 ? 'نیمه چپ رو بزن برای ماشین چپ، نیمه راست برای ماشین راست. هر دو ماشین رو زنده نگه دار!'
                 : "Tap left for the left car, right for the right car. Keep both cars alive!";
@@ -5674,8 +5807,10 @@ window.mu_syncHtmlBg = function(){
             // car2MoveFromX capture the on-screen position the instant a
             // switch starts; car1BankT/car2BankT (below) double as the
             // tween clock, since they already reset to 0 on every toggle.
+            // Trimmed from 170ms to 130ms so a tap reads as an instant
+            // reaction instead of a visible drift into the new lane.
             let car1MoveFromX = car1X, car2MoveFromX = car2X;
-            const LANE_MOVE_MS = 170;
+            const LANE_MOVE_MS = 130;
             function easeOutCubic(p) { return 1 - Math.pow(1 - p, 3); }
             let roadOffset = 0;
             let lastMilestone = 0;
@@ -5695,6 +5830,19 @@ window.mu_syncHtmlBg = function(){
             const CAR1_COLOR = '#f13866';
             const CAR2_COLOR = '#00a9c0';
             function colColor(col) { return col < 2 ? CAR1_COLOR : CAR2_COLOR; }
+
+            // Perf/smoothness fix: this radial gradient used to be built
+            // fresh with ctx.createRadialGradient() on every single animation
+            // frame inside loop() below, purely to darken the corners. That
+            // allocates a new gradient object 60 times a second for a value
+            // that never changes (width/height are fixed for the life of a
+            // run — a resize restarts the game entirely, see
+            // mAiGameScheduleRefit), which is wasted GC pressure and was
+            // contributing to the choppy/stuttery feel on slower phones.
+            // Built once here, reused every frame in loop().
+            const vig = ctx.createRadialGradient(width / 2, height * 0.55, height * 0.3, width / 2, height * 0.55, height * 0.75);
+            vig.addColorStop(0, 'rgba(0,0,0,0)');
+            vig.addColorStop(1, 'rgba(0,0,0,0.38)');
 
             // Reference shows just the bare number, top-right, no label.
             function updateScoreLabel() {
@@ -5950,8 +6098,8 @@ window.mu_syncHtmlBg = function(){
             let car1SquashT = 9999, car2SquashT = 9999;
             let car1BankT = 9999, car2BankT = 9999;
             let car1BankDir = 1, car2BankDir = 1;
-            const SQUASH_MS = 220;
-            const BANK_MS = 260;
+            const SQUASH_MS = 180;
+            const BANK_MS = 210;
             function squashScale(t) {
                 if (t >= SQUASH_MS) return { sx: 1, sy: 1 };
                 const p = t / SQUASH_MS;
@@ -6000,8 +6148,22 @@ window.mu_syncHtmlBg = function(){
                 const relX = clientX - rect.left;
                 toggleCar(sideForLeft(relX < width / 2));
             }
+            // Responsiveness fix: some in-app WebViews (a few older
+            // Telegram/Android embedded browsers) still fire a synthetic
+            // "ghost" mousedown a moment after a real touchstart even
+            // though touchstart already calls preventDefault() — the spec
+            // says that should suppress it, but not every WebView honors
+            // it. When that happened, one finger tap toggled a lane TWICE
+            // in quick succession (touchstart, then the ghost mousedown),
+            // snapping the car back to where it started — which reads
+            // exactly like laggy/unresponsive controls. lastTouchAt records
+            // the last real touch so a mousedown arriving within the
+            // classic ~500ms ghost-click window is ignored; a genuine
+            // mouse/trackpad user (no preceding touch) is unaffected.
+            let lastTouchAt = 0;
             wrap.addEventListener('mousedown', (e) => {
                 if (e.target.closest('.game-overlay-panel')) return;
+                if (Date.now() - lastTouchAt < 500) return;
                 handleTap(e.clientX);
                 e.preventDefault();
             }, { signal: gameAborter.signal });
@@ -6015,6 +6177,7 @@ window.mu_syncHtmlBg = function(){
             // landing later still can't double-toggle a side that was
             // already handled.
             wrap.addEventListener('touchstart', (e) => {
+                lastTouchAt = Date.now();
                 if (e.target.closest('.game-overlay-panel')) return;
                 const rect = wrap.getBoundingClientRect();
                 let hitLeft = false, hitRight = false;
@@ -6036,7 +6199,7 @@ window.mu_syncHtmlBg = function(){
             function endRacer() {
                 if (ended) return;
                 ended = true;
-                presentGameOver(gameScore, 'racer', fa ? '💥 جاده بی‌قانون بردت!' : '💥 THE ROAD GOT YOU!', startTwinLaneRacerClassic);
+                presentGameOver(gameScore, 'racer', fa ? '💥 ریسر دوخطه بردت!' : '💥 THE ROAD GOT YOU!', startTwinLaneRacerClassic);
             }
             function triggerDeath(ts) {
                 if (dying || ended) return;
@@ -6211,11 +6374,9 @@ window.mu_syncHtmlBg = function(){
                 ctx.globalAlpha = 1;
 
                 // Cinematic vignette — darkens the corners so the glowing
-                // lanes/cars in the middle pop more, cheap per-frame cost
-                // since it's one static-shaped radial gradient fill.
-                const vig = ctx.createRadialGradient(width / 2, height * 0.55, height * 0.3, width / 2, height * 0.55, height * 0.75);
-                vig.addColorStop(0, 'rgba(0,0,0,0)');
-                vig.addColorStop(1, 'rgba(0,0,0,0.38)');
+                // lanes/cars in the middle pop more. Reuses the gradient
+                // built once above instead of allocating a new one here
+                // every frame (see the comment at its definition).
                 ctx.fillStyle = vig;
                 ctx.fillRect(0, 0, width, height);
             }
@@ -6230,7 +6391,7 @@ window.mu_syncHtmlBg = function(){
             const fa = currentLang === 'fa';
             enterGamePlayMode();
             document.getElementById('gameCard').classList.add('theme-racer');
-            document.getElementById('gameTitleActive').innerText = fa ? '🏎️ جاده بی‌قانون' : '🏎️ NO RULES ROAD';
+            document.getElementById('gameTitleActive').innerText = fa ? '🏎️ ریسر دوخطه' : '🏎️ Twin Lane Racer';
             document.getElementById('gameDescActive').innerText = fa
                 ? 'نیمه چپ رو بزن برای ماشین چپ، نیمه راست برای ماشین راست. این جاده قانون سرش نمی‌شه: هر از گاهی سرعت یا حتی خودِ صفحه دیوونه می‌شه!'
                 : "Tap left for the left car, right for the right car. This road has no rules — speed, even the screen itself, can go haywire without warning!";
@@ -6284,8 +6445,10 @@ window.mu_syncHtmlBg = function(){
             // car1MoveFromX/car2MoveFromX capture the on-screen position at
             // the instant a switch starts, and the shared *BankT timer
             // below (already reset to 0 on every toggle) also drives this.
+            // Trimmed from 170ms to 130ms so a tap reads as an instant
+            // reaction instead of a visible drift into the new lane.
             let car1MoveFromX = car1X, car2MoveFromX = car2X;
-            const LANE_MOVE_MS = 170;
+            const LANE_MOVE_MS = 130;
             function easeOutCubic(p) { return 1 - Math.pow(1 - p, 3); }
             let roadOffset = 0;
             let flashAlpha = 0;          // brief white flash on a speed-up milestone
@@ -6398,6 +6561,27 @@ window.mu_syncHtmlBg = function(){
             }
             updateScoreLabel();
 
+            // Perf/smoothness fix: these three gradients (the two asphalt
+            // washes and the corner vignette) used to be rebuilt from
+            // scratch with ctx.createLinearGradient()/createRadialGradient()
+            // on every single animation frame in loop() below, even though
+            // none of their inputs (width/height/colors) ever change during
+            // a run — a resize restarts the game entirely (see
+            // mAiGameScheduleRefit). That's 3 fresh gradient allocations
+            // 60 times a second, which is unnecessary GC pressure and was
+            // a real contributor to the stuttery feel on slower phones —
+            // the Modern variant felt choppier than Classic partly because
+            // of this. Built once here, reused every frame in loop().
+            const asphaltL = ctx.createLinearGradient(0, 0, 0, height);
+            asphaltL.addColorStop(0, '#0a1e23');
+            asphaltL.addColorStop(1, '#0e2c33');
+            const asphaltR = ctx.createLinearGradient(0, 0, 0, height);
+            asphaltR.addColorStop(0, '#1f0f1f');
+            asphaltR.addColorStop(1, '#2c132b');
+            const vig = ctx.createRadialGradient(width / 2, height * 0.55, height * 0.3, width / 2, height * 0.55, height * 0.75);
+            vig.addColorStop(0, 'rgba(0,0,0,0)');
+            vig.addColorStop(1, 'rgba(0,0,0,0.38)');
+
             // Same asymptotic difficulty curve as Cyber Flappy: speed keeps
             // creeping up but always approaches a fixed ceiling instead of
             // running away to something unbeatable.
@@ -6476,6 +6660,49 @@ window.mu_syncHtmlBg = function(){
                 ctx.restore();
                 ctx.restore();
             }
+
+            // Perf/smoothness fix: drawObstacleBlock above does a fill, a
+            // stroke, a clip, AND a small loop of ~5-6 more strokes (the
+            // diagonal stripe pattern) — every one of those steps repeated
+            // for every obstacle on screen, every single frame, even though
+            // an obstacle's look never changes after it spawns (only its Y
+            // position moves). With several obstacles in Modern's denser
+            // traffic this added up to real per-frame cost. Since there are
+            // only ever two possible colors, both looks are drawn ONCE to
+            // small offscreen canvases here, and the loop below just blits
+            // the finished bitmap with a single drawImage() per obstacle —
+            // pixel-identical result, far less work per frame.
+            function makeObstacleSprite(color, s) {
+                const pad = Math.ceil(s * 0.15);
+                const size = Math.ceil(s + pad * 2);
+                const off = document.createElement('canvas');
+                off.width = size; off.height = size;
+                const octx = off.getContext('2d');
+                octx.translate(size / 2, size / 2);
+                octx.beginPath();
+                octx.roundRect(-s / 2, -s / 2, s, s, s * 0.14);
+                octx.fillStyle = color;
+                octx.fill();
+                octx.lineWidth = Math.max(1, s * 0.07);
+                octx.strokeStyle = 'rgba(5,5,8,0.9)';
+                octx.stroke();
+                octx.save();
+                octx.beginPath();
+                octx.roundRect(-s / 2, -s / 2, s, s, s * 0.14);
+                octx.clip();
+                octx.strokeStyle = 'rgba(255,255,255,0.32)';
+                octx.lineWidth = s * 0.16;
+                for (let x = -s; x < s; x += s * 0.36) {
+                    octx.beginPath();
+                    octx.moveTo(x, -s);
+                    octx.lineTo(x + s * 2, s);
+                    octx.stroke();
+                }
+                octx.restore();
+                return off;
+            }
+            const obstacleSpriteA = makeObstacleSprite('#c9702a', obsW);
+            const obstacleSpriteB = makeObstacleSprite('#7d5bb3', obsW);
 
             // Body outline per shape — 'rect' is the player's own silhouette
             // (kept exclusive to the player so it's always instantly
@@ -6658,8 +6885,8 @@ window.mu_syncHtmlBg = function(){
             let car1SquashT = 9999, car2SquashT = 9999;
             let car1BankT = 9999, car2BankT = 9999;
             let car1BankDir = 1, car2BankDir = 1;
-            const SQUASH_MS = 220;
-            const BANK_MS = 260;
+            const SQUASH_MS = 180;
+            const BANK_MS = 210;
             function squashScale(t) {
                 if (t >= SQUASH_MS) return { sx: 1, sy: 1 };
                 const p = t / SQUASH_MS;
@@ -6712,8 +6939,20 @@ window.mu_syncHtmlBg = function(){
                 const relX = clientX - rect.left;
                 toggleCar(sideForLeft(relX < width / 2));
             }
+            // Responsiveness fix: some in-app WebViews (a few older
+            // Telegram/Android embedded browsers) still fire a synthetic
+            // "ghost" mousedown a moment after a real touchstart even
+            // though touchstart already calls preventDefault(). When that
+            // happened, one finger tap toggled a lane TWICE in quick
+            // succession, snapping the car back to where it started — which
+            // reads exactly like laggy/unresponsive controls. lastTouchAt
+            // records the last real touch so a mousedown arriving within
+            // the classic ~500ms ghost-click window is ignored; a genuine
+            // mouse/trackpad user (no preceding touch) is unaffected.
+            let lastTouchAt = 0;
             wrap.addEventListener('mousedown', (e) => {
                 if (e.target.closest('.game-overlay-panel')) return;
+                if (Date.now() - lastTouchAt < 500) return;
                 handleTap(e.clientX);
                 e.preventDefault();
             }, { signal: gameAborter.signal });
@@ -6727,6 +6966,7 @@ window.mu_syncHtmlBg = function(){
             // landing later still can't double-toggle a side that was
             // already handled.
             wrap.addEventListener('touchstart', (e) => {
+                lastTouchAt = Date.now();
                 if (e.target.closest('.game-overlay-panel')) return;
                 const rect = wrap.getBoundingClientRect();
                 let hitLeft = false, hitRight = false;
@@ -6748,7 +6988,7 @@ window.mu_syncHtmlBg = function(){
             function endRacer() {
                 if (ended) return;
                 ended = true;
-                presentGameOver(gameScore, 'racer', fa ? '💥 جاده بی‌قانون بردت!' : '💥 THE ROAD GOT YOU!', startTwinLaneRacerModern);
+                presentGameOver(gameScore, 'racer', fa ? '💥 ریسر دوخطه بردت!' : '💥 THE ROAD GOT YOU!', startTwinLaneRacerModern);
             }
             function triggerDeath(ts) {
                 if (dying || ended) return;
@@ -6883,17 +7123,11 @@ window.mu_syncHtmlBg = function(){
 
                 // Asphalt — a moody colored wash per lane (deep teal on the
                 // left, deep magenta/plum on the right) instead of a flat
-                // neutral tone, matching the reference environment. Purely a
-                // fill color change — halfW/laneGap/colW (and everything
-                // derived from them for car/obstacle sizing) are untouched.
-                const asphaltL = ctx.createLinearGradient(0, 0, 0, height);
-                asphaltL.addColorStop(0, '#0a1e23');
-                asphaltL.addColorStop(1, '#0e2c33');
+                // neutral tone, matching the reference environment. Reuses
+                // the gradients built once above instead of allocating new
+                // ones here every frame (see the comment at their definition).
                 ctx.fillStyle = asphaltL;
                 ctx.fillRect(laneX[0], 0, halfW, height);
-                const asphaltR = ctx.createLinearGradient(0, 0, 0, height);
-                asphaltR.addColorStop(0, '#1f0f1f');
-                asphaltR.addColorStop(1, '#2c132b');
                 ctx.fillStyle = asphaltR;
                 ctx.fillRect(laneX[1], 0, halfW, height);
 
@@ -6958,7 +7192,10 @@ window.mu_syncHtmlBg = function(){
 
                 // Traffic stays deliberately muted/neutral so the two
                 // bold player colors are what the eye locks onto.
-                obstacles.forEach(o => drawObstacleBlock(colCenterX(o.col), o.y, obsW, o.col < 2 ? '#c9702a' : '#7d5bb3'));
+                obstacles.forEach(o => {
+                    const spr = o.col < 2 ? obstacleSpriteA : obstacleSpriteB;
+                    ctx.drawImage(spr, colCenterX(o.col) - spr.width / 2, o.y - spr.height / 2, spr.width, spr.height);
+                });
 
                 bonuses.forEach(b => {
                     if (b.taken) return;
@@ -7016,11 +7253,9 @@ window.mu_syncHtmlBg = function(){
                 ctx.restore(); // end Screen Flip transform — UI below always renders upright
 
                 // Cinematic vignette — darkens the corners so the glowing
-                // lanes/cars in the middle pop more, cheap per-frame cost
-                // since it's one static-shaped radial gradient fill.
-                const vig = ctx.createRadialGradient(width / 2, height * 0.55, height * 0.3, width / 2, height * 0.55, height * 0.75);
-                vig.addColorStop(0, 'rgba(0,0,0,0)');
-                vig.addColorStop(1, 'rgba(0,0,0,0.38)');
+                // lanes/cars in the middle pop more. Reuses the gradient
+                // built once above instead of allocating a new one here
+                // every frame (see the comment at its definition).
                 ctx.fillStyle = vig;
                 ctx.fillRect(0, 0, width, height);
 
@@ -7102,7 +7337,7 @@ window.mu_syncHtmlBg = function(){
 
 
 
-        // ---- "جاده بی‌قانون" variant chooser ----------------------------
+        // ---- "ریسر دوخطه" variant chooser ----------------------------
         // The button now opens a lightweight two-option picker (Classic /
         // Modern) instead of jumping straight into a game. Whichever
         // variant is chosen sets window.__markhinRacerVariant so that the
@@ -7117,7 +7352,7 @@ window.mu_syncHtmlBg = function(){
             overlay.id = 'racerVariantChooser';
             overlay.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(3,16,28,0.94);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;padding:24px;text-align:center;backdrop-filter:blur(2px);';
             overlay.innerHTML =
-                '<div style="font-size:19px;font-weight:700;color:#fff;">' + (fa ? '🏎️ جاده بی‌قانون رو انتخاب کن' : '🏎️ Choose your Road') + '</div>' +
+                '<div style="font-size:19px;font-weight:700;color:#fff;">' + (fa ? '🏎️ ریسر دوخطه رو انتخاب کن' : '🏎️ Choose your Twin Lane Racer') + '</div>' +
                 '<div style="display:flex;gap:16px;flex-wrap:wrap;justify-content:center;">' +
                     '<button class="btn-main" id="racerChooseClassic" style="padding:14px 26px;font-size:15px;">' + (fa ? '🏛️ کلاسیک' : '🏛️ Classic') + '</button>' +
                     '<button class="btn-main" id="racerChooseModern" style="padding:14px 26px;font-size:15px;">' + (fa ? '🚀 مدرن' : '🚀 Modern') + '</button>' +
@@ -10132,6 +10367,18 @@ window.mu_syncHtmlBg = function(){
             });
         }
         function advancedSystemsTick(){
+            // Smoothness fix: this runs globally every 30s regardless of
+            // what's on screen. If it landed while a game was open and
+            // something had actually changed (a ghost note expiring, a
+            // decay level shifting), it called renderApp() — a full
+            // re-render of the entire notes UI — competing with the game's
+            // own requestAnimationFrame loop for the main thread and
+            // causing a visible hitch/freeze mid-gameplay. The notes app is
+            // hidden behind the game modal at that point anyway, so there's
+            // no harm in deferring this check until the modal closes; it
+            // simply runs again on the next 30s tick.
+            const gameModalEl = document.getElementById('gameModal');
+            if (gameModalEl && gameModalEl.style.display === 'flex') return;
             const ghostsChanged = purgeExpiredGhosts(false);
             const decayChanged = updateDecayLevels();
             if(ghostsChanged || decayChanged) renderApp(activeOpenId);
