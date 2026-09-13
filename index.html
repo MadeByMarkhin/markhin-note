@@ -6466,13 +6466,47 @@ window.mu_syncHtmlBg = function(){
                 ctx.restore();
             }
 
-            let raf = null, lastTs = 0, acc = 0;
+            let raf = null, lastTs = 0, acc = 0, avgFrameMs = STEP_MS;
             function loop(ts) {
                 raf = requestAnimationFrame(loop);
-                if (gamePaused || ended) { lastTs = ts; return; }
-                if (!lastTs) lastTs = ts;
-                acc += Math.min(ts - lastTs, MAX_FRAME_MS);
-                lastTs = ts;
+                if (gamePaused || ended) { lastTs = 0; return; }
+                // Bug fix ("obstacles/the bird trembling, shaking, popping
+                // forward in little jumps" — reported via screen recording):
+                // the `ts` requestAnimationFrame hands this callback is
+                // supposed to be a fresh, distinct high-res timestamp every
+                // single frame, but on a number of real Android WebViews
+                // (Telegram's in-app one very much included — the same class
+                // of device/webview quirk as the other Telegram-specific
+                // fixes throughout this file) it can occasionally hand back
+                // the EXACT same value two callbacks in a row even though a
+                // real display frame — and a real repaint — happened in
+                // between, then report a roughly doubled gap on the next
+                // callback to "catch up". Since `acc` below used to be fed
+                // straight from `ts - lastTs`, a repeated ts reads as zero
+                // elapsed time: the tick loop doesn't run at all that frame
+                // (motion visibly freezes for a beat, still holding last
+                // frame's interpolated position), and the very next frame
+                // then has to advance by roughly two ticks at once to catch
+                // back up — exactly the freeze-then-pop stutter this was
+                // reported as, confirmed by pixel-tracking the recording
+                // (identical obstacle position on one frame, then a jump of
+                // roughly double the normal per-frame distance on the next).
+                // performance.now(), sampled fresh right here instead of
+                // trusted from the callback argument, doesn't share that
+                // staleness on the affected devices, so using it as the
+                // actual clock — with a short rolling average as a fallback
+                // on the rare frame where the measured gap still reads as
+                // implausibly small — removes the stall without changing
+                // anything on browsers where the two timestamps already
+                // agreed.
+                const now = (window.performance && performance.now) ? performance.now() : ts;
+                if (!lastTs) lastTs = now;
+                const frameDt = now - lastTs;
+                const safeDt = frameDt > 4 ? frameDt : avgFrameMs;
+                const clampedDt = Math.min(safeDt, MAX_FRAME_MS);
+                avgFrameMs += (clampedDt - avgFrameMs) * 0.1;
+                acc += clampedDt;
+                lastTs = now;
 
                 while (acc >= STEP_MS) {
                     acc -= STEP_MS;
@@ -7288,13 +7322,31 @@ window.mu_syncHtmlBg = function(){
                 ctx.fillRect(0, 0, width, height);
             }
 
-            let raf = null, lastTs = 0, scoreTimer = 0, acc = 0;
+            let raf = null, lastTs = 0, scoreTimer = 0, acc = 0, avgFrameMs = STEP_MS;
             function loop(ts) {
                 raf = requestAnimationFrame(loop);
-                if (gamePaused) { lastTs = ts; return; }
-                if (!lastTs) lastTs = ts;
-                acc += Math.min(ts - lastTs, MAX_FRAME_MS);
-                lastTs = ts;
+                if (gamePaused) { lastTs = 0; return; }
+                // Bug fix ("obstacles trembling/shaking/popping in little
+                // jumps" — reported via screen recording, confirmed by
+                // pixel-tracking the obstacles frame by frame: one frame
+                // renders at an unchanged position, the next then jumps by
+                // roughly double the normal per-frame distance): see the
+                // matching, more detailed comment in Cyber Flappy's own
+                // loop() for the full root cause — in short, the `ts` this
+                // callback receives can occasionally repeat itself unchanged
+                // between two real display frames on some Android WebViews
+                // (Telegram's in-app one included), which reads as zero
+                // elapsed time and stalls `acc` for a frame before it
+                // over-corrects. performance.now(), sampled fresh here
+                // instead, doesn't share that staleness.
+                const now = (window.performance && performance.now) ? performance.now() : ts;
+                if (!lastTs) lastTs = now;
+                const frameDt = now - lastTs;
+                const safeDt = frameDt > 4 ? frameDt : avgFrameMs;
+                const clampedDt = Math.min(safeDt, MAX_FRAME_MS);
+                avgFrameMs += (clampedDt - avgFrameMs) * 0.1;
+                acc += clampedDt;
+                lastTs = now;
 
                 while (acc >= STEP_MS) {
                     acc -= STEP_MS;
@@ -8432,19 +8484,39 @@ window.mu_syncHtmlBg = function(){
                 }
             }
 
-            let raf = null, lastTs = 0, scoreTimer = 0, acc = 0;
+            let raf = null, lastTs = 0, scoreTimer = 0, acc = 0, avgFrameMs = STEP_MS;
             function loop(ts) {
                 raf = requestAnimationFrame(loop);
-                if (gamePaused) { lastTs = ts; return; }
-                if (!lastTs) lastTs = ts;
+                if (gamePaused) { lastTs = 0; return; }
+                // Bug fix ("obstacles trembling/shaking/popping in little
+                // jumps" — reported via screen recording, confirmed by
+                // pixel-tracking the obstacles frame by frame: one frame
+                // renders at an unchanged position, the next then jumps by
+                // roughly double the normal per-frame distance): see the
+                // matching, more detailed comment in Cyber Flappy's own
+                // loop() for the full root cause — in short, the `ts` this
+                // callback receives can occasionally repeat itself unchanged
+                // between two real display frames on some Android WebViews
+                // (Telegram's in-app one included), which reads as zero
+                // elapsed time and stalls `acc` for a frame before it
+                // over-corrects. performance.now(), sampled fresh here
+                // instead, doesn't share that staleness.
+                const now = (window.performance && performance.now) ? performance.now() : ts;
+                if (!lastTs) lastTs = now;
                 // rawDt is real elapsed ms this rendered frame, clamped
                 // only so a backgrounded tab can't dump a huge gap in.
                 // Chaos event scheduling (updateChaos) is intentionally
                 // still driven by this raw per-frame value rather than the
-                // fixed-tick accumulator below — see the note above.
-                const rawDt = Math.min(ts - lastTs, 200);
-                acc += Math.min(ts - lastTs, MAX_FRAME_MS);
-                lastTs = ts;
+                // fixed-tick accumulator below — see the note above. Now
+                // sourced from the same performance.now()-based clock as
+                // `acc`, for the same stall-avoidance reason.
+                const frameDt = now - lastTs;
+                const safeDt = frameDt > 4 ? frameDt : avgFrameMs;
+                const clampedDt = Math.min(safeDt, MAX_FRAME_MS);
+                avgFrameMs += (clampedDt - avgFrameMs) * 0.1;
+                const rawDt = Math.min(safeDt, 200);
+                acc += clampedDt;
+                lastTs = now;
 
                 if (!dying && !ended) updateChaos(rawDt);
 
