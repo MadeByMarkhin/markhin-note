@@ -6525,7 +6525,14 @@ window.mu_syncHtmlBg = function(){
                 const sx = opts.squashX || 1, sy = opts.squashY || 1;
                 const rGeo = w * 0.44;
                 ctx.save();
-                ctx.translate(cx, cy);
+                // Same fractional-pixel shimmer fix as the obstacle/bonus
+                // sprites: during a lane-switch tween cx eases through a
+                // continuous range of non-integer values, and drawing at
+                // those exact fractional positions makes the car's crisp
+                // white-on-color edges visibly vibrate frame to frame.
+                // Snapping to the nearest whole pixel removes that without
+                // any visible loss of smoothness in the motion itself.
+                ctx.translate(Math.round(cx), Math.round(cy));
                 ctx.rotate(tilt);
                 ctx.scale(sx, sy);
 
@@ -6876,7 +6883,21 @@ window.mu_syncHtmlBg = function(){
                 // shape's path live every frame.
                 obstacles.forEach(o => {
                     const spr = badgeSpriteFor(o.col);
-                    ctx.drawImage(spr, colCenterX(o.col) - spr.width / 2, o.y - spr.height / 2, spr.width, spr.height);
+                    // Bug fix ("obstacles trembling/shaking"): o.y moves by a
+                    // fractional amount (`speed`) every tick, so this used to
+                    // blit the cached bitmap at a non-integer pixel offset
+                    // almost every frame. Canvas resamples (bilinear-filters)
+                    // an image drawn at a fractional position, and that
+                    // resampled edge shifts slightly from frame to frame —
+                    // which reads as a visible shimmer/vibration on the badge,
+                    // most noticeable on its high-contrast white ring. Since
+                    // this is an unscaled 1:1 blit, snapping the destination
+                    // to whole pixels removes the resampling entirely and
+                    // costs nothing (the eye can't see sub-pixel motion on a
+                    // shape moving many pixels a second anyway).
+                    const dx = Math.round(colCenterX(o.col) - spr.width / 2);
+                    const dy = Math.round(o.y - spr.height / 2);
+                    ctx.drawImage(spr, dx, dy, spr.width, spr.height);
                 });
 
                 bonuses.forEach(b => {
@@ -6884,7 +6905,14 @@ window.mu_syncHtmlBg = function(){
                     const bp = 1 + Math.sin(ts / 90) * 0.12;
                     const spr = bonusSpriteFor(b.col);
                     const s = spr.width * (bp / 1.15);
-                    ctx.drawImage(spr, colCenterX(b.col) - s / 2, b.y - s / 2, s, s);
+                    // Same shimmer fix as the obstacle badges above: snap the
+                    // destination corner to a whole pixel. The pulse size (s)
+                    // is left fractional on purpose — that's a smooth scale
+                    // animation, not position jitter, and rounding it would
+                    // make the pulse visibly step instead of ease.
+                    const dx = Math.round(colCenterX(b.col) - s / 2);
+                    const dy = Math.round(b.y - s / 2);
+                    ctx.drawImage(spr, dx, dy, s, s);
                 });
 
                 // A brief decaying shake on crash, same "impact beat" trick
@@ -7373,7 +7401,19 @@ window.mu_syncHtmlBg = function(){
             // bitmap at the end instead of redrawing every shape.
             function drawPlayerCarFast(cx, cy, sprite, tilt, sx, sy) {
                 ctx.save();
-                ctx.translate(cx, cy);
+                // Bug fix ("obstacles/screen trembling and shaking"): this
+                // blits a cached bitmap, and cx eases through a continuous
+                // range of fractional pixel values during every lane-switch
+                // tween (and colCenterX() itself isn't always a whole number
+                // even at rest). Canvas resamples an image drawn at a
+                // fractional position, and since the player's own car is the
+                // largest, most central, constantly-moving thing on screen,
+                // that per-frame resampling shimmer was the most visible
+                // source of the "shaking" — not an actual position bug, just
+                // sub-pixel blitting. Rounding to the nearest whole pixel
+                // removes it; the eye can't perceive sub-pixel smoothness on
+                // something moving many pixels a second anyway.
+                ctx.translate(Math.round(cx), Math.round(cy));
                 ctx.rotate(tilt);
                 ctx.scale(sx, sy);
                 ctx.drawImage(sprite.canvas, -sprite.originX, -sprite.originY);
@@ -7885,7 +7925,14 @@ window.mu_syncHtmlBg = function(){
                 // bold player colors are what the eye locks onto.
                 obstacles.forEach(o => {
                     const spr = o.col < 2 ? obstacleSpriteA : obstacleSpriteB;
-                    ctx.drawImage(spr, colCenterX(o.col) - spr.width / 2, o.y - spr.height / 2, spr.width, spr.height);
+                    // Bug fix ("obstacles trembling/shaking") — same cause as
+                    // the Classic variant: blitting this cached bitmap at
+                    // o.y's raw fractional value resamples it slightly
+                    // differently every frame, which reads as a shimmer.
+                    // Snapping the destination to whole pixels fixes it.
+                    const dx = Math.round(colCenterX(o.col) - spr.width / 2);
+                    const dy = Math.round(o.y - spr.height / 2);
+                    ctx.drawImage(spr, dx, dy, spr.width, spr.height);
                 });
 
                 bonuses.forEach(b => {
@@ -7893,7 +7940,10 @@ window.mu_syncHtmlBg = function(){
                     const bp = 1 + Math.sin(ts / 90) * 0.18;
                     const s = obsW * 0.4 * bp;
                     ctx.save();
-                    ctx.translate(colCenterX(b.col), b.y);
+                    // Rounded for the same reason as the obstacle badges
+                    // above — b.y moves fractionally every frame, and this
+                    // shape's edges shimmered as a result.
+                    ctx.translate(Math.round(colCenterX(b.col)), Math.round(b.y));
                     ctx.rotate(Math.PI / 4);
                     ctx.fillStyle = '#ffd23f';
                     ctx.lineWidth = 2;
