@@ -5398,7 +5398,27 @@ window.mu_syncHtmlBg = function(){
             // restarts — see the bug fix there.
             window.__markhinFitW = w;
             window.__markhinFitH = h;
-            return { width: w, height: h, ctx };
+            // Bug fix ("obstacles constantly trembling/shaking" — this is
+            // the OTHER, independent cause alongside the frame-timing one
+            // fixed in each game's loop(): even a perfectly-computed,
+            // correctly-interpolated CSS-pixel position can still shimmer
+            // every frame. ctx is scaled by `dpr` above so the backing
+            // store matches the device's real pixel density, but `dpr` on
+            // most Android phones is NOT a whole number (2.625, 2.75, 3.5
+            // are all common) — so rounding a draw position to the nearest
+            // whole CSS pixel (as the "shimmer fix" comments elsewhere in
+            // this file already do) still lands on a FRACTIONAL device
+            // pixel once the canvas's internal transform multiplies it by
+            // that non-integer dpr. The canvas still has to bilinear-
+            // resample the sprite at that fractional device pixel, and
+            // which way it rounds internally shifts slightly as the
+            // fractional part of (cssPos * dpr) changes frame to frame
+            // while an object moves — which is the actual trembling on
+            // every single frame, not just the occasional stutter from
+            // uneven frame timing. Returning dpr lets a caller snap in
+            // device-pixel space instead: round(cssPos * dpr) / dpr always
+            // lands exactly on a whole device pixel regardless of dpr.
+            return { width: w, height: h, ctx, dpr };
         }
 
         // Wires the game-over card once per game and returns a function that
@@ -6550,7 +6570,19 @@ window.mu_syncHtmlBg = function(){
 
             clearGameEvents();
             const canvas = document.getElementById('cyberCanvas');
-            const { width, height, ctx } = fitGameCanvas(canvas, 'fill');
+            const { width, height, ctx, dpr } = fitGameCanvas(canvas, 'fill');
+            // Bug fix ("obstacles trembling/shaking" — the per-frame
+            // shimmer, distinct from the frame-timing stutter fixed in
+            // loop() below): see the detailed comment on fitGameCanvas's
+            // own `return` for the full explanation. In short, dpr on
+            // real phones is usually a non-integer (2.625, 2.75, 3.5...),
+            // so rounding a moving sprite's position to the nearest whole
+            // CSS pixel (what every prior 'shimmer fix' in this file did)
+            // can still land on a fractional device pixel once ctx's
+            // dpr-scaled transform multiplies it — snapping in actual
+            // device-pixel space instead removes that residual shimmer
+            // no matter what dpr the phone reports.
+            function snapPx(v) { return Math.round(v * dpr) / dpr; }
 
             // ---- layout: two lanes side by side, each made of two roads ----
             // No gap between the two lanes anymore — they sit directly
@@ -6848,7 +6880,7 @@ window.mu_syncHtmlBg = function(){
                 // white-on-color edges visibly vibrate frame to frame.
                 // Snapping to the nearest whole pixel removes that without
                 // any visible loss of smoothness in the motion itself.
-                ctx.translate(Math.round(cx), Math.round(cy));
+                ctx.translate(snapPx(cx), snapPx(cy));
                 ctx.rotate(tilt);
                 ctx.scale(sx, sy);
 
@@ -7245,9 +7277,9 @@ window.mu_syncHtmlBg = function(){
                     // to whole pixels removes the resampling entirely and
                     // costs nothing (the eye can't see sub-pixel motion on a
                     // shape moving many pixels a second anyway).
-                    const dx = Math.round(colCenterX(o.col) - spr.width / 2);
+                    const dx = snapPx(colCenterX(o.col) - spr.width / 2);
                     const renderY = o.prevY + (o.y - o.prevY) * alpha;
-                    const dy = Math.round(renderY - spr.height / 2);
+                    const dy = snapPx(renderY - spr.height / 2);
                     ctx.drawImage(spr, dx, dy, spr.width, spr.height);
                 });
 
@@ -7261,9 +7293,9 @@ window.mu_syncHtmlBg = function(){
                     // is left fractional on purpose — that's a smooth scale
                     // animation, not position jitter, and rounding it would
                     // make the pulse visibly step instead of ease.
-                    const dx = Math.round(colCenterX(b.col) - s / 2);
+                    const dx = snapPx(colCenterX(b.col) - s / 2);
                     const renderY = b.prevY + (b.y - b.prevY) * alpha;
-                    const dy = Math.round(renderY - s / 2);
+                    const dy = snapPx(renderY - s / 2);
                     ctx.drawImage(spr, dx, dy, s, s);
                 });
 
@@ -7376,7 +7408,19 @@ window.mu_syncHtmlBg = function(){
 
             clearGameEvents();
             const canvas = document.getElementById('cyberCanvas');
-            const { width, height, ctx } = fitGameCanvas(canvas, 'fill');
+            const { width, height, ctx, dpr } = fitGameCanvas(canvas, 'fill');
+            // Bug fix ("obstacles trembling/shaking" — the per-frame
+            // shimmer, distinct from the frame-timing stutter fixed in
+            // loop() below): see the detailed comment on fitGameCanvas's
+            // own `return` for the full explanation. In short, dpr on
+            // real phones is usually a non-integer (2.625, 2.75, 3.5...),
+            // so rounding a moving sprite's position to the nearest whole
+            // CSS pixel (what every prior 'shimmer fix' in this file did)
+            // can still land on a fractional device pixel once ctx's
+            // dpr-scaled transform multiplies it — snapping in actual
+            // device-pixel space instead removes that residual shimmer
+            // no matter what dpr the phone reports.
+            function snapPx(v) { return Math.round(v * dpr) / dpr; }
 
             // ---- layout: two lanes side by side, each made of two roads ----
             // No gap between the two lanes anymore — they sit directly
@@ -7792,7 +7836,7 @@ window.mu_syncHtmlBg = function(){
                 // sub-pixel blitting. Rounding to the nearest whole pixel
                 // removes it; the eye can't perceive sub-pixel smoothness on
                 // something moving many pixels a second anyway.
-                ctx.translate(Math.round(cx), Math.round(cy));
+                ctx.translate(snapPx(cx), snapPx(cy));
                 ctx.rotate(tilt);
                 ctx.scale(sx, sy);
                 ctx.drawImage(sprite.canvas, -sprite.originX, -sprite.originY);
@@ -8335,9 +8379,9 @@ window.mu_syncHtmlBg = function(){
                     // o.y's raw fractional value resamples it slightly
                     // differently every frame, which reads as a shimmer.
                     // Snapping the destination to whole pixels fixes it.
-                    const dx = Math.round(colCenterX(o.col) - spr.width / 2);
+                    const dx = snapPx(colCenterX(o.col) - spr.width / 2);
                     const renderY = o.prevY + (o.y - o.prevY) * alpha;
-                    const dy = Math.round(renderY - spr.height / 2);
+                    const dy = snapPx(renderY - spr.height / 2);
                     ctx.drawImage(spr, dx, dy, spr.width, spr.height);
                 });
 
@@ -8350,7 +8394,7 @@ window.mu_syncHtmlBg = function(){
                     // above — b.y moves fractionally every frame, and this
                     // shape's edges shimmered as a result.
                     const renderY = b.prevY + (b.y - b.prevY) * alpha;
-                    ctx.translate(Math.round(colCenterX(b.col)), Math.round(renderY));
+                    ctx.translate(snapPx(colCenterX(b.col)), snapPx(renderY));
                     ctx.rotate(Math.PI / 4);
                     ctx.fillStyle = '#ffd23f';
                     ctx.lineWidth = 2;
