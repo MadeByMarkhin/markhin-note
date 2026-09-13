@@ -5867,6 +5867,7 @@ window.mu_syncHtmlBg = function(){
             let ended = false;
             let distSinceSpawn = 0;
             let skylineOffset = 0, groundOffset = 0;
+            let prevSkylineOffset = 0, prevGroundOffset = 0;
             let coinCount = 0;
             gameScore = 0;
             document.getElementById('gameScore').innerText = gameScore;
@@ -6035,6 +6036,8 @@ window.mu_syncHtmlBg = function(){
             function step() {
                 const dt = 1; // fixed simulation tick — see note above
                 birdPrevY = birdY;
+                prevSkylineOffset = skylineOffset;
+                prevGroundOffset = groundOffset;
                 birdVy += gravity * dt;
                 birdY += birdVy * dt;
                 if (birdY - birdR < 0) { birdY = birdR; birdVy = Math.max(birdVy, 0); }
@@ -6114,6 +6117,17 @@ window.mu_syncHtmlBg = function(){
                 // and current tick position with it removes the unevenness
                 // without changing the simulation.
                 const alpha = Math.min(1, acc / STEP_MS);
+                // Offsets like skylineOffset/groundOffset wrap around with %,
+                // so a plain (curr - prev) can look like a huge jump right on
+                // the frame a wrap happens (e.g. -30 -> -3). This corrects
+                // that back to the small per-tick step before interpolating.
+                function interpWrapped(prev, curr, modulus) {
+                    let d = curr - prev;
+                    if (Math.abs(d) > modulus / 2) d += (d < 0 ? modulus : -modulus);
+                    return prev + d * alpha;
+                }
+                const renderSkylineOffset = interpWrapped(prevSkylineOffset, skylineOffset, skylineSpanW);
+                const renderGroundOffset = interpWrapped(prevGroundOffset, groundOffset, 28);
                 // ---- sky ----
                 ctx.clearRect(0, 0, width, height);
                 ctx.fillStyle = skyGradient;
@@ -6123,7 +6137,7 @@ window.mu_syncHtmlBg = function(){
                 ctx.fillStyle = 'rgba(170, 205, 215, 0.75)';
                 for (let rep = -1; rep <= 1; rep++) {
                     buildings.forEach(b => {
-                        const bx = b.x + skylineOffset + rep * skylineSpanW;
+                        const bx = b.x + renderSkylineOffset + rep * skylineSpanW;
                         if (bx > width || bx + b.w < 0) return;
                         ctx.fillRect(bx, groundTopY - b.h, b.w, b.h);
                     });
@@ -6149,7 +6163,7 @@ window.mu_syncHtmlBg = function(){
                 // scalloped cream edge between sky and grass, like the reference
                 ctx.fillStyle = '#f4ecd2';
                 const scallopR = 9;
-                for (let sx = groundOffset - scallopR; sx < width + scallopR; sx += scallopR * 1.7) {
+                for (let sx = renderGroundOffset - scallopR; sx < width + scallopR; sx += scallopR * 1.7) {
                     ctx.beginPath();
                     ctx.arc(sx, groundTopY, scallopR, Math.PI, 0);
                     ctx.fill();
@@ -6158,7 +6172,7 @@ window.mu_syncHtmlBg = function(){
                 ctx.fillRect(0, groundTopY + groundH * 0.32, width, groundH - groundH * 0.32);
                 ctx.strokeStyle = 'rgba(120,80,40,0.35)';
                 ctx.lineWidth = 2;
-                for (let sx = groundOffset; sx < width + 28; sx += 28) {
+                for (let sx = renderGroundOffset; sx < width + 28; sx += 28) {
                     ctx.beginPath();
                     ctx.moveTo(sx, groundTopY + groundH * 0.55);
                     ctx.lineTo(sx + 14, groundTopY + groundH * 0.55);
@@ -7106,6 +7120,7 @@ window.mu_syncHtmlBg = function(){
             const LANE_MOVE_MS = 130;
             function easeOutCubic(p) { return 1 - Math.pow(1 - p, 3); }
             let roadOffset = 0;
+            let prevRoadOffset = 0;
             let flashAlpha = 0;          // brief white flash on a speed-up milestone
             let bannerLife = 0, bannerMax = 900, bannerText = '', bannerColor = '#ffd23f';
             let lastMilestone = 0;
@@ -7801,6 +7816,7 @@ window.mu_syncHtmlBg = function(){
                 // object renders perfectly still regardless of alpha.
                 obstacles.forEach(o => { o.prevY = o.y; });
                 bonuses.forEach(b => { b.prevY = b.y; });
+                prevRoadOffset = roadOffset;
                 if (dying) {
                     if (ts - dyingStart >= DYING_MS) { dying = false; endRacer(); return; }
                 } else if (!ended) {
@@ -7912,6 +7928,13 @@ window.mu_syncHtmlBg = function(){
                 // render time; using it to nudge this frame's draw
                 // position removes the unevenness.
                 const alpha = Math.min(1, acc / STEP_MS);
+                // Same fix applied to the scrolling dashed lane divider:
+                // roadOffset wraps with %, so a plain (curr - prev) can spike
+                // right on the frame a wrap happens; correct that back to the
+                // small per-tick step before interpolating.
+                let roadOffsetDelta = roadOffset - prevRoadOffset;
+                if (Math.abs(roadOffsetDelta) > dashCycle / 2) roadOffsetDelta += (roadOffsetDelta < 0 ? dashCycle : -dashCycle);
+                const renderRoadOffset = prevRoadOffset + roadOffsetDelta * alpha;
                 // Screen Flip renders the entire world rotated 180° around
                 // the canvas center. Purely cosmetic — car columns, obstacle
                 // y-positions and the collision math underneath never move,
@@ -7975,7 +7998,7 @@ window.mu_syncHtmlBg = function(){
                 ctx.strokeStyle = 'rgba(255,210,63,0.55)';
                 ctx.lineWidth = Math.max(2, width * 0.008);
                 ctx.setLineDash([dashLen * 0.5, dashGap * 0.7]);
-                ctx.lineDashOffset = -roadOffset;
+                ctx.lineDashOffset = -renderRoadOffset;
                 ctx.beginPath(); ctx.moveTo(laneX[0] + 2, 0); ctx.lineTo(laneX[0] + 2, height); ctx.stroke();
                 ctx.beginPath(); ctx.moveTo(laneX[1] + halfW - 2, 0); ctx.lineTo(laneX[1] + halfW - 2, height); ctx.stroke();
                 ctx.setLineDash([]);
@@ -7987,7 +8010,7 @@ window.mu_syncHtmlBg = function(){
                 [0, 1].forEach(lane => {
                     const x = laneX[lane] + colW;
                     ctx.beginPath();
-                    ctx.lineDashOffset = -roadOffset;
+                    ctx.lineDashOffset = -renderRoadOffset;
                     ctx.moveTo(x, 0);
                     ctx.lineTo(x, height);
                     ctx.stroke();
