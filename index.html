@@ -6857,6 +6857,27 @@ window.mu_syncHtmlBg = function(){
             function render(ts) {
                 // -------- draw --------
                 ctx.clearRect(0, 0, width, height);
+
+                // Bug fix ("obstacles trembling/shaking, worse in Telegram"):
+                // step() only advances the game by whole STEP_MS ticks, but
+                // requestAnimationFrame calls this render() at whatever real
+                // interval the device actually delivers — rock-solid on a
+                // fast browser, but Telegram's in-app Android WebView (a
+                // weaker system WebView, see the compositor-layer comment on
+                // #cyberCanvas above) delivers frames at noticeably uneven
+                // intervals under load. That unevenness means a different
+                // number of ticks run before each render (0, then 2, then 1,
+                // …), so the on-screen jump size varies frame to frame even
+                // though the underlying motion is perfectly steady — which
+                // is exactly what reads as "trembling" rather than smooth
+                // movement. `acc` (declared with the loop below) is whatever
+                // sliver of a tick hasn't been simulated yet at render time;
+                // using it to nudge this frame's draw position a little
+                // further along removes the uneven step size without
+                // changing the actual simulation at all.
+                const alpha = Math.min(1, acc / STEP_MS);
+                const moveExtrap = (!ended && !dying) ? speed * alpha : 0;
+
                 // Flat solid navy road — one continuous surface across all
                 // four lanes, matching the reference (no per-half tint, no
                 // texture/grid, no rumble strips).
@@ -6896,7 +6917,7 @@ window.mu_syncHtmlBg = function(){
                     // costs nothing (the eye can't see sub-pixel motion on a
                     // shape moving many pixels a second anyway).
                     const dx = Math.round(colCenterX(o.col) - spr.width / 2);
-                    const dy = Math.round(o.y - spr.height / 2);
+                    const dy = Math.round(o.y + moveExtrap - spr.height / 2);
                     ctx.drawImage(spr, dx, dy, spr.width, spr.height);
                 });
 
@@ -6911,7 +6932,7 @@ window.mu_syncHtmlBg = function(){
                     // animation, not position jitter, and rounding it would
                     // make the pulse visibly step instead of ease.
                     const dx = Math.round(colCenterX(b.col) - s / 2);
-                    const dy = Math.round(b.y - s / 2);
+                    const dy = Math.round(b.y + moveExtrap - s / 2);
                     ctx.drawImage(spr, dx, dy, s, s);
                 });
 
@@ -6929,8 +6950,16 @@ window.mu_syncHtmlBg = function(){
                 const tilt1 = bankTilt(car1BankT, car1BankDir);
                 const tilt2 = bankTilt(car2BankT, car2BankDir);
                 const squash1 = squashScale(car1SquashT), squash2 = squashScale(car2SquashT);
-                drawPlayerCar(car1X, carRowY, carW, carH, CAR1_COLOR, { tilt: tilt1, squashX: squash1.sx, squashY: squash1.sy });
-                drawPlayerCar(car2X, carRowY, carW, carH, CAR2_COLOR, { tilt: tilt2, squashX: squash2.sx, squashY: squash2.sy });
+                // Same judder fix as the obstacles above, applied to the
+                // player's own cars: lerp from where they were last drawn
+                // (prevCar1X/2X) toward where this tick's simulation put
+                // them, using how far into the next tick we already are
+                // (alpha). Smooths the lane-switch dash on uneven frame
+                // timing instead of drawing at car1X/car2X directly.
+                const renderCar1X = prevCar1X + (car1X - prevCar1X) * alpha;
+                const renderCar2X = prevCar2X + (car2X - prevCar2X) * alpha;
+                drawPlayerCar(renderCar1X, carRowY, carW, carH, CAR1_COLOR, { tilt: tilt1, squashX: squash1.sx, squashY: squash1.sy });
+                drawPlayerCar(renderCar2X, carRowY, carW, carH, CAR2_COLOR, { tilt: tilt2, squashX: squash2.sx, squashY: squash2.sy });
                 ctx.restore();
                 prevCar1X = car1X; prevCar2X = car2X;
 
@@ -7838,6 +7867,18 @@ window.mu_syncHtmlBg = function(){
             function render(ts) {
                 // -------- draw --------
                 ctx.clearRect(0, 0, width, height);
+
+                // Bug fix ("obstacles trembling/shaking, worse in Telegram")
+                // — see the matching comment in the Classic variant's
+                // render(). Same cause here: step() advances in fixed
+                // ticks but rAF calls this at uneven real-world intervals
+                // on a loaded/weaker WebView, so the visible jump size
+                // between frames varies even though the simulation itself
+                // is steady. `acc` is the leftover slice of a tick at
+                // render time; using it to nudge this frame's draw
+                // position removes the unevenness.
+                const alpha = Math.min(1, acc / STEP_MS);
+                const moveExtrap = (!ended && !dying) ? speed * alpha : 0;
                 // Screen Flip renders the entire world rotated 180° around
                 // the canvas center. Purely cosmetic — car columns, obstacle
                 // y-positions and the collision math underneath never move,
@@ -7931,7 +7972,7 @@ window.mu_syncHtmlBg = function(){
                     // differently every frame, which reads as a shimmer.
                     // Snapping the destination to whole pixels fixes it.
                     const dx = Math.round(colCenterX(o.col) - spr.width / 2);
-                    const dy = Math.round(o.y - spr.height / 2);
+                    const dy = Math.round(o.y + moveExtrap - spr.height / 2);
                     ctx.drawImage(spr, dx, dy, spr.width, spr.height);
                 });
 
@@ -7943,7 +7984,7 @@ window.mu_syncHtmlBg = function(){
                     // Rounded for the same reason as the obstacle badges
                     // above — b.y moves fractionally every frame, and this
                     // shape's edges shimmered as a result.
-                    ctx.translate(Math.round(colCenterX(b.col)), Math.round(b.y));
+                    ctx.translate(Math.round(colCenterX(b.col)), Math.round(b.y + moveExtrap));
                     ctx.rotate(Math.PI / 4);
                     ctx.fillStyle = '#ffd23f';
                     ctx.lineWidth = 2;
@@ -7967,8 +8008,13 @@ window.mu_syncHtmlBg = function(){
                 const tilt1 = bankTilt(car1BankT, car1BankDir);
                 const tilt2 = bankTilt(car2BankT, car2BankDir);
                 const squash1 = squashScale(car1SquashT), squash2 = squashScale(car2SquashT);
-                drawPlayerCarFast(car1X, carRowY, playerCarSprite1, tilt1, squash1.sx, squash1.sy);
-                drawPlayerCarFast(car2X, carRowY, playerCarSprite2, tilt2, squash2.sx, squash2.sy);
+                // Same judder fix as the obstacles above: lerp from the
+                // previously-drawn position toward this tick's result using
+                // alpha, instead of drawing at car1X/car2X directly.
+                const renderCar1X = prevCar1X + (car1X - prevCar1X) * alpha;
+                const renderCar2X = prevCar2X + (car2X - prevCar2X) * alpha;
+                drawPlayerCarFast(renderCar1X, carRowY, playerCarSprite1, tilt1, squash1.sx, squash1.sy);
+                drawPlayerCarFast(renderCar2X, carRowY, playerCarSprite2, tilt2, squash2.sx, squash2.sy);
                 ctx.restore();
                 prevCar1X = car1X; prevCar2X = car2X;
 
