@@ -3081,9 +3081,31 @@ window.mu_syncHtmlBg = function(){
            above consume that var instead of vh. Outside Telegram this just tracks
            window.innerHeight, which also happens to fix the classic mobile-browser
            address-bar 100vh jump for free. */
+        // Bug fix ("screen/obstacles shake every few seconds", most visible while
+        // playing a game, since #gameModal/.game-card.gc-playing size themselves
+        // off --app-1vh): Telegram's WebView fires 'viewportChanged' repeatedly
+        // even when nothing meaningful changed — it commonly re-reports the same
+        // usable height a few seconds apart with only a couple of px of safe-
+        // area/rounding noise. This function used to push every single one of
+        // those into --app-1vh unconditionally, which forced a fresh calc()
+        // reflow of the game card and re-centered the canvas inside it (via
+        // .game-canvas-wrap's flex centering) on every no-op event — a small
+        // full-screen "shake" every few seconds, plus the game's own obstacles
+        // appearing to jump along with it since they're drawn inside that
+        // recentered canvas. (mAiGameScheduleRefit already had a similar
+        // threshold so it wouldn't wrongly *restart* the game on this noise —
+        // but it ran after the reflow above had already happened, so the
+        // cosmetic shake itself was never actually prevented until now.)
+        // Skipping changes under a few px keeps every real transition (rotation,
+        // keyboard open/close, Telegram expanding/collapsing) working exactly as
+        // before, while silencing the noise that doesn't correspond to anything
+        // actually changing on screen.
+        let __muLastAppVhPx = 0;
         function mu_setAppVh(){
             try{
                 const h = (TG && TG.viewportStableHeight) ? TG.viewportStableHeight : window.innerHeight;
+                if (__muLastAppVhPx && Math.abs(h - __muLastAppVhPx) < 4) return;
+                __muLastAppVhPx = h;
                 document.documentElement.style.setProperty('--app-1vh', (h * 0.01) + 'px');
             }catch(_){}
         }
@@ -3098,6 +3120,20 @@ window.mu_syncHtmlBg = function(){
         // where that starts becoming a real risk.
         const TG_BRIDGE_MAX_BLOB_BYTES = 3 * 1024 * 1024;
 
+        // Small helper so a non-interactive async step (something with no user
+        // gesture to wait on — reading a Blob, not a share sheet or file picker
+        // the person is actively looking at) can never hang the download chain
+        // forever on a stalled/broken WebView. Purely additive: on any normal
+        // device the real operation finishes in milliseconds and this never
+        // triggers: it just guarantees robustDownload always keeps moving
+        // toward a fallback that works, instead of sitting frozen.
+        function mu_withTimeout(promise, ms) {
+            return new Promise((resolve, reject) => {
+                const timer = setTimeout(() => reject(new Error('timeout')), ms);
+                promise.then(v => { clearTimeout(timer); resolve(v); }, e => { clearTimeout(timer); reject(e); });
+            });
+        }
+
         // Reopens this page in the user's real browser with `blob` waiting to be
         // downloaded there. Returns true if the handoff was launched (not a
         // guarantee the user completed it), false if it couldn't be attempted.
@@ -3105,12 +3141,12 @@ window.mu_syncHtmlBg = function(){
             if (!IS_TELEGRAM || !blob) return false;
             if (blob.size > TG_BRIDGE_MAX_BLOB_BYTES) return false;
             try {
-                const dataUrl = await new Promise((resolve, reject) => {
+                const dataUrl = await mu_withTimeout(new Promise((resolve, reject) => {
                     const r = new FileReader();
                     r.onload = () => resolve(r.result);
                     r.onerror = reject;
                     r.readAsDataURL(blob);
-                });
+                }), 4000);
                 const base = location.href.split('#')[0];
                 const bridgeUrl = base + '#tgdl=' + encodeURIComponent(dataUrl) + '&tgname=' + encodeURIComponent(filename || 'download');
                 if (TG && TG.openLink) {
@@ -5207,6 +5243,26 @@ window.mu_syncHtmlBg = function(){
             return best;
         }
 
+        // Perf fix ("games feel a little less smooth on weaker Telegram
+        // Android WebViews"): every game's animation loop runs at 60fps and,
+        // every single tick, pruned its off-screen pipes/obstacles/particles/
+        // popups with Array.prototype.filter — which always allocates a brand
+        // new array even on the vast majority of frames where nothing actually
+        // left the screen yet. That's a steady stream of small garbage, 60
+        // times a second, for the whole run; on a memory-constrained in-app
+        // WebView (less headroom, less JIT than a full browser) the periodic
+        // GC sweeps needed to clean it up are a well-known source of exactly
+        // the kind of small, hard-to-pin-down stutter this fix targets. This
+        // does the identical job but only allocates a new array on the (much
+        // rarer) frames where something genuinely needs to be dropped;
+        // otherwise it hands back the same array untouched — zero garbage.
+        function mu_filterInPlace(arr, keep) {
+            for (let i = 0; i < arr.length; i++) {
+                if (!keep(arr[i])) return arr.filter(keep);
+            }
+            return arr;
+        }
+
         // Sizes the canvas to fill its wrapper, backed by real device pixels
         // (so it stays crisp full-screen on high-DPI phones) while all game
         // logic keeps working in plain CSS-pixel coordinates. Both games now
@@ -5684,9 +5740,9 @@ window.mu_syncHtmlBg = function(){
 
                 // -------- update cosmetic fx (real time, not tick-based) --------
                 particles.forEach(p => { p.life += dt; p.x += p.vx * (dt / 1000); p.y += p.vy * (dt / 1000); });
-                particles = particles.filter(p => p.life < p.maxLife);
+                particles = mu_filterInPlace(particles, p => p.life < p.maxLife);
                 popups.forEach(p => { p.life += dt; p.y -= (dt / 1000) * 26; });
-                popups = popups.filter(p => p.life < p.maxLife);
+                popups = mu_filterInPlace(popups, p => p.life < p.maxLife);
 
                 // -------- draw --------
                 ctx.clearRect(0, 0, width, height);
@@ -6113,7 +6169,7 @@ window.mu_syncHtmlBg = function(){
                         }
                     }
                 }
-                pipes = pipes.filter(p => p.x > -pipeW - pipeCapOver - 5);
+                pipes = mu_filterInPlace(pipes, p => p.x > -pipeW - pipeCapOver - 5);
 
                 // ---- pickups (coins) ----
                 pickups.forEach(pk => {
@@ -6128,7 +6184,7 @@ window.mu_syncHtmlBg = function(){
                         mAiGameHaptic('light');
                     }
                 });
-                pickups = pickups.filter(pk => !pk.taken && pk.x > -60);
+                pickups = mu_filterInPlace(pickups, pk => !pk.taken && pk.x > -60);
 
                 // ---- ground (grass + dirt) scroll ----
                 groundOffset = (groundOffset - pipeSpeed * dt) % 28;
@@ -6868,19 +6924,25 @@ window.mu_syncHtmlBg = function(){
                             obstaclesPassed++;
                             gameScore += 5;
                             updateScoreLabel();
-                            // Every 10 clean dodges, a haptic buzz marks the
-                            // speed-up milestone quietly, nothing on screen.
-                            if (obstaclesPassed % 10 === 0 && obstaclesPassed !== lastMilestone) {
-                                lastMilestone = obstaclesPassed;
-                                mAiGameHaptic('medium');
-                            }
+                            // Bug fix ("tiny pause + buzzing sound every time the
+                            // car speeds up"): this used to fire a haptic buzz here
+                            // every 10 clean dodges as a silent "you're going
+                            // faster now" cue. On many phones TG.HapticFeedback is
+                            // a blocking round trip to the native host over the
+                            // WebView bridge, so it stalled the main thread for a
+                            // frame right as it fired — and the vibration motor
+                            // itself is what the player was hearing as a "buzzing"
+                            // sound, since it physically resonates against the
+                            // phone body/speaker. Speed itself still ramps up
+                            // exactly as before (see currentDifficulty() above);
+                            // only this extra non-essential buzz is gone.
                         }
                         const carCol = o.col < 2 ? car1Col : car2Col;
                         if (o.col === carCol && Math.abs(o.y - carRowY) < (obsH + carH) / 2 - 4) {
                             triggerDeath(ts);
                         }
                     });
-                    obstacles = obstacles.filter(o => o.y < height + obsH);
+                    obstacles = mu_filterInPlace(obstacles, o => o.y < height + obsH);
 
                     bonuses.forEach(b => {
                         if (b.taken) return;
@@ -6896,7 +6958,7 @@ window.mu_syncHtmlBg = function(){
                             spawnPopup(colCenterX(b.col), b.y, '+' + gain, '#ffd23f');
                         }
                     });
-                    bonuses = bonuses.filter(b => !b.taken && b.y < height + obsH);
+                    bonuses = mu_filterInPlace(bonuses, b => !b.taken && b.y < height + obsH);
 
                     scoreTimer += STEP_MS;
                     if (scoreTimer >= 300) { scoreTimer -= 300; gameScore += 1; updateScoreLabel(); }
@@ -6923,9 +6985,9 @@ window.mu_syncHtmlBg = function(){
                 // particle smear behind them, just the plain capsule body.
 
                 particles.forEach(p => { p.life += STEP_MS; p.x += p.vx * (STEP_MS / 1000); p.y += p.vy * (STEP_MS / 1000); });
-                particles = particles.filter(p => p.life < p.maxLife);
+                particles = mu_filterInPlace(particles, p => p.life < p.maxLife);
                 popups.forEach(p => { p.life += STEP_MS; p.y -= (STEP_MS / 1000) * 24; });
-                popups = popups.filter(p => p.life < p.maxLife);
+                popups = mu_filterInPlace(popups, p => p.life < p.maxLife);
             }
 
             function render(ts) {
@@ -7879,19 +7941,18 @@ window.mu_syncHtmlBg = function(){
                             obstaclesPassed++;
                             gameScore += Math.round(5 * chaosScoreMult);
                             updateScoreLabel();
-                            // Every 10 clean dodges, a haptic buzz marks the
-                            // speed-up milestone quietly, nothing on screen.
-                            if (obstaclesPassed % 10 === 0 && obstaclesPassed !== lastMilestone) {
-                                lastMilestone = obstaclesPassed;
-                                mAiGameHaptic('medium');
-                            }
+                            // Same fix as Classic racer above: dropped the
+                            // every-10-dodges haptic milestone buzz, which was
+                            // the actual source of the periodic micro-stutter +
+                            // audible vibration-motor buzz as the car sped up.
+                            // Speed still ramps up exactly as before.
                         }
                         const carCol = o.col < 2 ? car1Col : car2Col;
                         if (o.col === carCol && Math.abs(o.y - carRowY) < (obsH + carH) / 2 - 4) {
                             triggerDeath(ts);
                         }
                     });
-                    obstacles = obstacles.filter(o => o.y < height + obsH);
+                    obstacles = mu_filterInPlace(obstacles, o => o.y < height + obsH);
 
                     bonuses.forEach(b => {
                         if (b.taken) return;
@@ -7907,7 +7968,7 @@ window.mu_syncHtmlBg = function(){
                             spawnPopup(colCenterX(b.col), b.y, '+' + gain, '#ffd23f');
                         }
                     });
-                    bonuses = bonuses.filter(b => !b.taken && b.y < height + obsH);
+                    bonuses = mu_filterInPlace(bonuses, b => !b.taken && b.y < height + obsH);
 
                     scoreTimer += STEP_MS;
                     if (scoreTimer >= 300) { scoreTimer -= 300; gameScore += Math.round(1 * chaosScoreMult); updateScoreLabel(); }
@@ -7942,9 +8003,9 @@ window.mu_syncHtmlBg = function(){
                 }
 
                 particles.forEach(p => { p.life += STEP_MS; p.x += p.vx * (STEP_MS / 1000); p.y += p.vy * (STEP_MS / 1000); });
-                particles = particles.filter(p => p.life < p.maxLife);
+                particles = mu_filterInPlace(particles, p => p.life < p.maxLife);
                 popups.forEach(p => { p.life += STEP_MS; p.y -= (STEP_MS / 1000) * 24; });
-                popups = popups.filter(p => p.life < p.maxLife);
+                popups = mu_filterInPlace(popups, p => p.life < p.maxLife);
                 flashAlpha = Math.max(0, flashAlpha - STEP_MS / 260);
                 bannerLife = Math.max(0, bannerLife - STEP_MS);
             }
@@ -10346,23 +10407,20 @@ window.mu_syncHtmlBg = function(){
             // Method 0 (Telegram only): a plain blob-anchor click (Method 1 below) is
             // exactly the thing that silently fails inside Telegram's in-app browser —
             // it fires with no error, but nothing gets saved. So when we detect Telegram,
-            // try the two methods that actually work there FIRST: the native share sheet,
-            // then reopening this page in the user's real browser (see the block above).
+            // try the two methods that actually work there FIRST — but ORDERED BY SPEED,
+            // since "the download is slow" was the exact complaint this ordering fixes:
+            //   1) navigator.share() — the native OS share sheet. This is a plain browser
+            //      API call: no navigation, no reload, just an in-place system sheet that
+            //      opens in well under a second and lets the user pick "Save to Files"/
+            //      gallery, which is a real save to the device.
+            //   2) Reopening this page in the user's system browser via TG.openLink().
+            //      This also produces a real <a download> save, but it means tearing down
+            //      the Mini App, base64-encoding the whole file into a URL, and then this
+            //      entire heavy page (fonts, IndexedDB setup, etc.) loading a SECOND time
+            //      from scratch in a new tab — multiple seconds of dead time no matter how
+            //      small the file is. It's kept only as a fallback for when share() is
+            //      unavailable/rejected, not tried first anymore.
             if (IS_TELEGRAM) {
-                // Try the real download first: reopening this page in the user's system
-                // browser (Chrome/Safari) and delivering the file there via a genuine
-                // <a download> click — that's an actual save to the device, not a share
-                // sheet. Only if this is unavailable (blob over TG_BRIDGE_MAX_BLOB_BYTES,
-                // or the handoff itself throws) do we fall back to navigator.share(),
-                // which hands the file to another app instead of downloading it.
-                try {
-                    if (await tgOpenInSystemBrowser(blob, safeName, mime || blob.type)) {
-                        showToast(currentLang === 'fa'
-                            ? '📥 دانلود در مرورگر گوشی باز شد؛ اگر باز نشد، دوباره امتحان کن.'
-                            : '📥 Download opened in your phone\u2019s browser.', 3200);
-                        return 'telegram-bridge';
-                    }
-                } catch (e) { console.warn('Telegram browser-bridge attempt failed, trying share…', e); }
                 try {
                     if (navigator.share && typeof File !== 'undefined') {
                         const file = new File([blob], safeName, {type: mime || blob.type || 'application/octet-stream'});
@@ -10373,8 +10431,16 @@ window.mu_syncHtmlBg = function(){
                     }
                 } catch (e) {
                     if (e?.name === 'AbortError') return 'cancelled';
-                    console.warn('Telegram share attempt failed', e);
+                    console.warn('Telegram share attempt failed, trying system-browser bridge…', e);
                 }
+                try {
+                    if (await tgOpenInSystemBrowser(blob, safeName, mime || blob.type)) {
+                        showToast(currentLang === 'fa'
+                            ? '📥 دانلود در مرورگر گوشی باز شد؛ اگر باز نشد، دوباره امتحان کن.'
+                            : '📥 Download opened in your phone\u2019s browser.', 3200);
+                        return 'telegram-bridge';
+                    }
+                } catch (e) { console.warn('Telegram browser-bridge attempt failed', e); }
                 // Both Telegram-specific methods were unavailable/too large — fall
                 // through to the generic chain below as a last resort.
             } else if (IS_KNOWN_INAPP_BROWSER) {
@@ -10406,16 +10472,29 @@ window.mu_syncHtmlBg = function(){
             // the vast majority of desktop/mobile browsers — tried first so the
             // common case stays a simple, unobtrusive download to the user's
             // Downloads folder.
+            // Guarded against IS_TELEGRAM/IS_KNOWN_INAPP_BROWSER on purpose: this
+            // exact click is the one the top-of-file comment describes as fires-
+            // with-no-error-but-saves-nothing inside those WebViews. Without this
+            // guard, reaching here after both Telegram-specific methods above are
+            // unavailable (e.g. share() missing AND the file is over the bridge's
+            // size cap) would report a false 'blob' success — the precise bug the
+            // block comment above robustDownload says was fixed, still reachable
+            // through this one gap. Skipping it here means those environments go
+            // straight to fallbacks that either genuinely work or can tell they
+            // didn't (share retry, a checked window.open, the clipboard, or the
+            // guaranteed manual card) — never a silent no-op mistaken for success.
             let url = null;
-            try {
-                url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url; a.download = safeName; a.rel = 'noopener';
-                a.style.display = 'none';
-                document.body.appendChild(a); a.click(); a.remove();
-                setTimeout(() => { try { URL.revokeObjectURL(url); } catch (_) {} }, 30000);
-                return 'blob';
-            } catch (e) { if (url) try { URL.revokeObjectURL(url); } catch (_) {} console.warn('Anchor download failed, trying alternatives…', e); }
+            if (!IS_TELEGRAM && !IS_KNOWN_INAPP_BROWSER) {
+                try {
+                    url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url; a.download = safeName; a.rel = 'noopener';
+                    a.style.display = 'none';
+                    document.body.appendChild(a); a.click(); a.remove();
+                    setTimeout(() => { try { URL.revokeObjectURL(url); } catch (_) {} }, 30000);
+                    return 'blob';
+                } catch (e) { if (url) try { URL.revokeObjectURL(url); } catch (_) {} console.warn('Anchor download failed, trying alternatives…', e); }
+            }
 
             // Method 2: File System Access API where supported — lets the user
             // pick exactly where to save.
@@ -10443,24 +10522,34 @@ window.mu_syncHtmlBg = function(){
             } catch (e) { if (e?.name === 'AbortError') return 'cancelled'; console.warn('Share fallback failed', e); }
 
             // Method 4: open the file in a new tab for manual Save/Download.
-            try {
-                url = URL.createObjectURL(blob);
-                const w = window.open(url, '_blank', 'noopener');
-                if (w) { setTimeout(() => { try { URL.revokeObjectURL(url); } catch (_) {} }, 60000); return 'open'; }
-                URL.revokeObjectURL(url);
-            } catch (e) { console.warn('Open fallback failed', e); }
+            // Same Telegram/in-app-WebView caveat as Method 1 above (a blob: URL
+            // handed to window.open there is documented as blocked/unreliable by
+            // design), so this is skipped there too rather than risk a phantom
+            // window object being mistaken for a real save.
+            if (!IS_TELEGRAM && !IS_KNOWN_INAPP_BROWSER) {
+                try {
+                    url = URL.createObjectURL(blob);
+                    const w = window.open(url, '_blank', 'noopener');
+                    if (w) { setTimeout(() => { try { URL.revokeObjectURL(url); } catch (_) {} }, 60000); return 'open'; }
+                    URL.revokeObjectURL(url);
+                } catch (e) { console.warn('Open fallback failed', e); }
+            }
 
             // Method 5: legacy Microsoft Blob saver (older Edge/IE-like environments).
             try {
                 if (navigator.msSaveOrOpenBlob) { navigator.msSaveOrOpenBlob(blob, safeName); return 'msSaveOrOpenBlob'; }
             } catch (e) { console.warn('Legacy blob saver failed', e); }
 
-            // Method 6: data URL anchor for smaller files.
-            if (blob.size < 12 * 1024 * 1024) {
+            // Method 6: data URL anchor for smaller files. Same silent-failure
+            // caveat as Methods 1/4 — a data: anchor click is just as invisible-
+            // to-JS a failure inside Telegram/in-app WebViews, so it's skipped
+            // there for the same reason (never report a click as success when
+            // the environment is known to swallow it).
+            if (blob.size < 12 * 1024 * 1024 && !IS_TELEGRAM && !IS_KNOWN_INAPP_BROWSER) {
                 try {
-                    const dataUrl = await new Promise((resolve, reject) => {
+                    const dataUrl = await mu_withTimeout(new Promise((resolve, reject) => {
                         const r = new FileReader(); r.onload = () => resolve(r.result); r.onerror = reject; r.readAsDataURL(blob);
-                    });
+                    }), 4000);
                     const a = document.createElement('a'); a.href = dataUrl; a.download = safeName; a.style.display='none';
                     document.body.appendChild(a); a.click(); a.remove(); return 'data';
                 } catch (e) { console.warn('Data URL fallback failed', e); }
@@ -10472,8 +10561,8 @@ window.mu_syncHtmlBg = function(){
             // mime is application/json, not text/*) get this safety net too.
             try {
                 if (navigator.clipboard?.writeText && /^(text\/|application\/json)/.test(mime || blob.type || '') && blob.size < 2 * 1024 * 1024) {
-                    const text = await blob.text();
-                    await navigator.clipboard.writeText(text);
+                    const text = await mu_withTimeout(blob.text(), 4000);
+                    await mu_withTimeout(navigator.clipboard.writeText(text), 4000);
                     showToast(currentLang === 'fa'
                         ? '📋 دانلود مستقیم ممکن نشد؛ محتوا در کلیپ‌بورد کپی شد.'
                         : '📋 Direct download wasn\u2019t possible; content was copied to the clipboard.', 4000);
