@@ -5861,7 +5861,7 @@ window.mu_syncHtmlBg = function(){
             // meaningfully inside a pipe/ground, not on a hair-thin graze.
             const hitR = birdR * 0.78;
 
-            let birdY = skyH / 2, birdVy = 0;
+            let birdY = skyH / 2, birdVy = 0, birdPrevY = birdY;
             let pipes = [];
             let pickups = []; // {x, y, r, type: 'coin', taken}
             let ended = false;
@@ -6034,6 +6034,7 @@ window.mu_syncHtmlBg = function(){
 
             function step() {
                 const dt = 1; // fixed simulation tick — see note above
+                birdPrevY = birdY;
                 birdVy += gravity * dt;
                 birdY += birdVy * dt;
                 if (birdY - birdR < 0) { birdY = birdR; birdVy = Math.max(birdVy, 0); }
@@ -6047,15 +6048,16 @@ window.mu_syncHtmlBg = function(){
                     const gapH = currentGapH();
                     const topRange = Math.max(20, skyH - gapH - skyH * 0.16);
                     const topH = Math.floor(Math.random() * topRange) + skyH * 0.08;
-                    pipes.push({ x: width, top: topH, bottom: skyH - topH - gapH, passed: false });
+                    pipes.push({ x: width, prevX: width, top: topH, bottom: skyH - topH - gapH, passed: false });
                     const roll = Math.random();
                     const gapCenterY = topH + gapH / 2;
                     if (roll < 0.62) {
-                        pickups.push({ x: width + pipeW / 2, y: gapCenterY, r: Math.max(9, pipeW * 0.15), type: 'coin', taken: false });
+                        pickups.push({ x: width + pipeW / 2, prevX: width + pipeW / 2, y: gapCenterY, r: Math.max(9, pipeW * 0.15), type: 'coin', taken: false });
                     }
                 }
 
                 for (const p of pipes) {
+                    p.prevX = p.x;
                     p.x -= pipeSpeed * dt;
                     const gapTop = p.top, gapBottom = groundTopY - p.bottom;
 
@@ -6077,6 +6079,7 @@ window.mu_syncHtmlBg = function(){
 
                 // ---- pickups (coins) ----
                 pickups.forEach(pk => {
+                    pk.prevX = pk.x;
                     pk.x -= pipeSpeed * dt;
                     if (pk.taken) return;
                     const dx = pk.x - birdX, dy = pk.y - birdY;
@@ -6100,6 +6103,17 @@ window.mu_syncHtmlBg = function(){
             }
 
             function render(ts) {
+                // Bug fix (same class as Twin Lane Racer's obstacle judder):
+                // step() only advances in fixed STEP_MS ticks, but this is
+                // called every rAF frame at whatever real interval the
+                // device delivers, so a different number of ticks can run
+                // before each render — which reads as uneven/trembling
+                // motion even though the simulation itself is steady.
+                // `alpha` is the leftover fraction of a tick not yet
+                // simulated; interpolating between each thing's previous
+                // and current tick position with it removes the unevenness
+                // without changing the simulation.
+                const alpha = Math.min(1, acc / STEP_MS);
                 // ---- sky ----
                 ctx.clearRect(0, 0, width, height);
                 ctx.fillStyle = skyGradient;
@@ -6118,13 +6132,15 @@ window.mu_syncHtmlBg = function(){
                 // ---- pipes ----
                 for (const p of pipes) {
                     const gapTop = p.top, gapBottom = groundTopY - p.bottom;
-                    drawPipePair(p.x, gapTop, gapBottom);
+                    const renderX = p.prevX + (p.x - p.prevX) * alpha;
+                    drawPipePair(renderX, gapTop, gapBottom);
                 }
 
                 // ---- pickups (coins) ----
                 pickups.forEach(pk => {
                     if (pk.taken) return;
-                    drawCoin(pk.x, pk.y, pk.r, ts);
+                    const renderX = pk.prevX + (pk.x - pk.prevX) * alpha;
+                    drawCoin(renderX, pk.y, pk.r, ts);
                 });
 
                 // ---- ground (grass + dirt), drawn over the pipes' bottom ends ----
@@ -6152,8 +6168,9 @@ window.mu_syncHtmlBg = function(){
                 // ---- bird ----
                 const tilt = Math.max(-0.5, Math.min(0.9, birdVy / (height * 0.02)));
                 const flap = Math.sin(ts / 70) * 0.5 + 0.5;
+                const renderBirdY = birdPrevY + (birdY - birdPrevY) * alpha;
                 ctx.save();
-                ctx.translate(birdX, birdY);
+                ctx.translate(birdX, renderBirdY);
                 ctx.rotate(tilt * 0.5);
                 // belly/body
                 ctx.beginPath();
@@ -6341,12 +6358,12 @@ window.mu_syncHtmlBg = function(){
             function spawnForLane(laneIdx) {
                 const sub = Math.random() < 0.5 ? 0 : 1;
                 const col = laneIdx * 2 + sub;
-                obstacles.push({ col, y: -obsH, passed: false });
+                obstacles.push({ col, y: -obsH, prevY: -obsH, passed: false });
                 // The other road in this lane is guaranteed clear right now,
                 // so it's a safe spot for an occasional bonus — rewards
                 // deliberately picking the open road, not just luck.
                 if (Math.random() < 0.4) {
-                    bonuses.push({ col: laneIdx * 2 + (1 - sub), y: -obsH, taken: false });
+                    bonuses.push({ col: laneIdx * 2 + (1 - sub), y: -obsH, prevY: -obsH, taken: false });
                 }
             }
 
@@ -6770,6 +6787,14 @@ window.mu_syncHtmlBg = function(){
             const MAX_FRAME_MS = STEP_MS * 3; // a stall/backgrounded tab can only ever "owe" 3 ticks of catch-up — same ceiling the old dt clamp used
 
             function step(ts) {
+                // Snapshot each obstacle/bonus's previous tick position
+                // BEFORE anything moves this tick, unconditionally (even
+                // while dying/ended, when nothing below actually advances
+                // y). That's what makes interpolation in render() correct:
+                // if the sim is frozen, prevY stays equal to y and the
+                // object renders perfectly still regardless of alpha.
+                obstacles.forEach(o => { o.prevY = o.y; });
+                bonuses.forEach(b => { b.prevY = b.y; });
                 if (dying) {
                     if (ts - dyingStart >= DYING_MS) { dying = false; endRacer(); return; }
                 } else if (!ended) {
@@ -6876,7 +6901,6 @@ window.mu_syncHtmlBg = function(){
                 // further along removes the uneven step size without
                 // changing the actual simulation at all.
                 const alpha = Math.min(1, acc / STEP_MS);
-                const moveExtrap = (!ended && !dying) ? speed * alpha : 0;
 
                 // Flat solid navy road — one continuous surface across all
                 // four lanes, matching the reference (no per-half tint, no
@@ -6917,7 +6941,8 @@ window.mu_syncHtmlBg = function(){
                     // costs nothing (the eye can't see sub-pixel motion on a
                     // shape moving many pixels a second anyway).
                     const dx = Math.round(colCenterX(o.col) - spr.width / 2);
-                    const dy = Math.round(o.y + moveExtrap - spr.height / 2);
+                    const renderY = o.prevY + (o.y - o.prevY) * alpha;
+                    const dy = Math.round(renderY - spr.height / 2);
                     ctx.drawImage(spr, dx, dy, spr.width, spr.height);
                 });
 
@@ -6932,7 +6957,8 @@ window.mu_syncHtmlBg = function(){
                     // animation, not position jitter, and rounding it would
                     // make the pulse visibly step instead of ease.
                     const dx = Math.round(colCenterX(b.col) - s / 2);
-                    const dy = Math.round(b.y + moveExtrap - s / 2);
+                    const renderY = b.prevY + (b.y - b.prevY) * alpha;
+                    const dy = Math.round(renderY - s / 2);
                     ctx.drawImage(spr, dx, dy, s, s);
                 });
 
@@ -7231,12 +7257,12 @@ window.mu_syncHtmlBg = function(){
             function spawnForLane(laneIdx) {
                 const sub = Math.random() < 0.5 ? 0 : 1;
                 const col = laneIdx * 2 + sub;
-                obstacles.push({ col, y: -obsH, passed: false });
+                obstacles.push({ col, y: -obsH, prevY: -obsH, passed: false });
                 // The other road in this lane is guaranteed clear right now,
                 // so it's a safe spot for an occasional bonus — rewards
                 // deliberately picking the open road, not just luck.
                 if (Math.random() < 0.4) {
-                    bonuses.push({ col: laneIdx * 2 + (1 - sub), y: -obsH, taken: false });
+                    bonuses.push({ col: laneIdx * 2 + (1 - sub), y: -obsH, prevY: -obsH, taken: false });
                 }
             }
 
@@ -7767,6 +7793,14 @@ window.mu_syncHtmlBg = function(){
             const MAX_FRAME_MS = STEP_MS * 3; // a stall/backgrounded tab can only ever "owe" 3 ticks of catch-up — same ceiling the old dt clamp used
 
             function step(ts) {
+                // Snapshot each obstacle/bonus's previous tick position
+                // BEFORE anything moves this tick, unconditionally (even
+                // while dying/ended, when nothing below actually advances
+                // y). That's what makes interpolation in render() correct:
+                // if the sim is frozen, prevY stays equal to y and the
+                // object renders perfectly still regardless of alpha.
+                obstacles.forEach(o => { o.prevY = o.y; });
+                bonuses.forEach(b => { b.prevY = b.y; });
                 if (dying) {
                     if (ts - dyingStart >= DYING_MS) { dying = false; endRacer(); return; }
                 } else if (!ended) {
@@ -7878,7 +7912,6 @@ window.mu_syncHtmlBg = function(){
                 // render time; using it to nudge this frame's draw
                 // position removes the unevenness.
                 const alpha = Math.min(1, acc / STEP_MS);
-                const moveExtrap = (!ended && !dying) ? speed * alpha : 0;
                 // Screen Flip renders the entire world rotated 180° around
                 // the canvas center. Purely cosmetic — car columns, obstacle
                 // y-positions and the collision math underneath never move,
@@ -7972,7 +8005,8 @@ window.mu_syncHtmlBg = function(){
                     // differently every frame, which reads as a shimmer.
                     // Snapping the destination to whole pixels fixes it.
                     const dx = Math.round(colCenterX(o.col) - spr.width / 2);
-                    const dy = Math.round(o.y + moveExtrap - spr.height / 2);
+                    const renderY = o.prevY + (o.y - o.prevY) * alpha;
+                    const dy = Math.round(renderY - spr.height / 2);
                     ctx.drawImage(spr, dx, dy, spr.width, spr.height);
                 });
 
@@ -7984,7 +8018,8 @@ window.mu_syncHtmlBg = function(){
                     // Rounded for the same reason as the obstacle badges
                     // above — b.y moves fractionally every frame, and this
                     // shape's edges shimmered as a result.
-                    ctx.translate(Math.round(colCenterX(b.col)), Math.round(b.y + moveExtrap));
+                    const renderY = b.prevY + (b.y - b.prevY) * alpha;
+                    ctx.translate(Math.round(colCenterX(b.col)), Math.round(renderY));
                     ctx.rotate(Math.PI / 4);
                     ctx.fillStyle = '#ffd23f';
                     ctx.lineWidth = 2;
