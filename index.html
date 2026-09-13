@@ -3511,15 +3511,27 @@ window.mu_syncHtmlBg = function(){
            ===================================================================== */
         const MU_IDB_DB_NAME = 'markhinStorage';
         const MU_IDB_STORE_NAME = 'kv';
+        // Second object store, same database: holds image/voice Blobs directly
+        // (IndexedDB can store Blobs natively — no base64 round-trip needed).
+        // Notes reference a Blob by a small string id (data-mu-media="...") instead
+        // of embedding it inline, which is what actually keeps note HTML small —
+        // see the MU_MEDIA helpers and mu_hydrateMedia()/mu_resolveMediaSrcInHtml()
+        // just below. Bumping the DB version to 2 triggers onupgradeneeded on
+        // existing installs too, so the new store gets created for people upgrading
+        // from the single-store version without losing their existing 'kv' data.
+        const MU_IDB_MEDIA_STORE = 'media';
+        const MU_IDB_VERSION = 2;
         let mu_idbOpenPromise = null;
         function mu_idbOpen() {
             if (mu_idbOpenPromise) return mu_idbOpenPromise;
             mu_idbOpenPromise = new Promise(function(resolve){
                 if (typeof indexedDB === 'undefined' || !indexedDB) { resolve(null); return; }
                 try {
-                    const req = indexedDB.open(MU_IDB_DB_NAME, 1);
+                    const req = indexedDB.open(MU_IDB_DB_NAME, MU_IDB_VERSION);
                     req.onupgradeneeded = function(){
                         try { if (!req.result.objectStoreNames.contains(MU_IDB_STORE_NAME)) req.result.createObjectStore(MU_IDB_STORE_NAME); }
+                        catch (_) {}
+                        try { if (!req.result.objectStoreNames.contains(MU_IDB_MEDIA_STORE)) req.result.createObjectStore(MU_IDB_MEDIA_STORE); }
                         catch (_) {}
                     };
                     req.onsuccess = function(){ resolve(req.result); };
@@ -3572,6 +3584,262 @@ window.mu_syncHtmlBg = function(){
                 });
             }
         };
+        /* =====================================================================
+           MEDIA BLOB STORE (images/voice notes)
+           ---------------------------------------------------------------------
+           Same shim shape as MU_IDB above, but over the 'media' object store and
+           keyed by a generated id rather than a fixed key: values are the raw
+           Blob objects (IndexedDB structured-clones Blobs natively). A note's
+           saved HTML never contains the image/audio bytes anymore — it just
+           carries a small reference, e.g. <img data-mu-media="m_abc123">, which
+           mu_hydrateMedia() turns into a live blob: URL when the note is
+           actually rendered on screen, and mu_resolveMediaSrcInHtml() turns
+           into an embedded base64 data: URL when the note is exported/shared
+           somewhere the blob: URL (or the IndexedDB record itself) can't follow.
+           ===================================================================== */
+        function mu_genMediaId(){ return 'm_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 9); }
+        const MU_MEDIA = {
+            put: async function(id, blob){
+                const db = await mu_idbOpen();
+                if (!db) return false;
+                return new Promise(function(resolve){
+                    try {
+                        const tx = db.transaction(MU_IDB_MEDIA_STORE, 'readwrite');
+                        tx.objectStore(MU_IDB_MEDIA_STORE).put(blob, id);
+                        tx.oncomplete = function(){ resolve(true); };
+                        tx.onerror = function(){ resolve(false); };
+                        tx.onabort = function(){ resolve(false); };
+                    } catch (_) { resolve(false); }
+                });
+            },
+            get: async function(id){
+                const db = await mu_idbOpen();
+                if (!db) return null;
+                return new Promise(function(resolve){
+                    try {
+                        const tx = db.transaction(MU_IDB_MEDIA_STORE, 'readonly');
+                        const req = tx.objectStore(MU_IDB_MEDIA_STORE).get(id);
+                        req.onsuccess = function(){ resolve(req.result || null); };
+                        req.onerror = function(){ resolve(null); };
+                    } catch (_) { resolve(null); }
+                });
+            },
+            delete: async function(id){
+                const db = await mu_idbOpen();
+                if (!db) return false;
+                return new Promise(function(resolve){
+                    try {
+                        const tx = db.transaction(MU_IDB_MEDIA_STORE, 'readwrite');
+                        tx.objectStore(MU_IDB_MEDIA_STORE).delete(id);
+                        tx.oncomplete = function(){ resolve(true); };
+                        tx.onerror = function(){ resolve(false); };
+                    } catch (_) { resolve(false); }
+                });
+            },
+            keys: async function(){
+                const db = await mu_idbOpen();
+                if (!db) return [];
+                return new Promise(function(resolve){
+                    try {
+                        const tx = db.transaction(MU_IDB_MEDIA_STORE, 'readonly');
+                        const store = tx.objectStore(MU_IDB_MEDIA_STORE);
+                        if (typeof store.getAllKeys === 'function') {
+                            const req = store.getAllKeys();
+                            req.onsuccess = function(){ resolve(req.result || []); };
+                            req.onerror = function(){ resolve([]); };
+                        } else {
+                            // Very old WebView fallback: no getAllKeys(), walk a cursor instead.
+                            const keys = [];
+                            const req = store.openCursor();
+                            req.onsuccess = function(e){
+                                const cursor = e.target.result;
+                                if (cursor) { keys.push(cursor.key); cursor.continue(); } else resolve(keys);
+                            };
+                            req.onerror = function(){ resolve([]); };
+                        }
+                    } catch (_) { resolve([]); }
+                });
+            }
+        };
+
+        // Stores a Blob (an image File, a recorded-audio Blob, a canvas-drawing
+        // Blob, …) and returns its new media id, or null if IndexedDB isn't
+        // available/writable here — callers fall back to embedding the Blob as a
+        // base64 data: URL directly in that case, exactly like before this
+        // feature existed, so nothing breaks on a device without IndexedDB.
+        async function mu_mediaPut(blob){
+            if (!blob) return null;
+            const id = mu_genMediaId();
+            const ok = await MU_MEDIA.put(id, blob);
+            return ok ? id : null;
+        }
+
+        function mu_blobToDataUrl(blob){
+            return new Promise(function(resolve, reject){
+                try {
+                    const reader = new FileReader();
+                    reader.onload = function(){ resolve(reader.result); };
+                    reader.onerror = function(){ reject(reader.error || new Error('FileReader failed')); };
+                    reader.readAsDataURL(blob);
+                } catch (err) { reject(err); }
+            });
+        }
+
+        // Turns every <img data-mu-media>/<audio data-mu-media> inside container
+        // that isn't already showing its current media into a live blob: URL.
+        // Called whenever a note's saved HTML is actually put on screen
+        // (attachWrapperEvents, undo/redo) — never on every render, since closed
+        // notes' markup sits off-screen and doesn't need real image data yet.
+        async function mu_hydrateMedia(container){
+            if (!container || !container.querySelectorAll) return;
+            const els = container.querySelectorAll('img[data-mu-media], audio[data-mu-media]');
+            for (const el of els) {
+                const mediaId = el.getAttribute('data-mu-media');
+                if (!mediaId || el.dataset.muHydratedFor === mediaId) continue;
+                let blob = null;
+                try { blob = await MU_MEDIA.get(mediaId); } catch (_) {}
+                if (!blob) continue; // media missing (device without IndexedDB, or purged) — leave placeholder
+                const oldUrl = el.dataset.muObjectUrl;
+                let url;
+                try { url = URL.createObjectURL(blob); } catch (_) { continue; }
+                el.src = url;
+                el.dataset.muHydratedFor = mediaId;
+                el.dataset.muObjectUrl = url;
+                if (oldUrl && oldUrl !== url) { try { URL.revokeObjectURL(oldUrl); } catch (_) {} }
+            }
+        }
+
+        // Export-time counterpart to mu_hydrateMedia(): produces a copy of `html`
+        // where every data-mu-media reference has been replaced with the actual
+        // media embedded as a base64 data: URL — i.e. exactly the self-contained
+        // shape notes used before this feature existed. Used only for outputs
+        // that need to be portable on their own (a downloaded PDF/DOCX/HTML file,
+        // a JSON backup) — never for the note's regular saved copy, which should
+        // stay small and reference-only.
+        async function mu_resolveMediaSrcInHtml(html){
+            const str = String(html || '');
+            if (!/data-mu-media\s*=/.test(str)) return str;
+            const template = document.createElement('template');
+            template.innerHTML = str;
+            const els = template.content.querySelectorAll('img[data-mu-media], audio[data-mu-media]');
+            for (const el of els) {
+                const mediaId = el.getAttribute('data-mu-media');
+                if (mediaId) {
+                    try {
+                        const blob = await MU_MEDIA.get(mediaId);
+                        if (blob) el.setAttribute('src', await mu_blobToDataUrl(blob));
+                    } catch (_) {}
+                    el.removeAttribute('data-mu-media');
+                }
+            }
+            return template.innerHTML;
+        }
+
+        // Runs mu_resolveMediaSrcInHtml() over every item's .html in a list,
+        // returning shallow copies — the live `categories` objects (and their
+        // small reference-only .html) are never touched by an export.
+        async function mu_resolveItemsMediaForExport(items){
+            const list = Array.isArray(items) ? items : [];
+            const out = [];
+            for (const item of list) {
+                if (item && typeof item.html === 'string' && /data-mu-media\s*=/.test(item.html)) {
+                    out.push(Object.assign({}, item, { html: await mu_resolveMediaSrcInHtml(item.html) }));
+                } else {
+                    out.push(item);
+                }
+            }
+            return out;
+        }
+
+        // One-time (per note) migration: turns a note's OLD-style embedded
+        // base64 <img>/<audio> into the new Blob-store references. Returns true
+        // if the note's .html actually changed (caller decides whether to save).
+        async function mu_migrateNoteMediaToBlobs(item){
+            if (!item || typeof item.html !== 'string' || !/data:(image|audio)\//i.test(item.html)) return false;
+            const template = document.createElement('template');
+            template.innerHTML = item.html;
+            const els = template.content.querySelectorAll('img[src^="data:image/"], audio[src^="data:audio/"]');
+            let changed = false;
+            for (const el of els) {
+                const src = el.getAttribute('src');
+                try {
+                    const res = await fetch(src);
+                    const blob = await res.blob();
+                    const mediaId = await mu_mediaPut(blob);
+                    if (mediaId) {
+                        el.setAttribute('data-mu-media', mediaId);
+                        el.removeAttribute('src');
+                        changed = true;
+                    }
+                } catch (_) { /* leave this one embedded as-is on failure */ }
+            }
+            if (changed) item.html = template.innerHTML;
+            return changed;
+        }
+
+        // Runs the migration above across every currently-unlocked note, once.
+        // Locked notes can't be scanned without their password — see
+        // unlockNote(), which runs the same per-note migration the moment a
+        // locked note is actually opened instead.
+        async function mu_migrateAllNotesMedia(){
+            if (!mu_idbAvailable) return; // nowhere durable to put the blobs — keep base64 as-is
+            let done = false;
+            try { done = !!(await MU_IDB.getItem('mu_media_migration_v1_done')); } catch (_) {}
+            if (done) return;
+            let anyChanged = false;
+            for (const item of categories) {
+                if (isNoteLocked(item)) continue;
+                try { if (await mu_migrateNoteMediaToBlobs(item)) anyChanged = true; }
+                catch (err) { console.warn('Media migration failed for note', item && item.id, err); }
+            }
+            if (anyChanged) saveToLocalStorage();
+            try { await MU_IDB.setItem('mu_media_migration_v1_done', '1'); } catch (_) {}
+        }
+
+        // Collects every media id any current note's saved HTML still points
+        // to, straight off the raw string (no live DOM needed for this scan).
+        function mu_collectReferencedMediaIds(){
+            const ids = new Set();
+            const re = /data-mu-media="([^"]+)"/g;
+            for (const item of categories) {
+                if (typeof item.html !== 'string') continue;
+                re.lastIndex = 0;
+                let m;
+                while ((m = re.exec(item.html))) ids.add(m[1]);
+            }
+            return ids;
+        }
+
+        // Deletes media Blobs no note references anymore (e.g. the pre-crop
+        // original after a photo was cropped, or an image deleted from a note).
+        // Deliberately conservative: skipped entirely whenever any note is
+        // locked, since a locked note's images live inside its ciphertext and
+        // are invisible to this scan without the password — running GC anyway
+        // could delete a locked note's own (still-in-use) media by mistake.
+        // Also throttled to roughly once a day; this is idle cleanup, not
+        // something that needs to run on every launch.
+        const MU_MEDIA_GC_INTERVAL = 24 * 60 * 60 * 1000;
+        async function mu_gcOrphanedMedia(){
+            if (!mu_idbAvailable) return;
+            if (categories.some(isNoteLocked)) return;
+            try {
+                const referenced = mu_collectReferencedMediaIds();
+                const allKeys = await MU_MEDIA.keys();
+                for (const id of allKeys) {
+                    if (!referenced.has(id)) await MU_MEDIA.delete(id);
+                }
+            } catch (err) { console.warn('Media GC failed', err); }
+        }
+        function mu_scheduleMediaGc(){
+            if (!mu_idbAvailable) return;
+            let lastRun = 0;
+            try { lastRun = Number(localStorage.getItem('mu_media_gc_last_v1') || 0); } catch (_) {}
+            if (Date.now() - lastRun < MU_MEDIA_GC_INTERVAL) return;
+            mu_gcOrphanedMedia().then(function(){
+                try { localStorage.setItem('mu_media_gc_last_v1', String(Date.now())); } catch (_) {}
+            });
+        }
+
         // Set once, at startup, by the DOMContentLoaded handler below after it
         // probes IndexedDB — consulted by saveToLocalStorage() so a full
         // localStorage quota isn't treated as fatal once notes have moved over.
@@ -3762,6 +4030,11 @@ window.mu_syncHtmlBg = function(){
                 item.text = String(payload.text || '');
                 item.isDecoy = false;
                 noteSessionKeys.set(item.id, String(password));
+                // This note's ciphertext was invisible to the startup migration
+                // pass; now that it's decrypted, move its embedded media into the
+                // Blob store too. The re-encrypted (smaller) ciphertext is only
+                // written back the next time the note is actually saved.
+                try { await mu_migrateNoteMediaToBlobs(item); } catch (_) {}
                 return true;
             } catch (_) {
                 return false;
@@ -3902,6 +4175,13 @@ window.mu_syncHtmlBg = function(){
                 else item.html = sanitizeHtml(item.html || item.text || '');
             });
             await migrateLegacyPasswordNotes();
+            // Move any old-style embedded base64 images/audio into the separate
+            // media Blob store (see MEDIA BLOB STORE above) so notes go back to
+            // being small, reference-only HTML in storage. Locked notes are
+            // migrated individually the moment they're unlocked instead (see
+            // unlockNote()), since their content isn't readable without a password.
+            await mu_migrateAllNotesMedia();
+            mu_scheduleMediaGc();
 
             if (savedFolders) {
                 const parsedFolders = safeParseJSON(savedFolders, []);
@@ -4100,7 +4380,7 @@ window.mu_syncHtmlBg = function(){
             htmlTag.dir = currentLang === 'fa' ? 'rtl' : 'ltr';
             htmlTag.lang = currentLang;
 
-            document.getElementById('langEmoji').innerText = currentLang === 'fa' ? '🌐' : '🔤';
+            document.getElementById('langEmoji').innerText = currentLang === 'fa' ? '🌐' : '??';
             document.getElementById('langLabel').innerText = currentLang === 'fa' ? 'FA' : 'EN';
 
             document.getElementById('uiTitle').innerText = t.title;
@@ -4368,8 +4648,8 @@ window.mu_syncHtmlBg = function(){
                     const common = ['class','id','contenteditable','draggable','aria-label'];
                     const keep = common.includes(name) ||
                         (el.tagName === 'A' && ['href','target','rel'].includes(name)) ||
-                        (el.tagName === 'IMG' && ['src','alt','width','height'].includes(name)) ||
-                        (el.tagName === 'AUDIO' && ['src','controls'].includes(name)) ||
+                        (el.tagName === 'IMG' && ['src','alt','width','height','data-mu-media'].includes(name)) ||
+                        (el.tagName === 'AUDIO' && ['src','controls','data-mu-media'].includes(name)) ||
                         (el.tagName === 'BUTTON' && name === 'type');
                     if (name.startsWith('on') || !keep) el.removeAttribute(attr.name);
                     if (name === 'href' && !/^(https?:|mailto:)/i.test(value)) el.removeAttribute(attr.name);
@@ -4690,14 +4970,12 @@ window.mu_syncHtmlBg = function(){
                 renderContents();
 
                 mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
-                mediaRecorder.onstop = () => {
+                mediaRecorder.onstop = async () => {
                     const audioBlob = new Blob(audioChunks, { type: mediaRecorder?.mimeType || 'audio/webm' });
-                    const reader = new FileReader();
-                    reader.onload = function(e) {
-                        insertAudioToNote(id, e.target.result);
-                    };
-                    reader.readAsDataURL(audioBlob);
-                    
+                    const mediaId = await mu_mediaPut(audioBlob);
+                    const src = mediaId ? URL.createObjectURL(audioBlob) : await mu_blobToDataUrl(audioBlob);
+                    insertAudioToNote(id, src, mediaId);
+
                     stream.getTracks().forEach(track => track.stop());
                     activeRecId = null;
                     renderContents();
@@ -4709,7 +4987,7 @@ window.mu_syncHtmlBg = function(){
             }
         }
 
-        function insertAudioToNote(id, audioBase64) {
+        function insertAudioToNote(id, audioSrc, mediaId) {
             const textBox = document.getElementById(`text-${id}`);
             if (!textBox) return;
 
@@ -4719,7 +4997,8 @@ window.mu_syncHtmlBg = function(){
 
             const audioEl = document.createElement('audio');
             audioEl.controls = true;
-            audioEl.src = audioBase64;
+            audioEl.src = audioSrc;
+            if (mediaId) audioEl.dataset.muMedia = mediaId;
 
             const delBtn = document.createElement('button');
             delBtn.className = 'img-btn';
@@ -5722,37 +6001,44 @@ window.mu_syncHtmlBg = function(){
                 drawPipeSeg(x, gapBottom + pipeCapH, Math.max(0, groundTopY - (gapBottom + pipeCapH)));
             }
 
-            let raf = null, lastTs = 0;
-            function loop(ts) {
-                raf = requestAnimationFrame(loop);
-                if (gamePaused || ended) { lastTs = ts; return; }
-                if (!lastTs) lastTs = ts;
-                // Cap dt like Snake does — otherwise a backgrounded tab lets
-                // gravity accumulate for the whole time it was hidden and the
-                // bird instantly plunges through the floor the moment you
-                // switch back, which used to feel like an unfair, sudden death.
-                const dt = Math.min((ts - lastTs) / 16.67, 3);
-                lastTs = ts;
+            // Fixed-timestep simulation with an accumulator, decoupled
+            // from the raw per-frame rAF timing.
+            //
+            // Why the previous fix (just clamping dt) wasn't enough,
+            // especially in Telegram: in Telegram's in-app WebView (on
+            // weaker Android phones), requestAnimationFrame callbacks land
+            // at irregular intervals even while the game is fully active —
+            // its compositor/JS-bridge overhead makes consecutive dt
+            // values bounce around (e.g. 1.0, 1.7, 0.9...) instead of
+            // holding steady near 1. Clamping dt only stops a rare huge
+            // spike; it does nothing about that continuous small
+            // oscillation, which is exactly what read as constant jitter —
+            // and it got more visible as pipeSpeed increased, since the
+            // same dt wobble now moved more pixels per frame.
+            //
+            // The fix: every simulation tick in step() always advances by
+            // exactly one fixed unit (dt is always 1 in there — never the
+            // raw, jittery elapsed time). An accumulator banks the real
+            // elapsed time between rendered frames and runs as many fixed
+            // ticks as it can afford, carrying any leftover into the next
+            // frame, then the frame is drawn exactly once in render(). The
+            // average speed over time is identical to before (the
+            // accumulator never loses or invents time) — only the
+            // frame-to-frame wobble is gone. The bird's flap phase and the
+            // coin's squash animation still key off the raw `ts` timestamp
+            // directly, which is fine: those are one-shot readouts of the
+            // current clock, not running sums, so they were never subject
+            // to this kind of drift.
+            const STEP_MS = 1000 / 60;
+            const MAX_FRAME_MS = STEP_MS * 3; // a stall/backgrounded tab can only ever "owe" 3 ticks of catch-up — same ceiling the old dt clamp used
 
+            function step() {
+                const dt = 1; // fixed simulation tick — see note above
                 birdVy += gravity * dt;
                 birdY += birdVy * dt;
                 if (birdY - birdR < 0) { birdY = birdR; birdVy = Math.max(birdVy, 0); }
 
-                // ---- sky ----
-                ctx.clearRect(0, 0, width, height);
-                ctx.fillStyle = skyGradient;
-                ctx.fillRect(0, 0, width, groundTopY);
-
-                // ---- parallax skyline ----
                 skylineOffset = (skylineOffset - pipeSpeed * 0.28 * dt) % skylineSpanW;
-                ctx.fillStyle = 'rgba(170, 205, 215, 0.75)';
-                for (let rep = -1; rep <= 1; rep++) {
-                    buildings.forEach(b => {
-                        const bx = b.x + skylineOffset + rep * skylineSpanW;
-                        if (bx > width || bx + b.w < 0) return;
-                        ctx.fillRect(bx, groundTopY - b.h, b.w, b.h);
-                    });
-                }
 
                 // ---- pipes ----
                 distSinceSpawn += pipeSpeed * dt;
@@ -5772,7 +6058,6 @@ window.mu_syncHtmlBg = function(){
                 for (const p of pipes) {
                     p.x -= pipeSpeed * dt;
                     const gapTop = p.top, gapBottom = groundTopY - p.bottom;
-                    drawPipePair(p.x, gapTop, gapBottom);
 
                     if (!p.passed && p.x + pipeW < birdX) {
                         p.passed = true;
@@ -5794,7 +6079,6 @@ window.mu_syncHtmlBg = function(){
                 pickups.forEach(pk => {
                     pk.x -= pipeSpeed * dt;
                     if (pk.taken) return;
-                    drawCoin(pk.x, pk.y, pk.r, ts);
                     const dx = pk.x - birdX, dy = pk.y - birdY;
                     if (Math.sqrt(dx * dx + dy * dy) < pk.r + hitR) {
                         pk.taken = true;
@@ -5805,8 +6089,45 @@ window.mu_syncHtmlBg = function(){
                 });
                 pickups = pickups.filter(pk => !pk.taken && pk.x > -60);
 
-                // ---- ground (grass + dirt), drawn over the pipes' bottom ends ----
+                // ---- ground (grass + dirt) scroll ----
                 groundOffset = (groundOffset - pipeSpeed * dt) % 28;
+
+                // death: bird has settled into the ground
+                if (birdY + hitR > groundTopY) {
+                    birdY = groundTopY - hitR;
+                    handleCrash();
+                }
+            }
+
+            function render(ts) {
+                // ---- sky ----
+                ctx.clearRect(0, 0, width, height);
+                ctx.fillStyle = skyGradient;
+                ctx.fillRect(0, 0, width, groundTopY);
+
+                // ---- parallax skyline ----
+                ctx.fillStyle = 'rgba(170, 205, 215, 0.75)';
+                for (let rep = -1; rep <= 1; rep++) {
+                    buildings.forEach(b => {
+                        const bx = b.x + skylineOffset + rep * skylineSpanW;
+                        if (bx > width || bx + b.w < 0) return;
+                        ctx.fillRect(bx, groundTopY - b.h, b.w, b.h);
+                    });
+                }
+
+                // ---- pipes ----
+                for (const p of pipes) {
+                    const gapTop = p.top, gapBottom = groundTopY - p.bottom;
+                    drawPipePair(p.x, gapTop, gapBottom);
+                }
+
+                // ---- pickups (coins) ----
+                pickups.forEach(pk => {
+                    if (pk.taken) return;
+                    drawCoin(pk.x, pk.y, pk.r, ts);
+                });
+
+                // ---- ground (grass + dirt), drawn over the pipes' bottom ends ----
                 ctx.fillStyle = '#7ec850';
                 ctx.fillRect(0, groundTopY, width, groundH * 0.32);
                 // scalloped cream edge between sky and grass, like the reference
@@ -5826,12 +6147,6 @@ window.mu_syncHtmlBg = function(){
                     ctx.moveTo(sx, groundTopY + groundH * 0.55);
                     ctx.lineTo(sx + 14, groundTopY + groundH * 0.55);
                     ctx.stroke();
-                }
-
-                // death: bird has settled into the ground
-                if (birdY + hitR > groundTopY) {
-                    birdY = groundTopY - hitR;
-                    handleCrash();
                 }
 
                 // ---- bird ----
@@ -5867,6 +6182,23 @@ window.mu_syncHtmlBg = function(){
                 ctx.fillStyle = '#241a05';
                 ctx.fill();
                 ctx.restore();
+            }
+
+            let raf = null, lastTs = 0, acc = 0;
+            function loop(ts) {
+                raf = requestAnimationFrame(loop);
+                if (gamePaused || ended) { lastTs = ts; return; }
+                if (!lastTs) lastTs = ts;
+                acc += Math.min(ts - lastTs, MAX_FRAME_MS);
+                lastTs = ts;
+
+                while (acc >= STEP_MS) {
+                    acc -= STEP_MS;
+                    step();
+                    if (ended) { acc = 0; break; }
+                }
+
+                render(ts);
             }
             raf = requestAnimationFrame(loop);
             gameStopFn = () => { if (raf) cancelAnimationFrame(raf); };
@@ -6412,100 +6744,80 @@ window.mu_syncHtmlBg = function(){
                 mAiGameHaptic('error');
             }
 
-            let raf = null, lastTs = 0, scoreTimer = 0;
-            function loop(ts) {
-                raf = requestAnimationFrame(loop);
-                if (gamePaused) { lastTs = ts; return; }
-                if (!lastTs) lastTs = ts;
-                // rawDt is real elapsed ms (clamped so a backgrounded tab
-                // can't dump a huge gap in); dt is the same frame-ratio unit
-                // Cyber Flappy uses for its own speed math.
-                const rawDt = Math.min(ts - lastTs, 200);
-                const dt = rawDt / 16.67;
-                lastTs = ts;
+            // Fixed-timestep simulation with an accumulator, decoupled
+            // from the raw per-frame rAF timing — see the longer note on
+            // this same pattern in Cyber Flappy for why the old dt-clamp
+            // wasn't enough on its own (Telegram's in-app WebView delivers
+            // requestAnimationFrame at irregular intervals even while the
+            // game is fully active, so a merely-clamped dt still wobbles
+            // frame to frame instead of holding steady). Every quantity
+            // below that used to move by a variable `dt`/`rawDt` each
+            // rendered frame now only ever moves in fixed STEP_MS-sized
+            // ticks, run as many times as the accumulator can afford, with
+            // a single draw at the end. The `ts - dyingStart` wall-clock
+            // check and the ts-driven cosmetic sine wobbles (bonus pulse,
+            // etc.) are untouched — they're plain snapshots of the current
+            // timestamp, not running sums, so they were never subject to
+            // this kind of drift.
+            const STEP_MS = 1000 / 60;
+            const MAX_FRAME_MS = STEP_MS * 3; // a stall/backgrounded tab can only ever "owe" 3 ticks of catch-up — same ceiling the old dt clamp used
 
+            function step(ts) {
                 if (dying) {
                     if (ts - dyingStart >= DYING_MS) { dying = false; endRacer(); return; }
                 } else if (!ended) {
-                    // Bug fix ("obstacles suddenly jerk/leap forward"): on a
-                    // phone or in-app WebView that occasionally drops
-                    // frames (weak hardware, a GC pause, background
-                    // throttling), rawDt for the next rendered frame can be
-                    // much bigger than a normal ~16.67ms tick. Moving every
-                    // obstacle by speed*dt in ONE step used to cover that
-                    // entire gap in a single jump the instant the frame
-                    // finally rendered — reading exactly like the road
-                    // "teleporting"/twitching forward instead of scrolling
-                    // smoothly. Splitting a big gap into several small,
-                    // fixed-size simulation steps keeps each individual
-                    // step's movement bounded to roughly two normal frames'
-                    // worth, so the total distance covered over the gap is
-                    // still correct (nothing slows down or speeds up on
-                    // average) but it's never rendered as one big leap.
-                    const MAX_STEP_DT = 2; // ~2 frame-units (~33ms) per step
-                    let dtRemaining = dt;
-                    while (dtRemaining > 0) {
-                        const stepDt = Math.min(MAX_STEP_DT, dtRemaining);
-                        dtRemaining -= stepDt;
+                    // Speed ramps up smoothly and predictably toward its
+                    // ceiling — no random spikes or slow-mo zones.
+                    speed = baseSpeed + maxSpeedGain * currentDifficulty();
+                    roadOffset = (roadOffset + speed) % dashCycle;
 
-                        // Speed ramps up smoothly and predictably toward its
-                        // ceiling — no random spikes or slow-mo zones.
-                        speed = baseSpeed + maxSpeedGain * currentDifficulty();
-                        roadOffset = (roadOffset + speed * stepDt) % dashCycle;
+                    [0, 1].forEach(laneIdx => {
+                        distSinceSpawn[laneIdx] += speed;
+                        if (distSinceSpawn[laneIdx] >= nextGap[laneIdx]) {
+                            distSinceSpawn[laneIdx] = 0;
+                            nextGap[laneIdx] = jitteredGap();
+                            spawnForLane(laneIdx);
+                        }
+                    });
 
-                        [0, 1].forEach(laneIdx => {
-                            distSinceSpawn[laneIdx] += speed * stepDt;
-                            if (distSinceSpawn[laneIdx] >= nextGap[laneIdx]) {
-                                distSinceSpawn[laneIdx] = 0;
-                                nextGap[laneIdx] = jitteredGap();
-                                spawnForLane(laneIdx);
-                            }
-                        });
-
-                        obstacles.forEach(o => {
-                            o.y += speed * stepDt;
-                            if (!o.passed && o.y > carRowY) {
-                                o.passed = true;
-                                obstaclesPassed++;
-                                gameScore += 5;
-                                updateScoreLabel();
-                                // Every 10 clean dodges, a haptic buzz marks the
-                                // speed-up milestone quietly, nothing on screen.
-                                if (obstaclesPassed % 10 === 0 && obstaclesPassed !== lastMilestone) {
-                                    lastMilestone = obstaclesPassed;
-                                    mAiGameHaptic('medium');
-                                }
-                            }
-                            const carCol = o.col < 2 ? car1Col : car2Col;
-                            if (o.col === carCol && Math.abs(o.y - carRowY) < (obsH + carH) / 2 - 4) {
-                                triggerDeath(ts);
-                            }
-                        });
-                        obstacles = obstacles.filter(o => o.y < height + obsH);
-
-                        bonuses.forEach(b => {
-                            if (b.taken) return;
-                            b.y += speed * stepDt;
-                            const carCol = b.col < 2 ? car1Col : car2Col;
-                            if (b.col === carCol && Math.abs(b.y - carRowY) < (obsH + carH) / 2 - 4) {
-                                b.taken = true;
-                                const gain = 25;
-                                gameScore += gain;
-                                updateScoreLabel();
+                    obstacles.forEach(o => {
+                        o.y += speed;
+                        if (!o.passed && o.y > carRowY) {
+                            o.passed = true;
+                            obstaclesPassed++;
+                            gameScore += 5;
+                            updateScoreLabel();
+                            // Every 10 clean dodges, a haptic buzz marks the
+                            // speed-up milestone quietly, nothing on screen.
+                            if (obstaclesPassed % 10 === 0 && obstaclesPassed !== lastMilestone) {
+                                lastMilestone = obstaclesPassed;
                                 mAiGameHaptic('medium');
-                                spawnParticles(colCenterX(b.col), b.y, '#ffd23f', 14);
-                                spawnPopup(colCenterX(b.col), b.y, '+' + gain, '#ffd23f');
                             }
-                        });
-                        bonuses = bonuses.filter(b => !b.taken && b.y < height + obsH);
+                        }
+                        const carCol = o.col < 2 ? car1Col : car2Col;
+                        if (o.col === carCol && Math.abs(o.y - carRowY) < (obsH + carH) / 2 - 4) {
+                            triggerDeath(ts);
+                        }
+                    });
+                    obstacles = obstacles.filter(o => o.y < height + obsH);
 
-                        // A hit mid-gap should stop the road instantly, not
-                        // keep advancing through the rest of this frame's
-                        // leftover steps.
-                        if (dying || ended) break;
-                    }
+                    bonuses.forEach(b => {
+                        if (b.taken) return;
+                        b.y += speed;
+                        const carCol = b.col < 2 ? car1Col : car2Col;
+                        if (b.col === carCol && Math.abs(b.y - carRowY) < (obsH + carH) / 2 - 4) {
+                            b.taken = true;
+                            const gain = 25;
+                            gameScore += gain;
+                            updateScoreLabel();
+                            mAiGameHaptic('medium');
+                            spawnParticles(colCenterX(b.col), b.y, '#ffd23f', 14);
+                            spawnPopup(colCenterX(b.col), b.y, '+' + gain, '#ffd23f');
+                        }
+                    });
+                    bonuses = bonuses.filter(b => !b.taken && b.y < height + obsH);
 
-                    scoreTimer += rawDt;
+                    scoreTimer += STEP_MS;
                     if (scoreTimer >= 300) { scoreTimer -= 300; gameScore += 1; updateScoreLabel(); }
                 }
 
@@ -6521,18 +6833,21 @@ window.mu_syncHtmlBg = function(){
                 const moveP2 = easeOutCubic(Math.min(1, car2BankT / LANE_MOVE_MS));
                 car1X = car1MoveFromX + (targetX1 - car1MoveFromX) * moveP1;
                 car2X = car2MoveFromX + (targetX2 - car2MoveFromX) * moveP2;
-                car1SquashT += rawDt;
-                car2SquashT += rawDt;
-                car1BankT += rawDt;
-                car2BankT += rawDt;
+                car1SquashT += STEP_MS;
+                car2SquashT += STEP_MS;
+                car1BankT += STEP_MS;
+                car2BankT += STEP_MS;
 
                 // No exhaust trail — the reference clip's cars leave no
                 // particle smear behind them, just the plain capsule body.
 
-                particles.forEach(p => { p.life += rawDt; p.x += p.vx * (rawDt / 1000); p.y += p.vy * (rawDt / 1000); });
+                particles.forEach(p => { p.life += STEP_MS; p.x += p.vx * (STEP_MS / 1000); p.y += p.vy * (STEP_MS / 1000); });
                 particles = particles.filter(p => p.life < p.maxLife);
-                popups.forEach(p => { p.life += rawDt; p.y -= (rawDt / 1000) * 24; });
+                popups.forEach(p => { p.life += STEP_MS; p.y -= (STEP_MS / 1000) * 24; });
                 popups = popups.filter(p => p.life < p.maxLife);
+            }
+
+            function render(ts) {
                 // -------- draw --------
                 ctx.clearRect(0, 0, width, height);
                 // Flat solid navy road — one continuous surface across all
@@ -6618,9 +6933,28 @@ window.mu_syncHtmlBg = function(){
                 ctx.fillStyle = vig;
                 ctx.fillRect(0, 0, width, height);
             }
+
+            let raf = null, lastTs = 0, scoreTimer = 0, acc = 0;
+            function loop(ts) {
+                raf = requestAnimationFrame(loop);
+                if (gamePaused) { lastTs = ts; return; }
+                if (!lastTs) lastTs = ts;
+                acc += Math.min(ts - lastTs, MAX_FRAME_MS);
+                lastTs = ts;
+
+                while (acc >= STEP_MS) {
+                    acc -= STEP_MS;
+                    step(ts);
+                    if (ended) break;
+                }
+
+                if (ended) return;
+                render(ts);
+            }
             raf = requestAnimationFrame(loop);
             gameStopFn = () => { if (raf) cancelAnimationFrame(raf); };
         }
+
 
 
         function startTwinLaneRacerModern() {
@@ -7339,104 +7673,89 @@ window.mu_syncHtmlBg = function(){
                 mAiGameHaptic('error');
             }
 
-            let raf = null, lastTs = 0, scoreTimer = 0;
-            function loop(ts) {
-                raf = requestAnimationFrame(loop);
-                if (gamePaused) { lastTs = ts; return; }
-                if (!lastTs) lastTs = ts;
-                // rawDt is real elapsed ms (clamped so a backgrounded tab
-                // can't dump a huge gap in); dt is the same frame-ratio unit
-                // Cyber Flappy uses for its own speed math.
-                const rawDt = Math.min(ts - lastTs, 200);
-                const dt = rawDt / 16.67;
-                lastTs = ts;
+            // Fixed-timestep simulation with an accumulator, decoupled
+            // from the raw per-frame rAF timing — see the longer note on
+            // this same pattern in Cyber Flappy for why the old dt-clamp
+            // wasn't enough on its own (Telegram's in-app WebView delivers
+            // requestAnimationFrame at irregular intervals even while the
+            // game is fully active, so a merely-clamped dt still wobbles
+            // frame to frame instead of holding steady). Every quantity
+            // below that used to move by a variable `dt`/`rawDt` each
+            // rendered frame — road/obstacle motion, the chaos speed-mult
+            // ease, particles, tweens, score, exhaust/flash/banner timers —
+            // now only ever moves in fixed STEP_MS-sized ticks, run as many
+            // times as the accumulator can afford, with a single draw at
+            // the end. Chaos event *scheduling* (updateChaos) is left as
+            // before, still driven by the real per-frame rawDt: a chaos
+            // event's warning/duration window landing a few ms early or
+            // late is invisible, so it doesn't need the tick treatment —
+            // only continuous on-screen motion does. The `ts - dyingStart`
+            // wall-clock check and the ts-driven cosmetic sine wobbles are
+            // also untouched, for the same reason as the other two games:
+            // they're plain snapshots of the current timestamp, not
+            // running sums.
+            const STEP_MS = 1000 / 60;
+            const MAX_FRAME_MS = STEP_MS * 3; // a stall/backgrounded tab can only ever "owe" 3 ticks of catch-up — same ceiling the old dt clamp used
 
+            function step(ts) {
                 if (dying) {
                     if (ts - dyingStart >= DYING_MS) { dying = false; endRacer(); return; }
                 } else if (!ended) {
-                    updateChaos(rawDt);
                     // Ease the actual multiplier toward its target every
-                    // frame — this is what turns the old instant jump into
+                    // tick — this is what turns the old instant jump into
                     // a smooth ramp up (or down) over roughly a second.
-                    chaosSpeedMult += (chaosSpeedMultTarget - chaosSpeedMult) * Math.min(1, dt * 0.06);
+                    chaosSpeedMult += (chaosSpeedMultTarget - chaosSpeedMult) * 0.06;
 
-                    // Bug fix ("obstacles suddenly jerk/leap forward"): on a
-                    // phone or in-app WebView that occasionally drops
-                    // frames (weak hardware, a GC pause, background
-                    // throttling), rawDt for the next rendered frame can be
-                    // much bigger than a normal ~16.67ms tick. Moving every
-                    // obstacle by speed*dt in ONE step used to cover that
-                    // entire gap in a single jump the instant the frame
-                    // finally rendered — reading exactly like the road
-                    // "teleporting"/twitching forward instead of scrolling
-                    // smoothly. Splitting a big gap into several small,
-                    // fixed-size simulation steps keeps each individual
-                    // step's movement bounded to roughly two normal frames'
-                    // worth, so the total distance covered over the gap is
-                    // still correct (nothing slows down or speeds up on
-                    // average) but it's never rendered as one big leap.
-                    const MAX_STEP_DT = 2; // ~2 frame-units (~33ms) per step
-                    let dtRemaining = dt;
-                    while (dtRemaining > 0) {
-                        const stepDt = Math.min(MAX_STEP_DT, dtRemaining);
-                        dtRemaining -= stepDt;
+                    speed = (baseSpeed + maxSpeedGain * currentDifficulty()) * chaosSpeedMult;
+                    roadOffset = (roadOffset + speed) % dashCycle;
 
-                        speed = (baseSpeed + maxSpeedGain * currentDifficulty()) * chaosSpeedMult;
-                        roadOffset = (roadOffset + speed * stepDt) % dashCycle;
+                    [0, 1].forEach(laneIdx => {
+                        distSinceSpawn[laneIdx] += speed;
+                        if (distSinceSpawn[laneIdx] >= nextGap[laneIdx]) {
+                            distSinceSpawn[laneIdx] = 0;
+                            nextGap[laneIdx] = jitteredGap();
+                            spawnForLane(laneIdx);
+                        }
+                    });
 
-                        [0, 1].forEach(laneIdx => {
-                            distSinceSpawn[laneIdx] += speed * stepDt;
-                            if (distSinceSpawn[laneIdx] >= nextGap[laneIdx]) {
-                                distSinceSpawn[laneIdx] = 0;
-                                nextGap[laneIdx] = jitteredGap();
-                                spawnForLane(laneIdx);
-                            }
-                        });
-
-                        obstacles.forEach(o => {
-                            o.y += speed * stepDt;
-                            if (!o.passed && o.y > carRowY) {
-                                o.passed = true;
-                                obstaclesPassed++;
-                                gameScore += Math.round(5 * chaosScoreMult);
-                                updateScoreLabel();
-                                // Every 10 clean dodges, a haptic buzz marks the
-                                // speed-up milestone quietly, nothing on screen.
-                                if (obstaclesPassed % 10 === 0 && obstaclesPassed !== lastMilestone) {
-                                    lastMilestone = obstaclesPassed;
-                                    mAiGameHaptic('medium');
-                                }
-                            }
-                            const carCol = o.col < 2 ? car1Col : car2Col;
-                            if (o.col === carCol && Math.abs(o.y - carRowY) < (obsH + carH) / 2 - 4) {
-                                triggerDeath(ts);
-                            }
-                        });
-                        obstacles = obstacles.filter(o => o.y < height + obsH);
-
-                        bonuses.forEach(b => {
-                            if (b.taken) return;
-                            b.y += speed * stepDt;
-                            const carCol = b.col < 2 ? car1Col : car2Col;
-                            if (b.col === carCol && Math.abs(b.y - carRowY) < (obsH + carH) / 2 - 4) {
-                                b.taken = true;
-                                const gain = Math.round(25 * chaosScoreMult);
-                                gameScore += gain;
-                                updateScoreLabel();
+                    obstacles.forEach(o => {
+                        o.y += speed;
+                        if (!o.passed && o.y > carRowY) {
+                            o.passed = true;
+                            obstaclesPassed++;
+                            gameScore += Math.round(5 * chaosScoreMult);
+                            updateScoreLabel();
+                            // Every 10 clean dodges, a haptic buzz marks the
+                            // speed-up milestone quietly, nothing on screen.
+                            if (obstaclesPassed % 10 === 0 && obstaclesPassed !== lastMilestone) {
+                                lastMilestone = obstaclesPassed;
                                 mAiGameHaptic('medium');
-                                spawnParticles(colCenterX(b.col), b.y, '#ffd23f', 14);
-                                spawnPopup(colCenterX(b.col), b.y, '+' + gain, '#ffd23f');
                             }
-                        });
-                        bonuses = bonuses.filter(b => !b.taken && b.y < height + obsH);
+                        }
+                        const carCol = o.col < 2 ? car1Col : car2Col;
+                        if (o.col === carCol && Math.abs(o.y - carRowY) < (obsH + carH) / 2 - 4) {
+                            triggerDeath(ts);
+                        }
+                    });
+                    obstacles = obstacles.filter(o => o.y < height + obsH);
 
-                        // A hit mid-gap should stop the road instantly, not
-                        // keep advancing through the rest of this frame's
-                        // leftover steps.
-                        if (dying || ended) break;
-                    }
+                    bonuses.forEach(b => {
+                        if (b.taken) return;
+                        b.y += speed;
+                        const carCol = b.col < 2 ? car1Col : car2Col;
+                        if (b.col === carCol && Math.abs(b.y - carRowY) < (obsH + carH) / 2 - 4) {
+                            b.taken = true;
+                            const gain = Math.round(25 * chaosScoreMult);
+                            gameScore += gain;
+                            updateScoreLabel();
+                            mAiGameHaptic('medium');
+                            spawnParticles(colCenterX(b.col), b.y, '#ffd23f', 14);
+                            spawnPopup(colCenterX(b.col), b.y, '+' + gain, '#ffd23f');
+                        }
+                    });
+                    bonuses = bonuses.filter(b => !b.taken && b.y < height + obsH);
 
-                    scoreTimer += rawDt;
+                    scoreTimer += STEP_MS;
                     if (scoreTimer >= 300) { scoreTimer -= 300; gameScore += Math.round(1 * chaosScoreMult); updateScoreLabel(); }
                 }
 
@@ -7453,28 +7772,30 @@ window.mu_syncHtmlBg = function(){
                 const moveP2 = easeOutCubic(Math.min(1, car2BankT / LANE_MOVE_MS));
                 car1X = car1MoveFromX + (targetX1 - car1MoveFromX) * moveP1;
                 car2X = car2MoveFromX + (targetX2 - car2MoveFromX) * moveP2;
-                car1SquashT += rawDt;
-                car2SquashT += rawDt;
-                car1BankT += rawDt;
-                car2BankT += rawDt;
+                car1SquashT += STEP_MS;
+                car2SquashT += STEP_MS;
+                car1BankT += STEP_MS;
+                car2BankT += STEP_MS;
 
                 // A light, continuous exhaust trail behind each player car —
                 // throttled to a fixed cadence (not once a frame) so it
                 // reads as a stream of puffs rather than a solid smear.
-                exhaustTimer += rawDt;
+                exhaustTimer += STEP_MS;
                 if (!ended && !dying && exhaustTimer >= 45) {
                     exhaustTimer = 0;
                     spawnExhaust(car1X, carRowY + carH * 0.46, '#00d4ff');
                     spawnExhaust(car2X, carRowY + carH * 0.46, '#ff2b4a');
                 }
 
-                particles.forEach(p => { p.life += rawDt; p.x += p.vx * (rawDt / 1000); p.y += p.vy * (rawDt / 1000); });
+                particles.forEach(p => { p.life += STEP_MS; p.x += p.vx * (STEP_MS / 1000); p.y += p.vy * (STEP_MS / 1000); });
                 particles = particles.filter(p => p.life < p.maxLife);
-                popups.forEach(p => { p.life += rawDt; p.y -= (rawDt / 1000) * 24; });
+                popups.forEach(p => { p.life += STEP_MS; p.y -= (STEP_MS / 1000) * 24; });
                 popups = popups.filter(p => p.life < p.maxLife);
-                flashAlpha = Math.max(0, flashAlpha - rawDt / 260);
-                bannerLife = Math.max(0, bannerLife - rawDt);
+                flashAlpha = Math.max(0, flashAlpha - STEP_MS / 260);
+                bannerLife = Math.max(0, bannerLife - STEP_MS);
+            }
 
+            function render(ts) {
                 // -------- draw --------
                 ctx.clearRect(0, 0, width, height);
                 // Screen Flip renders the entire world rotated 180° around
@@ -7700,9 +8021,37 @@ window.mu_syncHtmlBg = function(){
                     ctx.restore();
                 }
             }
+
+            let raf = null, lastTs = 0, scoreTimer = 0, acc = 0;
+            function loop(ts) {
+                raf = requestAnimationFrame(loop);
+                if (gamePaused) { lastTs = ts; return; }
+                if (!lastTs) lastTs = ts;
+                // rawDt is real elapsed ms this rendered frame, clamped
+                // only so a backgrounded tab can't dump a huge gap in.
+                // Chaos event scheduling (updateChaos) is intentionally
+                // still driven by this raw per-frame value rather than the
+                // fixed-tick accumulator below — see the note above.
+                const rawDt = Math.min(ts - lastTs, 200);
+                acc += Math.min(ts - lastTs, MAX_FRAME_MS);
+                lastTs = ts;
+
+                if (!dying && !ended) updateChaos(rawDt);
+
+                while (acc >= STEP_MS) {
+                    acc -= STEP_MS;
+                    step(ts);
+                    if (ended) break;
+                }
+
+                if (ended) return;
+                render(ts);
+            }
             raf = requestAnimationFrame(loop);
             gameStopFn = () => { if (raf) cancelAnimationFrame(raf); };
         }
+
+
 
 
 
@@ -7926,25 +8275,38 @@ window.mu_syncHtmlBg = function(){
         function addCanvasToText(id) {
             const canvas = document.getElementById(`canvas-${id}`);
             if (!canvas) return;
-            const dataUrl = canvas.toDataURL();
-            const textBox = document.getElementById(`text-${id}`);
-            const wrapper = createDraggableImageElement(dataUrl, id);
-            textBox.appendChild(wrapper);
-            saveCategory(id);
-            clearCanvas(id);
-            toggleDrawingBox(id);
+            canvas.toBlob(async (blob) => {
+                const textBox = document.getElementById(`text-${id}`);
+                if (!textBox) return;
+                let src, mediaId = null;
+                if (blob) {
+                    mediaId = await mu_mediaPut(blob);
+                    src = mediaId ? URL.createObjectURL(blob) : await mu_blobToDataUrl(blob);
+                } else {
+                    // toBlob failing/unsupported is very rare — fall back to the old path.
+                    src = canvas.toDataURL();
+                }
+                const wrapper = createDraggableImageElement(src, id, mediaId);
+                textBox.appendChild(wrapper);
+                saveCategory(id);
+                clearCanvas(id);
+                toggleDrawingBox(id);
+            }, 'image/png');
         }
 
         function attachWrapperEvents(categoryId) {
             const textBox = document.getElementById(`text-${categoryId}`);
             if (!textBox) return;
+            // Fire-and-forget: turns any data-mu-media reference in this note into a
+            // live blob: URL. Not awaited — the toolbar wiring below doesn't depend
+            // on the final src, and downloadBtn reads img.src live (not a captured
+            // value) so it always picks up the hydrated image once it's ready.
+            mu_hydrateMedia(textBox);
 
             textBox.querySelectorAll('.img-drag-wrapper').forEach(wrapper => {
                 const toolbar = wrapper.querySelector('.img-toolbar');
                 const img = wrapper.querySelector('img');
                 if (!img) return;
-
-                const imgSrc = img.src;
 
                 if (toolbar) {
                     toolbar.remove();
@@ -7960,7 +8322,7 @@ window.mu_syncHtmlBg = function(){
                 downloadBtn.onclick = (e) => { 
                     e.preventDefault();
                     e.stopPropagation(); 
-                    downloadImage(imgSrc); 
+                    downloadImage(img.src); 
                 };
 
                 const deleteBtn = document.createElement('button');
@@ -8113,7 +8475,7 @@ window.mu_syncHtmlBg = function(){
             }
         }
 
-        function createDraggableImageElement(imgSrc, categoryId) {
+        function createDraggableImageElement(imgSrc, categoryId, mediaId) {
             const t = i18n[currentLang];
             const imgId = 'img_' + Date.now();
             const wrapper = document.createElement('div');
@@ -8154,6 +8516,7 @@ window.mu_syncHtmlBg = function(){
 
             const img = document.createElement('img');
             img.src = imgSrc;
+            if (mediaId) img.dataset.muMedia = mediaId;
 
             wrapper.onclick = function(e) {
                 e.stopPropagation();
@@ -8180,18 +8543,20 @@ window.mu_syncHtmlBg = function(){
             }
         });
 
-        function insertImageToText(id, event) {
+        async function insertImageToText(id, event) {
             const file = event.target.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                const textBox = document.getElementById(`text-${id}`);
-                const wrapper = createDraggableImageElement(e.target.result, id);
-                textBox.appendChild(wrapper);
-                saveCategory(id);
-            };
-            reader.readAsDataURL(file);
             event.target.value = '';
+            if (!file) return;
+            const textBox = document.getElementById(`text-${id}`);
+            if (!textBox) return;
+            // Store the File directly as a Blob (it already is one) — no base64
+            // round-trip needed. Falls back to embedding it as base64 only if
+            // IndexedDB isn't available/writable here.
+            const mediaId = await mu_mediaPut(file);
+            const src = mediaId ? URL.createObjectURL(file) : await mu_blobToDataUrl(file);
+            const wrapper = createDraggableImageElement(src, id, mediaId);
+            textBox.appendChild(wrapper);
+            saveCategory(id);
         }
 
         function allowDrop(ev) { ev.preventDefault(); }
@@ -8535,6 +8900,11 @@ window.mu_syncHtmlBg = function(){
             item.lastEdited = new Date().toUTCString();
             saveToLocalStorage();
             mu_updateUndoRedoButtons(id);
+            // innerHTML was just replaced wholesale, so any image/audio wrapper's
+            // toolbar buttons need their click handlers rebound, and any
+            // data-mu-media reference needs to be turned back into a live blob:
+            // URL — attachWrapperEvents() does both.
+            attachWrapperEvents(id);
         }
 
         window.mu_undoText = function (id) {
@@ -9650,6 +10020,9 @@ window.mu_syncHtmlBg = function(){
         }
 
         async function createDOCXBlob(items) {
+            // The exported .docx needs to stand on its own — resolve any
+            // data-mu-media references back into embedded base64 first.
+            items = await mu_resolveItemsMediaForExport(items);
             const engine = await ensureDOCXEngine();
             const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType } = engine;
             const children = [];
@@ -10244,7 +10617,8 @@ window.mu_syncHtmlBg = function(){
             });
             if (chosenName === null) { closeAdvancedModal(); return; }
             try {
-                const blob = new Blob([buildStructuredExport(type, items)], {type:getStructuredMime(type)});
+                const exportItems = (type === 'json' || type === 'md') ? await mu_resolveItemsMediaForExport(items) : items;
+                const blob = new Blob([buildStructuredExport(type, exportItems)], {type:getStructuredMime(type)});
                 await robustDownload(blob, `${chosenName}.${ext}`, getStructuredMime(type));
             } catch (e) { console.error('Structured export error:', e); alert(currentLang==='fa'?'دانلود خروجی انجام نشد.':'Export download failed.'); }
             finally { closeAdvancedModal(); }
@@ -10260,7 +10634,8 @@ window.mu_syncHtmlBg = function(){
             if (chosenName === null) { closeAdvancedModal(); return; }
             try {
                 if(isNoteLocked(item)){ const blob=await createEncryptedExport(item); await robustDownload(blob,`${chosenName}.mne.json`,blob.type); return; }
-                const blob = new Blob([buildStructuredExport(type, [item])], {type:getStructuredMime(type)});
+                const exportItem = (type === 'json' || type === 'md') ? (await mu_resolveItemsMediaForExport([item]))[0] : item;
+                const blob = new Blob([buildStructuredExport(type, [exportItem])], {type:getStructuredMime(type)});
                 await robustDownload(blob, `${chosenName}.${ext}`, getStructuredMime(type));
             } catch (e) { console.error('Structured single export error:', e); alert(currentLang==='fa'?'دانلود خروجی انجام نشد.':'Export download failed.'); }
             finally { closeAdvancedModal(); }
@@ -10578,7 +10953,12 @@ window.mu_syncHtmlBg = function(){
                     // Time Capsule / Ghost Note / Decay now live directly on each note object
                     // (see categoriesJson above), so there's no separate metadata blob left
                     // to seed here — the snapshot carries everything in one key.
-                    const categoriesJson = jsEscape(JSON.stringify(serializeCategoriesForStorage()));
+                    // A standalone snapshot boots into a fresh IndexedDB with no
+                    // media blobs in it, so any data-mu-media reference has to be
+                    // resolved back into embedded base64 here or the note would
+                    // open with broken images/audio.
+                    const resolvedForSnapshot = await mu_resolveItemsMediaForExport(serializeCategoriesForStorage());
+                    const categoriesJson = jsEscape(JSON.stringify(resolvedForSnapshot));
                     const foldersJson = jsEscape(JSON.stringify(folders.filter(f => f !== DEFAULT_FOLDER)));
                     seedLines += `
                             localStorage.setItem('app_categories_v13', '${categoriesJson}');
@@ -11713,6 +12093,9 @@ window.exportSingleHTML=async function(id){
     const tags = Array.isArray(item.tags) ? item.tags : [];
     const lastEdited = item.lastEdited || '';
     const stamp = new Date().toLocaleString(fa ? 'fa-IR' : 'en-US');
+    // This file has to stand on its own outside the app, so any data-mu-media
+    // reference is resolved back into embedded base64 first.
+    const resolvedHtml = await mu_resolveMediaSrcInHtml(item.html || '');
     const html = `<!doctype html>
 <html lang="${fa?'fa':'en'}" dir="${fa?'rtl':'ltr'}">
 <head>
@@ -11751,7 +12134,7 @@ window.exportSingleHTML=async function(id){
     <h1>${escapeHtml(item.name)}</h1>
     ${lastEdited ? `<p class="mu-meta"><span>🕒 ${fa?'آخرین ویرایش':'Last edited'}: ${escapeHtml(lastEdited)}</span></p>` : ''}
     ${tags.length ? `<p class="mu-tags">${tags.map(t=>'<span>#'+escapeHtml(t)+'</span>').join('')}</p>` : ''}
-    <article>${sanitizeHtml(item.html||escapeHtml(item.text||''))}</article>
+    <article>${sanitizeHtml(resolvedHtml||escapeHtml(item.text||''))}</article>
     <hr>
     <footer>${fa?'خروجی گرفته‌شده از Markhin Note':'Exported from Markhin Note'} — ${escapeHtml(stamp)}</footer>
 </main>
@@ -11765,11 +12148,12 @@ window.exportSingleHTML=async function(id){
 // on the article mirrors the editor's .text-box style, so blank lines and repeated
 // spaces inside the note (which live in the saved HTML as plain characters, not
 // always as <br>/<div>) are not collapsed away by the receiving app/browser.
-function buildShareableHtml(item){
+async function buildShareableHtml(item){
     const fa = currentLang==='fa';
+    const resolvedHtml = await mu_resolveMediaSrcInHtml(item.html || '');
     return '<!doctype html><html lang="'+(fa?'fa':'en')+'" dir="'+(fa?'rtl':'ltr')+'"><meta charset="utf-8"><title>'+escapeHtml(item.name)+'</title>'
         +'<style>body{margin:0;padding:24px;background:#fff;color:#111;font-family:Arial,sans-serif}article{line-height:1.8;white-space:pre-wrap;overflow-wrap:anywhere}</style>'
-        +'<article>'+sanitizeHtml(item.html||escapeHtml(item.text||''))+'</article>';
+        +'<article>'+sanitizeHtml(resolvedHtml||escapeHtml(item.text||''))+'</article>';
 }
 
 function openShareFormatPicker(id){
@@ -11817,9 +12201,10 @@ window.shareNoteAs=async function(id, format){
         if(format==='txt'){
             file=new File([getTxtContent(id,item)], chosenName+'.txt', {type:'text/plain'});
         } else if(format==='md'){
-            file=new File(['# '+markdownEscape(item.name)+'\n\n'+htmlToMarkdown(item.html,item.text)], chosenName+'.md', {type:'text/markdown'});
+            const resolvedHtml = await mu_resolveMediaSrcInHtml(item.html || '');
+            file=new File(['# '+markdownEscape(item.name)+'\n\n'+htmlToMarkdown(resolvedHtml,item.text)], chosenName+'.md', {type:'text/markdown'});
         } else if(format==='html'){
-            file=new File([buildShareableHtml(item)], chosenName+'.html', {type:'text/html'});
+            file=new File([await buildShareableHtml(item)], chosenName+'.html', {type:'text/html'});
         } else if(format==='pdf'){
             if(!window.html2canvas||!window.jspdf?.jsPDF){ alert(fa?'موتور PDF در دسترس نیست. اتصال اینترنت را بررسی کن.':'PDF engine unavailable. Check your internet connection.'); return; }
             const blob=await createPDFBlob([item]);
@@ -11861,10 +12246,10 @@ window.shareNoteAs=async function(id, format){
     }
 };
 /* PDF with visual fidelity: capture the actual rendered note card and paginate it. */
-window.createPDFBlob=function(items){return (async()=>{if(!window.html2canvas||!window.jspdf?.jsPDF)throw new Error('PDF engine unavailable');const host=document.createElement('div');host.style.cssText='position:fixed;left:-100000px;top:0;width:900px;z-index:-1';document.body.appendChild(host);const pdf=new jspdf.jsPDF({orientation:'p',unit:'mm',format:'a4',compress:true});try{for(let i=0;i<items.length;i++){const item=items[i];const card=createImageExportCard(item);card.style.cssText+=';background:#ffffff;color:#111111;border:1px solid #dddddd;border-radius:18px;padding:40px;font-family:'+(item.fontFamily||'')+';font-size:'+(item.fontSize||18)+'px;';host.appendChild(card);await document.fonts?.ready?.catch?.(()=>{});const canvas=await html2canvas(card,{scale:Math.min(2,window.devicePixelRatio||1.5),backgroundColor:'#ffffff',useCORS:true,logging:false});host.innerHTML='';const maxW=194,maxH=281;let y=0;let first=true;while(y<canvas.height){if(!first||i>0)pdf.addPage();first=false;const slicePx=Math.floor(canvas.width*maxH/maxW);const h=Math.min(slicePx,canvas.height-y);const sc=document.createElement('canvas');sc.width=canvas.width;sc.height=h;sc.getContext('2d').drawImage(canvas,0,y,canvas.width,h,0,0,canvas.width,h);pdf.addImage(sc.toDataURL('image/jpeg',.92),'JPEG',8,8,maxW,h*maxW/canvas.width,undefined,'FAST');y+=h;}}return pdf.output('blob')}finally{host.remove()}})()};
+window.createPDFBlob=function(items){return (async()=>{if(!window.html2canvas||!window.jspdf?.jsPDF)throw new Error('PDF engine unavailable');items=await mu_resolveItemsMediaForExport(items);const host=document.createElement('div');host.style.cssText='position:fixed;left:-100000px;top:0;width:900px;z-index:-1';document.body.appendChild(host);const pdf=new jspdf.jsPDF({orientation:'p',unit:'mm',format:'a4',compress:true});try{for(let i=0;i<items.length;i++){const item=items[i];const card=createImageExportCard(item);card.style.cssText+=';background:#ffffff;color:#111111;border:1px solid #dddddd;border-radius:18px;padding:40px;font-family:'+(item.fontFamily||'')+';font-size:'+(item.fontSize||18)+'px;';host.appendChild(card);await document.fonts?.ready?.catch?.(()=>{});const canvas=await html2canvas(card,{scale:Math.min(2,window.devicePixelRatio||1.5),backgroundColor:'#ffffff',useCORS:true,logging:false});host.innerHTML='';const maxW=194,maxH=281;let y=0;let first=true;while(y<canvas.height){if(!first||i>0)pdf.addPage();first=false;const slicePx=Math.floor(canvas.width*maxH/maxW);const h=Math.min(slicePx,canvas.height-y);const sc=document.createElement('canvas');sc.width=canvas.width;sc.height=h;sc.getContext('2d').drawImage(canvas,0,y,canvas.width,h,0,0,canvas.width,h);pdf.addImage(sc.toDataURL('image/jpeg',.92),'JPEG',8,8,maxW,h*maxW/canvas.width,undefined,'FAST');y+=h;}}return pdf.output('blob')}finally{host.remove()}})()};
 /* Drag & drop files anywhere; images go to the open note, text/markdown imports as notes. */
 const dz=document.createElement('div');dz.className='markhin-drop-zone';dz.textContent=currentLang==='fa'?'فایل را رها کن تا وارد Markhin Note شود':'Drop files to import into Markhin Note';document.body.appendChild(dz);
-['dragenter','dragover'].forEach(ev=>document.addEventListener(ev,e=>{if(e.dataTransfer?.types?.length){e.preventDefault();M.dragDepth++;dz.classList.add('show')}}));document.addEventListener('dragleave',e=>{M.dragDepth=Math.max(0,M.dragDepth-1);if(!M.dragDepth)dz.classList.remove('show')});document.addEventListener('drop',async e=>{e.preventDefault();M.dragDepth=0;dz.classList.remove('show');const files=[...(e.dataTransfer?.files||[])];if(!files.length)return;const target=activeOpenId&&categories.find(x=>x.id===activeOpenId);for(const f of files){if(f.type.startsWith('image/')&&target){const data=await new Promise(r=>{const fr=new FileReader();fr.onload=()=>r(fr.result);fr.readAsDataURL(f)});const tb=document.getElementById('text-'+target.id);if(tb){tb.insertAdjacentHTML('beforeend','<img src="'+data+'" alt="'+escapeHtml(f.name)+'" style="max-width:100%;height:auto">');saveCategory(target.id)}}else if(/text\/plain|text\/markdown/.test(f.type)||/\.(txt|md)$/i.test(f.name)){const txt=await f.text();const n=normalizeCategory({id:Date.now()+'_'+Math.random().toString(36).slice(2,8),name:f.name.replace(/\.(txt|md)$/i,''),folder:currentFolder===DEFAULT_FOLDER?'':currentFolder,text:txt,html:/\.md$/i.test(f.name)?mdToHtml(txt):escapeHtml(txt).replace(/\n/g,'<br>'),history:[],lastEdited:new Date().toUTCString()},0);categories.push(n);saveToLocalStorage();renderApp(n.id)}}});
+['dragenter','dragover'].forEach(ev=>document.addEventListener(ev,e=>{if(e.dataTransfer?.types?.length){e.preventDefault();M.dragDepth++;dz.classList.add('show')}}));document.addEventListener('dragleave',e=>{M.dragDepth=Math.max(0,M.dragDepth-1);if(!M.dragDepth)dz.classList.remove('show')});document.addEventListener('drop',async e=>{e.preventDefault();M.dragDepth=0;dz.classList.remove('show');const files=[...(e.dataTransfer?.files||[])];if(!files.length)return;const target=activeOpenId&&categories.find(x=>x.id===activeOpenId);for(const f of files){if(f.type.startsWith('image/')&&target){const mediaId=await mu_mediaPut(f);const data=mediaId?URL.createObjectURL(f):await mu_blobToDataUrl(f);const tb=document.getElementById('text-'+target.id);if(tb){tb.insertAdjacentHTML('beforeend','<img '+(mediaId?'data-mu-media="'+mediaId+'" ':'')+'src="'+data+'" alt="'+escapeHtml(f.name)+'" style="max-width:100%;height:auto">');saveCategory(target.id)}}else if(/text\/plain|text\/markdown/.test(f.type)||/\.(txt|md)$/i.test(f.name)){const txt=await f.text();const n=normalizeCategory({id:Date.now()+'_'+Math.random().toString(36).slice(2,8),name:f.name.replace(/\.(txt|md)$/i,''),folder:currentFolder===DEFAULT_FOLDER?'':currentFolder,text:txt,html:/\.md$/i.test(f.name)?mdToHtml(txt):escapeHtml(txt).replace(/\n/g,'<br>'),history:[],lastEdited:new Date().toUTCString()},0);categories.push(n);saveToLocalStorage();renderApp(n.id)}}});
 /* Add controls to top UI once. */
 function addTopControls(){
  const panel=document.querySelector('.control-panel');
@@ -14563,10 +14948,29 @@ window.mu2_confirmCrop = function(wrapperId, categoryId){
         const wrapper = document.getElementById(wrapperId);
         const img = wrapper?.querySelector('img');
         if (img) {
-            img.src = canvas.toDataURL('image/png');
             img.removeAttribute('width');
+            canvas.toBlob(async (blob) => {
+                if (blob) {
+                    const mediaId = await mu_mediaPut(blob);
+                    if (mediaId) {
+                        img.dataset.muMedia = mediaId;
+                        img.src = URL.createObjectURL(blob);
+                    } else {
+                        img.removeAttribute('data-mu-media');
+                        img.src = canvas.toDataURL('image/png');
+                    }
+                } else {
+                    img.removeAttribute('data-mu-media');
+                    img.src = canvas.toDataURL('image/png');
+                }
+                // Note: the pre-crop media blob is intentionally NOT deleted here —
+                // a duplicated note can share the same reference, so freeing it
+                // immediately could break that other note's image. The orphan-GC
+                // pass (mu_gcOrphanedMedia) reclaims it safely once nothing
+                // references it anymore.
+                if (categoryId) saveCategory(categoryId);
+            }, 'image/png');
         }
-        if (categoryId) saveCategory(categoryId);
         showToast(currentLang === 'fa' ? '✅ برش اعمال شد.' : '✅ Crop applied.', 1800);
     }
     mu2CropperInstance.destroy();
@@ -14628,8 +15032,8 @@ function mu2_enhanceWrapper(wrapper, categoryId){
 }
 
 const mu2_baseCreateDraggableImageElement = window.createDraggableImageElement;
-window.createDraggableImageElement = function(imgSrc, categoryId){
-    const wrapper = mu2_baseCreateDraggableImageElement(imgSrc, categoryId);
+window.createDraggableImageElement = function(imgSrc, categoryId, mediaId){
+    const wrapper = mu2_baseCreateDraggableImageElement(imgSrc, categoryId, mediaId);
     mu2_enhanceWrapper(wrapper, categoryId);
     return wrapper;
 };
