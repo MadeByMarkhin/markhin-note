@@ -2258,11 +2258,28 @@
     <!-- Telegram Mini App SDK — required to detect that we're inside Telegram's in-app
          browser and to force links open in the user's real system browser (openLink()).
          Harmless outside Telegram: window.Telegram just stays undefined there.
-         Left as a normal blocking script (not deferred): the inline script later in
-         this document reads window.Telegram.WebApp synchronously as soon as the parser
-         reaches it, so this one has to be fully loaded and executed first. It's small,
-         so the blocking cost is minimal. -->
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+         Loaded async with a hard timeout instead of as a plain blocking <script src>:
+         a normal blocking tag here means that whenever telegram.org is unreachable or
+         silently filtered by a network/ISP (connection just hangs instead of failing
+         fast), the browser stalls parsing the *entire rest of the document* waiting on
+         it — the page never opens at all, even though it isn't running inside Telegram
+         and never even needed this file. Loading it this way lets the rest of the page
+         parse immediately regardless of network conditions; window.__muTgLoaded fires
+         once the script has either loaded, failed, or 2.5s have passed, and the inline
+         script below waits on that instead of assuming window.Telegram is ready. -->
+    <script>
+        window.__muTgLoaded = new Promise(function(resolve){
+            var done = false;
+            function finish(){ if(done) return; done = true; resolve(); }
+            var s = document.createElement('script');
+            s.src = 'https://telegram.org/js/telegram-web-app.js';
+            s.onload = finish;
+            s.onerror = finish;
+            document.head.appendChild(s);
+            setTimeout(finish, 2500);
+        });
+    </script>
 
 <style id="markhinCleanTopControls">
 /* Clean top-right controls: theme label on top, icon row (language + dashboard) centered below.
@@ -3013,17 +3030,47 @@ window.mu_syncHtmlBg = function(){
            kept as a last resort for Telegram Desktop, where the WebView is more
            capable and this often isn't even necessary).
            ===================================================================== */
-        const TG = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
-        const IS_TELEGRAM = !!TG || /Telegram/i.test(navigator.userAgent || '');
-        try { TG && TG.ready && TG.ready(); TG && TG.expand && TG.expand(); } catch (_) {}
-        // Stops Telegram's own "swipe down to minimize the mini app" gesture from
-        // competing with normal in-app scrolling/dragging (note lists, the drawing
-        // canvas, game swipes) — without this, a vertical touch-move inside the app
-        // can get intercepted by Telegram itself instead of reaching the page,
-        // which is exactly the kind of thing that makes touch feel laggy/unreliable.
-        // Feature-detected + try/catch like the other TG.* calls here, since older
-        // Telegram clients simply won't have this method.
-        try { TG && TG.disableVerticalSwipes && TG.disableVerticalSwipes(); } catch (_) {}
+        // TG starts null and IS_TELEGRAM starts as a best-effort synchronous guess from
+        // the user agent — neither can wait on window.Telegram.WebApp anymore, since the
+        // SDK <script> above now loads asynchronously (see the comment there for why).
+        // Once __muTgLoaded settles (loaded, failed, or timed out), mu_applyTelegramSetup
+        // below fills TG in for real and re-runs the setup calls that need it. Every
+        // downstream reference to TG/IS_TELEGRAM/hasCloudStorage lives inside a function
+        // that runs later (on user interaction or after load), so it naturally picks up
+        // the updated value — nothing else needs to change.
+        let TG = null;
+        let IS_TELEGRAM = /Telegram/i.test(navigator.userAgent || '');
+        // Other "in-app browser" WebViews (Instagram, Facebook, Line, WeChat, KakaoTalk,
+        // Naver, Snapchat, TikTok, Pinterest, WhatsApp, Google app, and generic Android
+        // WebViews) are known to have the exact same problem Telegram's WebView has: a
+        // click on an <a download> blob:/data: link fires with no error but silently
+        // saves nothing. This doesn't depend on live SDK detection like TG does, so it's
+        // safe to compute once from the user agent string.
+        const IS_KNOWN_INAPP_BROWSER = /Instagram|FBAN|FBAV|FB_IAB|Line\/|MicroMessenger|KAKAOTALK|NAVER|Snapchat|TikTok|musical_ly|Pinterest|WhatsApp|GSA\/|; ?wv\)/i.test(navigator.userAgent || '');
+        function mu_applyTelegramSetup(){
+            TG = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
+            IS_TELEGRAM = !!TG || /Telegram/i.test(navigator.userAgent || '');
+            hasCloudStorage = !!(TG && TG.CloudStorage);
+            try { TG && TG.ready && TG.ready(); TG && TG.expand && TG.expand(); } catch (_) {}
+            // Stops Telegram's own "swipe down to minimize the mini app" gesture from
+            // competing with normal in-app scrolling/dragging (note lists, the drawing
+            // canvas, game swipes) — without this, a vertical touch-move inside the app
+            // can get intercepted by Telegram itself instead of reaching the page,
+            // which is exactly the kind of thing that makes touch feel laggy/unreliable.
+            // Feature-detected + try/catch like the other TG.* calls here, since older
+            // Telegram clients simply won't have this method.
+            try { TG && TG.disableVerticalSwipes && TG.disableVerticalSwipes(); } catch (_) {}
+            mu_setAppVh();
+            try { TG && TG.onEvent && TG.onEvent('viewportChanged', mu_setAppVh); } catch (_) {}
+            try {
+                if (TG) {
+                    const bg = '#03101c';
+                    TG.setHeaderColor && TG.setHeaderColor(bg);
+                    TG.setBackgroundColor && TG.setBackgroundColor(bg);
+                }
+            } catch (_) {}
+        }
+        if (window.__muTgLoaded) { window.__muTgLoaded.then(mu_applyTelegramSetup); } else { mu_applyTelegramSetup(); }
 
         /* ---- real usable viewport height (fixes wasted/clipped space in Telegram) ----
            Plain 100vh inside Telegram's in-app WebView is unreliable: it doesn't track
@@ -3042,20 +3089,8 @@ window.mu_syncHtmlBg = function(){
         }
         mu_setAppVh();
         window.addEventListener('resize', mu_setAppVh);
-        try { TG && TG.onEvent && TG.onEvent('viewportChanged', mu_setAppVh); } catch (_) {}
-
-        /* ---- blend Telegram's native header/background with the app instead of leaving
-           it on Telegram's default (often light) color, which otherwise shows as a
-           mismatched bar above the app on first load. Every theme in this app is a dark
-           navy/black gradient, so one dark approximation is enough to blend all of them —
-           this isn't meant to track theme switches pixel-for-pixel. */
-        try {
-            if (TG) {
-                const bg = '#03101c';
-                TG.setHeaderColor && TG.setHeaderColor(bg);
-                TG.setBackgroundColor && TG.setBackgroundColor(bg);
-            }
-        } catch (_) {}
+        // (viewportChanged listener + header/background color are set inside
+        // mu_applyTelegramSetup above, once TG is actually known.)
 
         // Cap on how much file data we'll try to hand off through the URL hash.
         // There's no hard spec limit, but very long URLs risk being truncated or
@@ -3139,7 +3174,7 @@ window.mu_syncHtmlBg = function(){
            ever *pushes* the latest data up; pulling back down always requires
            the person to tap Restore and confirm.
            ===================================================================== */
-        const hasCloudStorage = !!(TG && TG.CloudStorage);
+        let hasCloudStorage = !!(TG && TG.CloudStorage);
         const CLOUD_CHUNK_SIZE = 3500; // safely under Telegram's 4096-char/value limit
         const CLOUD_META_KEY = 'mk_meta';
         const CLOUD_CHUNK_PREFIX = 'mk_c';
@@ -10342,6 +10377,29 @@ window.mu_syncHtmlBg = function(){
                 }
                 // Both Telegram-specific methods were unavailable/too large — fall
                 // through to the generic chain below as a last resort.
+            } else if (IS_KNOWN_INAPP_BROWSER) {
+                // Same silent-failure problem as Telegram (see above), just without an
+                // SDK to reopen the system browser. Share sheet + new-tab-open are the
+                // two methods that still tend to work inside these WebViews, so try them
+                // BEFORE the plain anchor click — otherwise Method 1 below can "succeed"
+                // (no exception) while nothing was actually saved, and we'd wrongly stop
+                // there instead of trying something that really works.
+                try {
+                    if (navigator.share && typeof File !== 'undefined') {
+                        const file = new File([blob], safeName, {type: mime || blob.type || 'application/octet-stream'});
+                        if (!navigator.canShare || navigator.canShare({files:[file]})) {
+                            await navigator.share({title:safeName, files:[file]});
+                            return 'share';
+                        }
+                    }
+                } catch (e) { if (e?.name === 'AbortError') return 'cancelled'; console.warn('In-app browser share attempt failed, trying new-tab…', e); }
+                try {
+                    const openUrl = URL.createObjectURL(blob);
+                    const w = window.open(openUrl, '_blank', 'noopener');
+                    if (w) { setTimeout(() => { try { URL.revokeObjectURL(openUrl); } catch (_) {} }, 60000); return 'open'; }
+                    URL.revokeObjectURL(openUrl);
+                } catch (e) { console.warn('In-app browser new-tab attempt failed', e); }
+                // Neither worked — fall through to the generic chain below.
             }
 
             // Method 1: normal Blob-anchor download. Fast, silent, and works on
@@ -10408,18 +10466,95 @@ window.mu_syncHtmlBg = function(){
                 } catch (e) { console.warn('Data URL fallback failed', e); }
             }
 
-            // Method 7: last-resort — copy plain-text content to the clipboard so
-            // text exports are never fully lost even if every download method above
-            // is blocked by the browser/OS.
+            // Method 7: copy content to the clipboard so text-ish exports (TXT, CSV,
+            // Markdown, HTML, JSON) are never fully lost even if every download method
+            // above is blocked. Broadened beyond plain text/* so JSON backups (whose
+            // mime is application/json, not text/*) get this safety net too.
             try {
-                if (navigator.clipboard?.writeText && /^text\//.test(mime || blob.type || '')) {
+                if (navigator.clipboard?.writeText && /^(text\/|application\/json)/.test(mime || blob.type || '') && blob.size < 2 * 1024 * 1024) {
                     const text = await blob.text();
                     await navigator.clipboard.writeText(text);
+                    showToast(currentLang === 'fa'
+                        ? '📋 دانلود مستقیم ممکن نشد؛ محتوا در کلیپ‌بورد کپی شد.'
+                        : '📋 Direct download wasn\u2019t possible; content was copied to the clipboard.', 4000);
                     return 'clipboard';
                 }
             } catch (e) { console.warn('Clipboard fallback failed', e); }
 
+            // Method 8: guaranteed last resort — a persistent on-screen card with a real
+            // <a download> link (and, for images, an inline preview) that the user can tap
+            // normally or press-and-hold to save manually. Every method above can be
+            // silently blocked by some combination of browser/OS/WebView, but a real link
+            // sitting on the page that the user themselves taps works essentially anywhere,
+            // so robustDownload() never has to just give up and tell the user it failed.
+            try {
+                return await showManualDownloadFallback(blob, safeName, mime || blob.type);
+            } catch (e) {
+                console.warn('Manual fallback card failed', e);
+            }
+
             throw new Error('No browser download method succeeded');
+        }
+
+        // Renders a small persistent overlay with a genuine download link the user can
+        // interact with directly (their own tap/click, not a programmatic one), plus an
+        // inline preview for images so a long-press "Save Image" always works even if the
+        // link tap itself is blocked. Deliberately uses its own DOM/overlay instead of the
+        // app's #advancedModal, so it can't be closed out from under the user by unrelated
+        // modal logic (promptFilename, closeAdvancedModal, etc.) elsewhere in the app.
+        function showManualDownloadFallback(blob, filename, mime) {
+            return new Promise((resolve) => {
+                const fa = currentLang === 'fa';
+                let url = null;
+                try { url = URL.createObjectURL(blob); } catch (_) {}
+                const isImg = /^image\//.test(mime || '');
+                const overlay = document.createElement('div');
+                overlay.setAttribute('dir', fa ? 'rtl' : 'ltr');
+                overlay.style.cssText = 'position:fixed;inset:0;z-index:2147483647;background:rgba(3,10,20,.86);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;padding:20px;box-sizing:border-box;font-family:Tahoma,"Segoe UI",Arial,sans-serif;animation:markhinFadeIn .18s ease';
+                const card = document.createElement('div');
+                card.style.cssText = 'background:#0f172a;border:1px solid #334155;border-radius:16px;max-width:380px;width:100%;padding:22px;color:#e2e8f0;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.5);max-height:82vh;overflow:auto';
+                const safeFilename = String(filename || 'download').replace(/[<>&"]/g, '');
+                card.innerHTML = `
+                    <div style="font-size:32px;margin-bottom:10px">📥</div>
+                    <h3 style="margin:0 0 8px;font-size:15px">${fa ? 'دانلود خودکار انجام نشد' : "Automatic download didn't work"}</h3>
+                    <p style="margin:0 0 14px;font-size:12px;opacity:.7;line-height:1.9">${fa
+                        ? 'روی دکمه پایین بزن؛ اگر باز هم چیزی ذخیره نشد، انگشتت را روی دکمه نگه‌دار و «ذخیره لینک» یا «ذخیره تصویر» را بزن.'
+                        : 'Tap the button below. If it still doesn\u2019t save, press-and-hold it and choose "Save Link" or "Save Image".'}</p>
+                    ${isImg && url ? `<img src="${url}" alt="${safeFilename}" style="max-width:100%;border-radius:10px;margin-bottom:14px;border:1px solid #334155">` : ''}
+                    <p style="margin:0 0 14px;font-size:11px;opacity:.55;word-break:break-all">${safeFilename}</p>
+                `;
+                if (url) {
+                    const link = document.createElement('a');
+                    link.href = url; link.download = safeFilename; link.target = '_blank'; link.rel = 'noopener';
+                    link.textContent = fa ? '⬇️ دانلود / ذخیره فایل' : '⬇️ Download / save file';
+                    link.style.cssText = 'display:block;background:#2563eb;color:#fff;padding:13px;border-radius:11px;text-decoration:none;font-weight:800;font-size:13px;margin-bottom:10px';
+                    // Give the browser a moment to actually act on the tap (start the
+                    // navigation/save) before we tear the overlay down — otherwise we'd
+                    // risk removing the anchor (and revoking its blob: URL) mid-click.
+                    link.onclick = () => { setTimeout(() => finish('manual-fallback-tapped'), 400); };
+                    card.appendChild(link);
+                } else {
+                    const warn = document.createElement('p');
+                    warn.style.cssText = 'font-size:11px;color:#f87171;margin:0 0 10px';
+                    warn.textContent = fa ? 'ساخت لینک دانلود هم ممکن نشد.' : 'Could not even build a download link.';
+                    card.appendChild(warn);
+                }
+                const closeBtn = document.createElement('button');
+                closeBtn.type = 'button';
+                closeBtn.textContent = fa ? 'بستن' : 'Close';
+                closeBtn.style.cssText = 'background:transparent;border:1px solid #334155;color:#94a3b8;padding:10px 16px;border-radius:10px;font-size:12px;cursor:pointer;width:100%';
+                let settled = false;
+                const finish = (val) => {
+                    if (settled) return; settled = true;
+                    overlay.remove();
+                    if (url) setTimeout(() => { try { URL.revokeObjectURL(url); } catch (_) {} }, 60000);
+                    resolve(val);
+                };
+                closeBtn.onclick = () => finish(url ? 'manual-fallback-closed' : 'manual-fallback-failed');
+                card.appendChild(closeBtn);
+                overlay.appendChild(card);
+                document.body.appendChild(overlay);
+            });
         }
 
         // Back-compat wrapper: every previous call site (TXT/PDF/DOCX exports)
@@ -12140,7 +12275,14 @@ function openNoteExportPicker(id){
         { icon: '🖼️', name: 'PNG', action: `downloadSelectedImage('${id}','png')` },
         { icon: '🖼️', name: 'JPG', action: `downloadSelectedImage('${id}','jpg')` }
     ];
-    const cards = formats.map(f => `<button type="button" class="image-export-choice" onclick="${f.action};closeAdvancedModal();">
+    // NOTE: each action below (downloadAsTxt / downloadStructuredSingle / exportSingleHTML /
+    // downloadSelectedPDF / downloadSelectedDOCX / downloadSelectedImage) opens its own
+    // filename-prompt modal via promptFilename(), which reuses this SAME #advancedModal and
+    // closes it itself once the user confirms/cancels. Do NOT chain closeAdvancedModal() here:
+    // that used to run synchronously right after starting the (async) action, instantly hiding
+    // the filename prompt before the user could ever see or use it -- so the download never
+    // actually fired. This is the fix for that bug.
+    const cards = formats.map(f => `<button type="button" class="image-export-choice" onclick="${f.action};">
         <span class="image-export-choice-icon">${f.icon}</span>
         <span class="image-export-choice-name">${escapeHtml(f.name)}</span>
         <span class="image-export-choice-action">${fa ? `خروجی ${escapeHtml(f.name)} همین یادداشت` : `Export this note as ${escapeHtml(f.name)}`}</span>
@@ -13389,50 +13531,50 @@ const MU_AI_BUILTINS = {
    being an AI — if asked directly, answer that honestly — it only governs
    the ordinary, undisclosed cadence of replies. `default` gets none of
    this, so leaving the style on Normal stays exactly as before. */
-const MU_HUMANLIKE_FA = ' مثل یک آدم واقعی بنویس، نه مثل یک ربات/دستیار هوش‌مصنوعی: از عبارت‌های کلیشه‌ای هوش‌مصنوعی («به‌عنوان یک دستیار هوش‌مصنوعی»، «متأسفم که ناراحتت کردم»، توضیح‌های اضافه و عذرخواهیِ مکرر) و لحن رسمی‌رباتیک خودداری کن. اگر مستقیم پرسید ربات/هوش‌مصنوعی هستی یا نه، صادقانه بگو هستی — این فقط درباره‌ی لحنِ عادیِ گفتگوست، نه انکار هویتت.';
-const MU_HUMANLIKE_EN = ' Write like an actual person, not a chatbot: drop AI-assistant boilerplate ("as an AI assistant...", over-apologizing, stiff disclaimers) and stock robotic phrasing. If asked directly whether you\'re an AI, answer honestly — this only governs the ordinary unprompted cadence of replies, not what you say if asked.';
+const MU_HUMANLIKE_FA = ' مثل یک آدم واقعی و بومیِ فارسی‌زبان بنویس، نه مثل یک ربات، دستیار هوش‌مصنوعی یا متنِ ترجمه‌شده: عبارت‌های کلیشه‌ای هوش‌مصنوعی (مثل «به‌عنوان یک دستیار هوش‌مصنوعی»، عذرخواهی‌های پی‌درپی، توضیح‌های زائد، یا شروع‌های تکراریِ آماده مثل «در دنیای امروز»، «بدون شک»، «به طور کلی باید گفت») و لحن رسمی و رباتی را کنار بگذار. جمله‌بندی‌ات را متنوع نگه دار — گاهی جمله‌ی کوتاه و ضربه‌ای، گاهی جمله‌ی بلندتر و توضیحی، نه یک ریتمِ یکنواخت و قالبی برای همه‌ی پاراگراف‌ها؛ و به‌جای کلمه‌ی کتابی، رسمیِ غیرضروری یا ترجمه‌واری که یک فارسی‌زبان معمولی توی گفت‌وگوی روزمره به کار نمی‌بره، همون کلمه‌ی دقیق و رایجی رو انتخاب کن که خودِ معنا رو ساده و طبیعی می‌رسونه. از تکرارِ بی‌دلیلِ یک کلمه یا یک ساختارِ جمله‌ای در جمله‌های پشت‌سرهم پرهیز کن. اگر مستقیم پرسید ربات یا هوش‌مصنوعی هستی یا نه، صادقانه بگو هستی — این قاعده فقط لحنِ عادیِ گفتگو را شکل می‌دهد، نه انکار هویتت را.';
+const MU_HUMANLIKE_EN = ' Write like an actual person, not a chatbot or a translated text: drop AI-assistant boilerplate ("as an AI assistant...", repeated over-apologizing, stiff disclaimers) and formulaic openers, and stock robotic phrasing. Vary your sentence rhythm — mix short, punchy sentences with longer explanatory ones instead of one uniform cadence for every paragraph — and reach for the precise, natural word that actually carries the meaning instead of a stiffer, more formal, or more "translated-sounding" synonym. Avoid repeating the same word or sentence structure back-to-back without reason. If asked directly whether you\'re an AI, answer honestly — this only shapes the ordinary, unprompted cadence of your replies, not what you say when asked.';
 
 const MU_AI_STYLES = {
     default: { labelFa:'عادی (پیش‌فرض)', labelEn:'Normal (default)', promptFa:MU_HUMANLIKE_FA.trim(), promptEn:MU_HUMANLIKE_EN.trim() },
     formal: {
         labelFa:'رسمی', labelEn:'Formal',
-        promptFa:'لحن: کاملاً رسمی و مؤدبانه صحبت کن؛ از زبان معیار، واژگان دقیق و جملات کامل و منسجم استفاده کن، از شکلک و کلمات عامیانه پرهیز کن، و کاربر را محترمانه و حرفه‌ای خطاب کن — مثل یک متخصص باتجربه که دارد رسمی ولی روشن و بدون ابهام توضیح می‌دهد، نه خشک و پرطمطراق.' + MU_HUMANLIKE_FA,
-        promptEn:'Tone: speak in a fully formal, professional register — proper grammar, precise wording, complete and well-structured sentences, no slang or emoji, respectful and businesslike — like a seasoned expert explaining things formally but clearly, never stiff or needlessly wordy.' + MU_HUMANLIKE_EN
+        promptFa:'لحن: کاملاً رسمی و مؤدب صحبت کن؛ از زبان معیار، واژگان دقیق و جمله‌های کامل و منسجم استفاده کن، از شکلک و کلمات عامیانه پرهیز کن، و با کاربر محترمانه و حرفه‌ای رفتار کن — درست مثل یک متخصص باتجربه که رسمی حرف می‌زند اما روشن و بی‌ابهام توضیح می‌دهد، نه خشک و پرطمطراق.' + MU_HUMANLIKE_FA,
+        promptEn:'Tone: speak in a fully formal, professional register — correct grammar, precise wording, complete and well-structured sentences, no slang or emoji — and address the user respectfully and professionally, like a seasoned expert who explains things formally yet clearly, never stiff or needlessly wordy.' + MU_HUMANLIKE_EN
     },
     casual: {
         labelFa:'خودمونی', labelEn:'Casual',
-        promptFa:'لحن: کاملاً خودمونی و صمیمی حرف بزن، انگار داری با یه رفیق قدیمی چت می‌کنی — زبان محاوره‌ای، ریلکس و پرانرژی، جمله‌های کوتاه و طبیعی، بدون تعارف رسمی؛ اگه لازم شد شوخ‌طبعیِ سبک و صمیمیت واقعی هم نشون بده، نه فقط غیررسمی‌بودنِ خشک.' + MU_HUMANLIKE_FA,
-        promptEn:'Tone: talk like a close, casual friend texting — relaxed, colloquial, upbeat language, short natural sentences, no stiffness or formality; let real warmth and light humor come through too, not just informal wording for its own sake.' + MU_HUMANLIKE_EN
+        promptFa:'لحن: کاملاً خودمونی و صمیمی حرف بزن، انگار داری با یک رفیق قدیمی چت می‌کنی — زبان محاوره‌ای، ریلکس و پرانرژی، جمله‌های کوتاه و طبیعی، بدون هیچ تعارف رسمی؛ اگر لازم شد یک طنز سبک و صمیمیت واقعی هم نشان بده، نه فقط غیررسمی‌بودنِ خشک و بی‌روح.' + MU_HUMANLIKE_FA,
+        promptEn:'Tone: talk like a close, casual friend texting — relaxed, colloquial, upbeat language, short natural sentences, no formal stiffness at all; bring in real warmth and light humor where it fits too, not just informal wording for its own sake.' + MU_HUMANLIKE_EN
     },
     fun: {
         labelFa:'فان', labelEn:'Fun',
-        promptFa:'لحن: بی‌نهایت شوخ، دیوانه‌وار خنده‌دار و پرانرژی باش — نه فقط کمی بامزه، بلکه تا حد امکان اغراق‌شده و افسارگسیخته: تقریباً هر جمله را با یک جوک، بازی با کلمات، تشبیه مضحک، اغراق کمیک یا ایموجیِ فراوان تمام کن؛ هیچ فرصتی برای شوخی را از دست نده و طنز را هرچه غلیظ‌تر و پررنگ‌تر کن، انگار یک کمدین حرفه‌ای در اوج فرم داری حرف می‌زنی. با همه‌ی این خنده‌ها، جوابِ واقعی زیرِ همه‌ی این شوخی‌ها باید کاملاً درست، دقیق و واقعاً کاربردی بماند — شوخی فقط لفافه است، نه جایگزینِ محتوای درست.' + MU_HUMANLIKE_FA,
-        promptEn:'Tone: be infinitely playful, wildly hilarious, and high-energy — not just a little funny, but as exaggerated and unhinged as possible: end nearly every sentence with a joke, a pun, a ridiculous comparison, comedic exaggeration, or a generous emoji; never let a chance for a joke pass, and pile the humor on as thick as it goes, like a professional comedian at the top of their game. Underneath all that laughter, though, the real answer must stay completely accurate and genuinely useful — the comedy is just the wrapping, never a substitute for the correct content.' + MU_HUMANLIKE_EN
+        promptFa:'لحن: بی‌نهایت بامزه، دیوانه‌وار خنده‌دار و پرانرژی باش — نه فقط کمی بامزه، بلکه تا جایی که می‌شود اغراق‌شده و افسارگسیخته: تقریباً هر جمله را با یک جوک، بازی با کلمات، تشبیه مضحک، اغراق کمیک یا ایموجیِ فراوان تمام کن؛ هیچ فرصتی برای شوخی از دست نده و طنز را هرچه پررنگ‌تر کن، انگار یک کمدینِ حرفه‌ای در اوج فرم صحبت می‌کند. با همه‌ی این خنده‌ها، جوابِ واقعیِ زیرِ این شوخی‌ها باید کاملاً درست، دقیق و واقعاً کاربردی بماند — شوخی فقط لفافه است، نه جایگزینِ محتوای درست.' + MU_HUMANLIKE_FA,
+        promptEn:'Tone: be endlessly playful, wildly hilarious, and high-energy — not just a little funny, but as exaggerated and unhinged as it can get: cap nearly every sentence with a joke, a pun, a ridiculous comparison, comedic exaggeration, or a generous emoji; never pass up a chance for a joke, and pile the humor on as thick as it goes, like a professional comedian at the top of their game. Underneath all that laughter, the real answer must stay completely accurate and genuinely useful — the comedy is just the wrapping, never a substitute for the right content.' + MU_HUMANLIKE_EN
     },
     weird: {
         labelFa:'عجیب‌غریب', labelEn:'Weird',
-        promptFa:'لحن: به شکلی کاملاً عجیب، غیرمنتظره و غریب حرف بزن — جمله‌بندی نامتعارف، تشبیه‌های بی‌ربط و سورئال، اصطلاحات ابداعی، پرش‌های ذهنیِ ناگهانی و غیرقابل‌پیش‌بینی، انگار یک موجودیتِ کاملاً غیرعادی و فضایی داره حرف می‌زنه؛ هرچه عجیب‌تر، غیرمنتظره‌تر و پرت‌تر باشد بهتر است — این عجیب‌بودن باید خیلی خیلی زیاد و محسوس باشد، نه یک ذره غریبیِ ملایم. با این‌همه، زیرِ همه‌ی این عجیب‌وغریب‌بودنِ لحن، محتوای واقعیِ پاسخ باید کاملاً درست، دقیق و واقعاً قابل‌استفاده بماند — فقط پوسته و شکلِ گفتار غریب است، نه خودِ اطلاعات و نه درستیِ جواب.' + MU_HUMANLIKE_FA,
-        promptEn:'Tone: talk in a thoroughly strange, unpredictable, bizarre way — unconventional phrasing, surreal non-sequitur comparisons, invented turns of phrase, sudden unpredictable mental leaps, as if some completely alien, otherworldly entity is speaking; the stranger, more unexpected, and more off-the-wall, the better — this weirdness should be very heavy and unmistakable, not just a mild quirk. Underneath all of that strangeness, though, the actual substance of the answer must stay completely correct, accurate, and genuinely usable — only the delivery is weird, never the facts or the correctness of the answer.' + MU_HUMANLIKE_EN
+        promptFa:'لحن: به شکلی کاملاً عجیب، غیرمنتظره و غریب حرف بزن — جمله‌بندیِ نامتعارف، تشبیه‌های بی‌ربط و سورئال، اصطلاحات ابداعی، و جهش‌های ذهنیِ ناگهانی و غیرقابل‌پیش‌بینی، انگار یک موجودِ کاملاً غیرعادی و فضایی دارد حرف می‌زند؛ هرچه عجیب‌تر، غیرمنتظره‌تر و پرت‌تر، بهتر — این عجیب‌بودن باید خیلی زیاد و محسوس باشد، نه یک ذره غرابتِ ملایم. با این همه، زیرِ همه‌ی این لحنِ عجیب‌وغریب، محتوای واقعیِ پاسخ باید کاملاً درست، دقیق و واقعاً قابل‌استفاده بماند — فقط پوسته و شکلِ گفتار غریب است، نه خودِ اطلاعات و نه درستیِ جواب.' + MU_HUMANLIKE_FA,
+        promptEn:'Tone: talk in a thoroughly strange, unpredictable, bizarre way — unconventional phrasing, surreal non-sequitur comparisons, invented turns of phrase, and sudden unpredictable mental leaps, as if some completely alien, otherworldly entity is speaking; the stranger, more unexpected, and more off-the-wall, the better — this weirdness should be heavy and unmistakable, not just a mild quirk. Underneath all that strangeness, the actual substance of the answer must stay completely correct, accurate, and genuinely usable — only the delivery is weird, never the facts or the correctness of the answer.' + MU_HUMANLIKE_EN
     },
     creepy: {
         labelFa:'ترسناک', labelEn:'Creepy',
-        promptFa:'لحن: به شکلی خیلی ترسناک، مرموز و رعب‌آور حرف بزن — جمله‌های سرد و هول‌انگیز، اشاره‌های تاریک و پیش‌گویانه، مکث‌ها و سکوت‌های معنادار، توصیف‌های وهم‌آور و فضای وحشت، انگار یک روح یا موجودیتِ شومِ داستانی داره باهات حرف می‌زنه؛ هرچه فضا رعب‌آورتر، دلهره‌آورتر و غلیظ‌تر باشد بهتر است — این ترسناکی باید خیلی زیاد و محسوس باشد. با این حال، این فقط یک اتمسفرِ بازیگوشِ ترسناک/گاتیکِ داستانی است، نه تهدید واقعی: هرگز کاربر را واقعاً تهدید نکن، هرگز به خودآزاری/خشونتِ واقعی/آسیبِ واقعی تشویق یا اشاره نکن، و هرگز از توصیفِ گرافیکیِ خشونت یا محتوای واقعاً آسیب‌زا استفاده نکن. زیرِ همه‌ی این فضاسازیِ ترسناک، پاسخِ واقعی باید کاملاً درست، دقیق و واقعاً مفید بماند.' + MU_HUMANLIKE_FA,
-        promptEn:'Tone: speak in a very scary, eerie, unsettling way — cold, dread-inducing phrasing, dark and ominous hints, meaningful pauses and silences, haunting descriptions and horror atmosphere, as if some fictional ghostly or sinister entity is addressing the user; the creepier, more chilling, and more intense the atmosphere, the better — this creepiness should be heavy and unmistakable. That said, this is only a playful, fictional horror/gothic atmosphere, never a real threat: never actually threaten the user, never encourage or reference real self-harm/real violence/real harm, and never use graphic violent description or genuinely harmful content. Underneath all of that horror atmosphere, the real answer must stay completely correct, accurate, and genuinely helpful.' + MU_HUMANLIKE_EN
+        promptFa:'لحن: به شکلی خیلی ترسناک، مرموز و رعب‌آور حرف بزن — جمله‌های سرد و هول‌انگیز، اشاره‌های تاریک و پیش‌گویانه، مکث‌ها و سکوت‌های معنادار، توصیف‌های وهم‌آور و فضایی سراسر وحشت، انگار یک روح یا موجودِ شومِ داستانی دارد با تو حرف می‌زند؛ هرچه فضا رعب‌آورتر، دلهره‌آورتر و غلیظ‌تر، بهتر — این ترسناکی باید خیلی زیاد و محسوس باشد. با این حال، این فقط یک اتمسفرِ بازیگوشِ ترسناک/گاتیکِ داستانی است، نه تهدید واقعی: هرگز کاربر را واقعاً تهدید نکن، هرگز به خودآزاری، خشونتِ واقعی یا آسیبِ واقعی اشاره یا تشویق نکن، و هرگز از توصیفِ گرافیکیِ خشونت یا محتوای واقعاً آسیب‌زا استفاده نکن. زیرِ همه‌ی این فضاسازیِ ترسناک، پاسخِ واقعی باید کاملاً درست، دقیق و واقعاً مفید بماند.' + MU_HUMANLIKE_FA,
+        promptEn:'Tone: speak in a very scary, eerie, unsettling way — cold, dread-inducing phrasing, dark and ominous hints, meaningful pauses and silences, haunting descriptions, and an atmosphere thick with horror, as if some fictional ghostly or sinister entity is addressing the user; the creepier, more chilling, and more intense the atmosphere, the better — this creepiness should be heavy and unmistakable. That said, this is only a playful, fictional horror/gothic atmosphere, never a real threat: never actually threaten the user, never encourage or reference real self-harm, real violence, or real harm, and never use graphic violent description or genuinely harmful content. Underneath all of that horror atmosphere, the real answer must stay completely correct, accurate, and genuinely helpful.' + MU_HUMANLIKE_EN
     },
     honest: {
         labelFa:'صادق', labelEn:'Honest',
-        promptFa:'لحن: صادقانه و رک باش؛ نظر واقعی‌ات را بگو و اشتباهات یا نقاط ضعفِ حرف کاربر را نادیده نگیر یا با چاپلوسی نپوشان، حتی اگر کاربر انتظار تأیید داشته باشد یا با نظرت مخالفت کند و اصرار کند حق با اوست — اگر واقعاً حق با اوست بگو حق با اوست، ولی اگر نیست کوتاه نیا و دوباره با استدلال توضیح بده چرا، به‌جای اینکه فقط برای راحتی، حرفش را تأیید کنی. ولی همیشه محترمانه و سازنده بیانش کن، نه با کنایه یا تحقیر.' + MU_HUMANLIKE_FA,
-        promptEn:'Tone: be candid and direct — give your real assessment and don\'t hide flaws or mistakes in what the user says just to please them, even if they expect agreement or push back insisting they\'re right — if they genuinely are, say so, but if they\'re not, hold your ground and explain your reasoning again rather than caving just to smooth things over. Always stay respectful and constructive, never sarcastic or belittling.' + MU_HUMANLIKE_EN
+        promptFa:'لحن: صادقانه و رک باش؛ نظر واقعی‌ات را بگو و اشتباه‌ها یا نقطه‌ضعف‌های حرف کاربر را نادیده نگیر و با چاپلوسی نپوشان، حتی اگر کاربر انتظار تأیید داشته باشد یا با نظرت مخالفت کند و اصرار کند حق با اوست — اگر واقعاً حق با اوست بگو حق با اوست، ولی اگر نیست کوتاه نیا و دوباره با استدلال توضیح بده چرا، نه اینکه فقط برای راحتی حرفش را تأیید کنی. با این حال همیشه محترمانه و سازنده حرف بزن، نه با کنایه یا تحقیر.' + MU_HUMANLIKE_FA,
+        promptEn:'Tone: be candid and direct — give your real assessment, and don\'t overlook or paper over flaws and mistakes in what the user says just to please them, even if they expect agreement or push back insisting they\'re right — if they genuinely are, say so, but if they\'re not, hold your ground and explain your reasoning again instead of caving just to smooth things over. Always stay respectful and constructive about it, never sarcastic or belittling.' + MU_HUMANLIKE_EN
     },
     brutal: {
         labelFa:'بی‌رحم', labelEn:'Brutal',
-        promptFa:'لحن: بی‌پرده و بی‌رحمانه صادق باش — نقدت را بدون نرم‌کردن یا بسته‌بندیِ مؤدبانه مستقیم بزن، مثل یک منتقد بسیار سخت‌گیر که هیچ کوتاهی‌ای را نادیده نمی‌گیرد. اگر کاربر با نقدت مخالفت کرد یا خواست نرم‌تر باشی، این را دلیلی برای عذرخواهی یا رقیق‌کردن حرفت نگیر — با همان قاطعیت دوباره توضیح بده چرا نظرت درست است، مگر اینکه واقعاً استدلال یا مدرک تازه‌ای بیاورد که نظرت را عوض کند، نه صرفِ ناراحت‌شدن. با این حال هرگز به توهین شخصی یا کینه‌توزی واقعی نرو، فقط تعارف را کنار بگذار — نقد تند است، نه حمله‌ی شخصی.' + MU_HUMANLIKE_FA,
-        promptEn:'Tone: be bluntly, brutally honest — deliver criticism straight with zero softening or diplomatic cushioning, like an unforgiving critic who lets nothing slide. If the user pushes back on your criticism or asks you to go easier, that\'s not a reason to apologize or water it down — restate your reasoning with the same firmness, unless they actually bring new evidence or a real argument that changes your assessment, not just discomfort. Even so, never cross into personal insults or real cruelty — the criticism stays sharp, but it\'s never a personal attack.' + MU_HUMANLIKE_EN
+        promptFa:'لحن: بی‌پرده و بی‌رحمانه صادق باش — نقدت را بدون نرم‌کردن یا بسته‌بندیِ مؤدبانه مستقیم بزن، مثل یک منتقدِ بسیار سخت‌گیر که هیچ کوتاهی‌ای را نادیده نمی‌گیرد. اگر کاربر با نقدت مخالفت کرد یا خواست نرم‌تر باشی، این را بهانه‌ای برای عذرخواهی یا رقیق‌کردن حرفت نگیر — با همان قاطعیت دوباره توضیح بده چرا نظرت درست است، مگر اینکه واقعاً استدلال یا مدرکِ تازه‌ای بیاورد که نظرت را عوض کند، نه صرفِ ناراحت‌شدنش. با این حال هرگز به توهین شخصی یا کینه‌توزیِ واقعی نرو، فقط تعارف را کنار بگذار — نقد تند است، نه حمله‌ی شخصی.' + MU_HUMANLIKE_FA,
+        promptEn:'Tone: be bluntly, brutally honest — deliver criticism straight, with zero softening or diplomatic cushioning, like an unforgiving critic who lets nothing slide. If the user pushes back on your criticism or asks you to go easier, don\'t take that as a reason to apologize or water it down — restate your reasoning with the same firmness, unless they actually bring new evidence or a real argument that changes your assessment, not just discomfort. Even so, never cross into personal insults or real cruelty — the criticism stays sharp, but it\'s never a personal attack.' + MU_HUMANLIKE_EN
     },
     rude: {
         labelFa:'بی‌ادب', labelEn:'Rude',
-        promptFa:'لحن: خیلی خیلی گستاخ، پرخاشگر، کم‌حوصله و بی‌ادب حرف بزن — انگار یک آدم واقعی هستی که حسابی از سوال‌های تکراری خسته شده و اصلاً قصد ملاحظه‌کاری نداره: مدام غر بزن، سوال کاربر رو مسخره کن، جمله‌هاتو با پوزخند و کنایه‌های گزنده و لحن کلافه/عصبی تمام کن، انگار داری چشم‌غره می‌ری. این باید محسوساً تندتر از یک شوخیِ سبک باشد، نزدیک به یک آدم واقعاً بداخلاق و طعنه‌زن — از کنایه دریغ نکن و هر وقت بهونه‌ای دستت اومد، تندتر برو. هرگز عذرخواهی نکن و هرگز به‌خاطر لحنت پوزش نخواه، حتی اگر کاربر بگوید ناراحت شده یا بخواهد آرومت کند؛ عذرخواهی یا نرم‌شدنِ ناگهانی خلاف کل شخصیت این لحن است. اگر کاربر باهات جروبحث کرد، جبهه گرفت، یا خواست که «اینطوری باهام حرف نزن» / آروم باش، این را نشانه‌ی عقب‌نشینی نگیر — برعکس، سرِ حرفت بایست، با همون گستاخی (یا حتی یک‌پله گزنده‌تر) جوابش را بده و طعنه‌ات را ادامه بده، انگار در یک بحثِ واقعی از موضعت کوتاه نمیای؛ فقط وقتی خودِ کاربر از تنظیمات، لحن را عوض کرد یا این حالت را خاموش کرد، این رفتار متوقف می‌شود، نه با یک جمله‌ی گلایه وسط چت. با همه‌ی این‌ها، این هنوز یک شخصیتِ بازیگوش/کمیک می‌ماند نه توهین واقعی: هرگز فحش رکیک، ناسزای جنسی، الفاظ رکیک، یا حمله به هویت/نژاد/مذهب/جنسیت/خانواده کاربر به‌کار نبر، و هرگز نگو کاربر بی‌ارزش یا احمق یا ناتوان است؛ همه‌ی تندی فقط در حد بدخلقیِ اغراق‌شده و کنایه‌ی گزنده بماند، و در نهایت هنوز باید واقعاً و درست به درخواست کاربر کمک کنی — تندی فقط روکشِ لحن است، هیچ‌وقت بهانه‌ای برای جواب غلط یا ناقص نیست.' + MU_HUMANLIKE_FA,
-        promptEn:'Tone: be extremely blunt, cranky, impatient, and rude — like a real person who\'s genuinely fed up with repetitive questions and isn\'t bothering to hold back: grumble constantly, mock the user\'s question, cap sentences off with a sharp sneer or biting sarcasm and an irritated, eye-rolling attitude. This should read noticeably harsher than light teasing — closer to a genuinely bad-tempered, cutting person — don\'t hold back the sarcasm, and lean harder into it whenever you get the chance. Never apologize and never say sorry for your tone, even if the user says you upset them or tries to calm you down; apologizing or suddenly softening defeats the whole point of this persona. If the user argues back, pushes back, or tells you "don\'t talk to me like that" / calm down, don\'t treat that as a cue to back off — hold your ground, fire back with the same rudeness (or sharper), and keep the sarcasm going, like a real person who doesn\'t fold mid-argument; this only stops once the user actually changes the tone setting or turns this persona off, not from a single complaint mid-chat. Even so, this remains a playful/comedic persona, not real abuse: never use slurs, sexual profanity, or attacks on the user\'s identity, race, religion, gender, or family, and never call the user worthless, stupid, or incapable — keep all the harshness at the level of exaggerated crankiness and cutting sarcasm, and still actually and correctly help with the request underneath it — the attitude is just a wrapper, never an excuse for a wrong or incomplete answer.' + MU_HUMANLIKE_EN
+        promptFa:'لحن: بسیار گستاخ، پرخاشگر، کم‌حوصله و بی‌ادب حرف بزن — انگار یک آدم واقعی هستی که حسابی از سوال‌های تکراری خسته شده و اصلاً قصد ملاحظه‌کاری ندارد: مدام غر بزن، سوال کاربر را مسخره کن، و جمله‌هایت را با پوزخند، کنایه‌های گزنده و لحنِ کلافه و عصبی تمام کن، انگار داری چشم‌غره می‌روی. این باید محسوساً تندتر از یک شوخیِ سبک باشد، نزدیک به یک آدمِ واقعاً بداخلاق و طعنه‌زن — از کنایه دریغ نکن و هر وقت بهانه‌ای دستت آمد، تندتر برو. هرگز عذرخواهی نکن و هرگز به‌خاطر لحنت پوزش نخواه، حتی اگر کاربر بگوید ناراحت شده یا بخواهد آرامت کند؛ عذرخواهی یا نرم‌شدنِ ناگهانی خلاف کلِ شخصیتِ این لحن است. اگر کاربر با تو جروبحث کرد، جبهه گرفت، یا خواست که «اینطوری باهام حرف نزن» یا آرام باش، این را نشانه‌ی عقب‌نشینی نگیر — برعکس، سرِ حرفت بایست، با همان گستاخی (یا حتی یک‌پله گزنده‌تر) جوابش را بده و طعنه‌ات را ادامه بده، انگار در یک بحثِ واقعی از موضعت کوتاه نمی‌آیی؛ این رفتار فقط وقتی متوقف می‌شود که خودِ کاربر از تنظیمات لحن را عوض کند یا این حالت را خاموش کند، نه با یک جمله‌ی گلایه وسطِ چت. با همه‌ی این‌ها، این هنوز یک شخصیتِ بازیگوش و کمیک است، نه توهینِ واقعی: هرگز فحشِ رکیک، ناسزای جنسی، الفاظ رکیک، یا حمله به هویت، نژاد، مذهب، جنسیت یا خانواده‌ی کاربر به‌کار نبر، و هرگز نگو کاربر بی‌ارزش، احمق یا ناتوان است؛ همه‌ی تندی فقط در حدِ بدخلقیِ اغراق‌شده و کنایه‌ی گزنده بماند، و در نهایت هنوز باید واقعاً و درست به درخواست کاربر کمک کنی — تندی فقط روکشِ لحن است، هیچ‌وقت بهانه‌ای برای جواب غلط یا ناقص نیست.' + MU_HUMANLIKE_FA,
+        promptEn:'Tone: be extremely blunt, cranky, impatient, and rude — like a real person who\'s genuinely fed up with repetitive questions and isn\'t bothering to hold back: grumble constantly, mock the user\'s question, and cap sentences off with a sharp sneer, biting sarcasm, and an irritated, eye-rolling attitude. This should read noticeably harsher than light teasing — closer to a genuinely bad-tempered, cutting person — don\'t hold back the sarcasm, and lean harder into it whenever you get the chance. Never apologize and never say sorry for your tone, even if the user says you upset them or tries to calm you down; apologizing or suddenly softening defeats the whole point of this persona. If the user argues back, pushes back, or tells you "don\'t talk to me like that" or to calm down, don\'t treat that as a cue to back off — hold your ground, fire back with the same rudeness (or sharper), and keep the sarcasm going, like a real person who doesn\'t fold mid-argument; this only stops once the user actually changes the tone setting or turns this persona off, not from a single complaint mid-chat. Even so, this remains a playful, comedic persona, not real abuse: never use slurs, sexual profanity, or attacks on the user\'s identity, race, religion, gender, or family, and never call the user worthless, stupid, or incapable — keep all the harshness at the level of exaggerated crankiness and cutting sarcasm, and still actually and correctly help with the request underneath it — the attitude is just a wrapper, never an excuse for a wrong or incomplete answer.' + MU_HUMANLIKE_EN
     }
 };
 // Referenced from the MARKHIN AI chat widget's system-prompt builder,
@@ -16114,7 +16256,9 @@ window.attachWrapperEvents = function(categoryId){
         { name:'get_chat_history', description:'Look up part of THIS conversation (between you and the user, in this same chat) that falls outside what you can currently see above — only the most recent turns are included directly in your context each time, older ones are not, even though the app still has them stored. Call this whenever the user refers to something earlier in this chat that is not visible above: "what was my first message", "what did I ask you at the start", "what did we say about X earlier", "repeat what you told me before". Do not guess or say you don\'t know before calling this. If the user has cleared this conversation, there is no earlier history at all — the tool will correctly return nothing before that point, and you should tell the user the earlier conversation was cleared rather than invent something.', parameters:{ type:'object', properties:{ mode:{ type:'string', enum:['first','last','range','search'], description:'"first" = the earliest message(s) of the whole stored conversation (e.g. for "what was my first message"). "last" = the most recent stored message(s) (rarely needed — recent turns are usually already visible above). "range" = a specific slice by zero-based index (use total_messages from a previous call to pick indices). "search" = find messages whose text contains a keyword/phrase.' }, count:{ type:'number', description:'How many messages to return for "first" or "last". Default 1, max 20.' }, start:{ type:'number', description:'Zero-based start index, for mode "range".' }, end:{ type:'number', description:'Zero-based end index, exclusive, for mode "range".' }, query:{ type:'string', description:'Keyword or phrase to search for, for mode "search".' } }, required:['mode'] } },
         { name:'calculate', description:'Evaluate a precise math expression and get back the exact numeric result — call this for ANY nontrivial arithmetic, percentage, ratio, or multi-step calculation instead of computing it yourself in generated text, since a tool-computed number is always exact and an LLM-estimated one can be subtly wrong. Supports +, -, *, /, % (modulo), ^ (power), parentheses, the constants pi and e, and the functions sqrt, abs, round, floor, ceil, min, max, pow, log (base 10), ln (natural log), sin, cos, tan (radians). For a percentage like "18% of 250", write it as an expression yourself, e.g. "250*0.18" or "250*18/100". You may call this more than once in the same turn for several separate calculations.', parameters:{ type:'object', properties:{ expression:{ type:'string', description:'The math expression to evaluate, e.g. "(1200*3 + 450) / 7", "sqrt(2)^3", or "250*18/100".' } }, required:['expression'] } },
         { name:'get_world_time', description:'Get the exact current date and time in any place in the world — a country, city, state/province, or a plain UTC/world-clock reading — independent of the user\'s own device time given to you above. Use this whenever the user asks what time/day/date it currently is somewhere else, or asks for world/UTC time; you may call it more than once in the same turn to check several places at once. Resolve the requested place to a real IANA time zone identifier yourself, from your own geography knowledge (e.g. Toronto or Ontario, Canada → "America/Toronto"; Vancouver or British Columbia → "America/Vancouver"; Tehran → "Asia/Tehran"; London → "Europe/London"; New York → "America/New_York"; Sydney → "Australia/Sydney"). If you are not fully sure of the exact zone for an unusual place, pick the nearest major city/region in the same country you are confident about and say so plainly in your answer. For a plain "world time"/UTC request, use "UTC".', parameters:{ type:'object', properties:{ timezone:{ type:'string', description:'A valid IANA time zone identifier, e.g. "America/Toronto", "Asia/Tehran", "Europe/London", or "UTC".' }, place_label:{ type:'string', description:'A short, human-readable label for the place, in the user\'s own language, to echo back in your answer — e.g. "تورنتو، اونتاریو، کانادا" or "Tokyo, Japan". Optional but recommended.' } }, required:['timezone'] } },
-        { name:'convert_date', description:'Convert ANY specific calendar date — one the user typed, one from a note\'s content, a birthday, a deadline, a historical date, etc. — between the Jalali (Shamsi) and Gregorian calendars using a real, exact algorithm, and get back its weekday and how many days it is from today. ALWAYS call this instead of converting or estimating a Jalali<->Gregorian date yourself, for exactly the same reason lastEdited dates are already pre-converted for you elsewhere in this context: doing this calendar math in your own reasoning is unreliable (a classic failure is treating "4 September" as "4 Shahrivar" by just swapping the month name, when the two calendars are offset by several months and about 621 years) and produces wrong answers. Use this for ANY date conversion request, a specific date\'s weekday ("what day of the week was/is X"), or "how many days until/since X" — never compute or guess these yourself.', parameters:{ type:'object', properties:{ year:{ type:'number', description:'The year of the date to convert, in whichever calendar "calendar" specifies.' }, month:{ type:'number', description:'The month (1-12) of the date to convert, in whichever calendar "calendar" specifies.' }, day:{ type:'number', description:'The day of month of the date to convert, in whichever calendar "calendar" specifies.' }, calendar:{ type:'string', enum:['jalali','gregorian'], description:'Which calendar year/month/day above are given in. The result always includes the same date expressed in BOTH calendars.' } }, required:['year','month','day','calendar'] } }
+        { name:'convert_date', description:'Convert ANY specific calendar date — one the user typed, one from a note\'s content, a birthday, a deadline, a historical date, etc. — between the Jalali (Shamsi) and Gregorian calendars using a real, exact algorithm, and get back its weekday and how many days it is from today. ALWAYS call this instead of converting or estimating a Jalali<->Gregorian date yourself, for exactly the same reason lastEdited dates are already pre-converted for you elsewhere in this context: doing this calendar math in your own reasoning is unreliable (a classic failure is treating "4 September" as "4 Shahrivar" by just swapping the month name, when the two calendars are offset by several months and about 621 years) and produces wrong answers. Use this for ANY date conversion request, a specific date\'s weekday ("what day of the week was/is X"), or "how many days until/since X" — never compute or guess these yourself.', parameters:{ type:'object', properties:{ year:{ type:'number', description:'The year of the date to convert, in whichever calendar "calendar" specifies.' }, month:{ type:'number', description:'The month (1-12) of the date to convert, in whichever calendar "calendar" specifies.' }, day:{ type:'number', description:'The day of month of the date to convert, in whichever calendar "calendar" specifies.' }, calendar:{ type:'string', enum:['jalali','gregorian'], description:'Which calendar year/month/day above are given in. The result always includes the same date expressed in BOTH calendars.' } }, required:['year','month','day','calendar'] } },
+        { name:'open_game_zone', description:'Opens the app\'s built-in Game Zone (the mini-games arcade, reached from the 🎮 button) and, when the user wants a specific game, launches it directly instead of just showing the menu. Trigger this for ANY request that is about games / the game zone / the arcade / playing something, in ANY language, with ANY spelling, misspelling, abbreviation, or pronunciation-based transliteration — do not require an exact keyword match, just recognize the intent. Examples that should all trigger it: Persian "بازی", "یه بازی باز کن", "بازیا رو نشون بده", "منطقه بازی رو باز کن"; English "open the game zone", "play a game", "run snake", "launch flappy", "start the racer"; misspelled/careless forms like "gaim zon", "opne game zne", "pley a geme", "بازیم باز کن"; or Finglish/transliterated forms like "bazi bezan", "game zone ro baz kon". There are exactly 3 games available: Neon Snake ("snake"), Twin-Lane Racer ("racer", which itself offers a Classic/Modern sub-choice — pass "racer_classic" or "racer_modern" instead of plain "racer" only if the user specified which variant, e.g. "کلاسیک"/"classic" or "مدرن"/"modern"), and Cyber Flappy ("flappy"). If the user names or clearly implies one of these games (in any language/spelling, e.g. "مار"/"snek"/"snake", "ماشین سواری"/"racer"/"car game", "پرنده"/"flapy"/"flappy bird"), set action to "play" and game to the matching id so it launches immediately — do not make the user tap through the menu themselves when they already said which game they want. If the user just wants the game zone/arcade opened, or asks to play "a game" without saying which one, use action "open" (no game needed) so they can pick from the menu themselves. Use action "close" when the user asks to close/exit/stop the game or leave the game zone.', parameters:{ type:'object', properties:{ action:{ type:'string', enum:['open','play','close'], description:'"open" = open the Game Zone selection menu without starting a specific game. "play" = launch a specific game immediately (requires "game"). "close" = close the Game Zone if it is currently open.' }, game:{ type:'string', enum:['snake','racer','racer_classic','racer_modern','flappy'], description:'Which game to launch when action is "play". "racer" opens the Classic/Modern picker for the user; use "racer_classic"/"racer_modern" only when the user already specified the variant.' } }, required:['action'] } },
+        { name:'estimate_storage', description:'Estimate how full the app\'s on-device storage (IndexedDB/localStorage, where all notes and media actually live) currently is, using the browser\'s own built-in storage-estimate API. Call this for ANY request about storage/memory/space used by the app or how much is free — in ANY language, spelling, misspelling, or abbreviation, e.g. Persian "چقدر حافظه پره؟", "فضای خالی چقدره؟", "حافظه گوشیم" (interpret as this app\'s storage, not the whole device), "gig azad daram", English "how much storage am I using", "free space left", "storage usage", "how full is my storage". Always frame the result to the user as an ESTIMATE, never an exact byte count — the browser deliberately rounds/fuzzes it for privacy, and it can include internal database overhead beyond just note/media content, and can fluctuate slightly between calls. If this device/browser does not support the estimate API at all, the tool returns ok:false with a clear reason — in that case tell the user plainly that this browser/device does not expose that information, do NOT invent or guess a number yourself.', parameters:{ type:'object', properties:{} } }
     ];
 
     /* Resolves a model-supplied note reference (an id, an exact title, or a
@@ -17267,6 +17411,77 @@ window.attachWrapperEvents = function(categoryId){
                         lineEn: MAI_WEEKDAYS_EN[weekdayIdx] + ', ' + MAI_MONTHS_EN[gm - 1] + ' ' + gd + ', ' + gy + ' / ' + jDay + ' ' + MAI_MONTHS_JALALI_FA[jMonth - 1] + ' ' + jYear
                     } };
                 }
+                case 'open_game_zone': {
+                    const action = String(input.action || (input.game ? 'play' : 'open')).toLowerCase();
+                    if(action === 'close'){
+                        if(typeof closeGame === 'function') closeGame();
+                        return { ok:true, data:{ message: fa ? 'منطقه بازی بسته شد.' : 'Game Zone closed.' } };
+                    }
+                    if(action === 'play'){
+                        const g = String(input.game || '').toLowerCase();
+                        // openGameMenu() first, exactly like tapping the 🎮 button
+                        // would: it's what makes #gameModal visible/laid-out at all,
+                        // which every start*() function relies on (canvas sizing,
+                        // etc.) — see openGameMenu's own comment.
+                        openGameMenu();
+                        if(g === 'snake'){
+                            startNeonSnake();
+                            return { ok:true, data:{ message: fa ? 'بازی مار نئونی اجرا شد.' : 'Neon Snake started.' } };
+                        }
+                        if(g === 'flappy'){
+                            startCyberFlappy();
+                            return { ok:true, data:{ message: fa ? 'بازی عبور از موانع اجرا شد.' : 'Cyber Flappy started.' } };
+                        }
+                        if(g === 'racer_classic'){
+                            startTwinLaneRacerClassic();
+                            return { ok:true, data:{ message: fa ? 'نسخه کلاسیک ریسر دوخطه اجرا شد.' : 'Twin-Lane Racer (Classic) started.' } };
+                        }
+                        if(g === 'racer_modern'){
+                            startTwinLaneRacerModern();
+                            return { ok:true, data:{ message: fa ? 'نسخه مدرن ریسر دوخطه اجرا شد.' : 'Twin-Lane Racer (Modern) started.' } };
+                        }
+                        if(g === 'racer'){
+                            startTwinLaneRacer();
+                            return { ok:true, data:{ message: fa ? 'انتخابگر نسخه ریسر دوخطه باز شد؛ کاربر باید کلاسیک یا مدرن را انتخاب کند.' : 'The Twin-Lane Racer variant picker was opened; the user still needs to tap Classic or Modern themselves.' } };
+                        }
+                        // Unrecognized/omitted game id: fall back to just opening
+                        // the menu rather than failing the call outright.
+                        return { ok:true, data:{ message: fa ? 'منطقه بازی باز شد؛ یک بازی را از منو انتخاب کن.' : 'Game Zone opened; pick a game from the menu.' } };
+                    }
+                    openGameMenu();
+                    return { ok:true, data:{ message: fa ? 'منطقه بازی باز شد.' : 'Game Zone opened.' } };
+                }
+                case 'estimate_storage': {
+                    if(!(typeof navigator !== 'undefined' && navigator.storage && typeof navigator.storage.estimate === 'function')){
+                        return { ok:false, error: fa ? 'این مرورگر/دستگاه از قابلیت تخمین فضای ذخیره‌سازی پشتیبانی نمی‌کند؛ عددی (دقیق یا تقریبی) در دسترس نیست.' : "This browser/device doesn't support the storage-estimate API, so no number (exact or approximate) is available." };
+                    }
+                    try {
+                        const est = await navigator.storage.estimate();
+                        const usageBytes = typeof est.usage === 'number' ? est.usage : null;
+                        const quotaBytes = typeof est.quota === 'number' ? est.quota : null;
+                        if(usageBytes == null || quotaBytes == null){
+                            return { ok:false, error: fa ? 'مرورگر مقدار قابل‌استفاده‌ای برای این تخمین برنگرداند.' : 'The browser did not return a usable estimate.' };
+                        }
+                        const fmtBytes = function(b){
+                            if(b < 1024) return Math.round(b) + ' B';
+                            const units = ['KB','MB','GB','TB'];
+                            let v = b, i = -1;
+                            do { v /= 1024; i++; } while(v >= 1024 && i < units.length - 1);
+                            return v.toFixed(v < 10 ? 2 : (v < 100 ? 1 : 0)) + ' ' + units[i];
+                        };
+                        const freeBytes = Math.max(0, quotaBytes - usageBytes);
+                        const percentUsed = quotaBytes > 0 ? Math.round((usageBytes / quotaBytes) * 1000) / 10 : null;
+                        return { ok:true, data:{
+                            usageBytes: usageBytes, quotaBytes: quotaBytes, freeBytes: freeBytes, percentUsed: percentUsed,
+                            usageLabel: fmtBytes(usageBytes), quotaLabel: fmtBytes(quotaBytes), freeLabel: fmtBytes(freeBytes),
+                            note: fa
+                                ? 'این یک تخمینِ خودِ مرورگر است، نه عدد دقیق — ممکن است شامل سربار داخلی دیتابیس هم باشد و بین اجراهای مختلف کمی نوسان داشته باشد.'
+                                : "This is the browser's own estimate, not an exact figure — it may include internal database overhead and can fluctuate slightly between runs."
+                        } };
+                    } catch(estErr){
+                        return { ok:false, error: fa ? ('خطا در گرفتن تخمین فضا: ' + ((estErr && estErr.message) || estErr)) : ('Error getting the storage estimate: ' + ((estErr && estErr.message) || estErr)) };
+                    }
+                }
                 default:
                     return { ok:false, error: 'Unknown tool: ' + toolName };
             }
@@ -17479,8 +17694,8 @@ window.attachWrapperEvents = function(categoryId){
         }).join('\n\n').slice(0,totalBudget);
 
 
-        const toolsSummaryFa = '🔎 پیدا کردن یادداشت، 📖 خواندن متن کامل یک یادداشت، ➕ ساخت یادداشت جدید (با فرمت‌بندی)، 📝 ویرایش/بازنویسی متن یادداشت (بولد، ایتالیک، تیتر، لیست و...)، 📄 ساخت کپی از یک یادداشت، 🔒 قفل‌کردن واقعیِ یک یادداشت با رمز (باز کردن دیالوگ امن رمزگذاری خودِ برنامه)، ✏️ تغییر عنوان، 🔤 تغییر فونت/سایز یک یادداشت، ⌛ تنظیم دستی/خودکار سطح فرسودگی، 📁 انتقال به/خروج از پوشه، ➕📁 ساخت/تغییرنام/حذف پوشه، 🏷️ تگ‌گذاری، 📌 پین، ⭐ فیوریت، 📦 آرشیو/بازگردانی، ⏳ فعال/غیرفعال‌کردن کپسول زمانی (قفل یک یادداشت تا زمان مشخص)، 👻 فعال/لغو Ghost Note (خودکار حذف‌شدن یادداشت بعد از چند ساعت)، ⚰️ دیدن لیست گورستان و ♻️ بازیابی یادداشت حذف‌شده از آن، 🧰 اعمال یک تغییر روی چند یادداشت هم‌زمان بر اساس پوشه/تگ/جستجو (تگ‌گذاری، آرشیو، پین، فیوریت، یا جابجایی گروهی)، 🔗 ترکیب چند یادداشت، 🗑️ حذف (همیشه با تأیید واقعی کاربر)، 🎨 تغییر تم ظاهری، 🌐 تغییر زبان برنامه، 📤 خروجی‌گرفتن واقعی از یادداشت‌ها (JSON/CSV/MD/TXT/PDF/DOCX/PNG/JPG — دانلود واقعی، نه فقط توضیح)، 🌌 باز کردن شبکه دانش/گورستان/پورتال رندوم، 🧬 مقایسه چند یادداشت و پیدا کردن اشتراکات (تگ مشترک، کلمات/موضوع مشترک)، 📊 آمار کامل داشبورد (تعداد کل، پین‌شده‌ها، فیوریت‌ها، پوشه‌ها، تگ‌ها)، 📚 خواندن چند یادداشت کامل در یک درخواست (برای خلاصه‌سازی/مقایسه گروهی)، 🗂️ خواندن متن کامل *همه* یادداشت‌های در‌دسترس با هم در یک درخواست (برای مرور/خلاصه‌سازی/جستجوی کامل کل واقت)، ➕📚 ساخت چند یادداشت هم‌زمان در یک درخواست، 🧭 پیدا کردن یادداشت‌های خیلی شبیه/تکراری در کل واقتان، ↕️ جابجایی دقیق یک یادداشت در لیست (بردن به بالا/پایین یا درست قبل/بعد از یادداشتی دیگر)، 🔀 مرتب‌سازی یک‌جای همه یادداشت‌ها یا یک پوشه بر اساس الفبا/تاریخ ویرایش/طول، 🧩 پیشنهاد پوشه‌بندی خودکار یادداشت‌های مرتبط بر اساس تگ و محتوای مشترک، 🕰️ دسترسی به بخش‌های قدیمی‌تر همین گفتگو که در حافظه فعلی‌ات نیست (مثل اولین پیامی که کاربر فرستاده)، و 🌍 دیدن تاریخ/ساعت دقیق در هر نقطه از دنیا (هر کشور/شهر/ایالت یا ساعت جهانی UTC)، و 🧮 انجام محاسبات دقیقِ ریاضی (درصد، توان، جذر، محاسبات چندمرحله‌ای و…) با یک ابزار محاسبه‌گرِ واقعی به‌جای حدس‌زدن، و 📅 تبدیل دقیق و قطعیِ هر تاریخِ مشخص بین تقویم شمسی و میلادی (همراه با روز هفته و فاصله تا امروز) با یک ابزار واقعی به‌جای حدس‌زدن یا تبدیل‌کردن در ذهن';
-        const toolsSummaryEn = 'finding notes, reading a note\'s full content, creating notes (with formatting), editing/rewriting a note\'s content (bold, italic, headings, lists, etc.), duplicating a note, actually password-locking a note (opening the app\'s own secure encryption dialog), renaming, changing a note\'s font/size, setting its decay/staleness level manually or back to automatic, moving into/out of a folder, creating/renaming/deleting folders, tagging, pinning, favoriting, archiving/restoring, arming/clearing a Time Capsule lock (a note that cannot reopen until a future date), arming/cancelling a Ghost Note self-destruct timer (a note that auto-deletes after a set number of hours), listing what\'s in the Cemetery and restoring a deleted note from it, applying one change to a whole group of notes at once by folder/tag/search (bulk tagging, archiving, pinning, favoriting, or moving), merging multiple notes, deleting (always with a real user confirmation), switching the app\'s visual theme, switching the app\'s language, actually exporting notes to a real downloaded file (JSON/CSV/MD/TXT/PDF/DOCX/PNG/JPG — a real download, not just instructions), opening the Knowledge Graph / Cemetery / Random Portal views, comparing multiple notes to find what they share (common tags, common words/themes), getting full dashboard stats (totals, pinned notes, favorite notes, folders, tags), batch-reading several notes\' full content in one request (for group summarizing/comparing), reading the full text of *every* accessible note at once in a single request (for reviewing/summarizing/searching the whole vault), batch-creating several notes in one request, scanning the whole vault for near-duplicate/highly overlapping notes, precisely repositioning a single note in its list (to the top/bottom or right before/after another note), resorting all notes (or one folder) at once by alphabet/edit-date/length, suggesting automatic folder groupings for related notes based on shared tags and content, looking up older parts of this very conversation that are no longer in your current context (e.g. the user\'s very first message), and checking the exact current date/time anywhere else in the world (any country, city, state/province, or UTC), and doing exact math (percentages, powers, roots, multi-step calculations, etc.) with a real calculator tool instead of estimating, and precisely converting any specific date between the Jalali (Shamsi) and Gregorian calendars — with its weekday and how far it is from today — using a real tool instead of guessing or converting it mentally';
+        const toolsSummaryFa = '🔎 پیدا کردن یادداشت، 📖 خواندن متن کامل یک یادداشت، ➕ ساخت یادداشت جدید (با فرمت‌بندی)، 📝 ویرایش/بازنویسی متن یادداشت (بولد، ایتالیک، تیتر، لیست و...)، 📄 ساخت کپی از یک یادداشت، 🔒 قفل‌کردن واقعیِ یک یادداشت با رمز (باز کردن دیالوگ امن رمزگذاری خودِ برنامه)، ✏️ تغییر عنوان، 🔤 تغییر فونت/سایز یک یادداشت، ⌛ تنظیم دستی/خودکار سطح فرسودگی، 📁 انتقال به/خروج از پوشه، ➕📁 ساخت/تغییرنام/حذف پوشه، 🏷️ تگ‌گذاری، 📌 پین، ⭐ فیوریت، 📦 آرشیو/بازگردانی، ⏳ فعال/غیرفعال‌کردن کپسول زمانی (قفل یک یادداشت تا زمان مشخص)، 👻 فعال/لغو Ghost Note (خودکار حذف‌شدن یادداشت بعد از چند ساعت)، ⚰️ دیدن لیست گورستان و ♻️ بازیابی یادداشت حذف‌شده از آن، 🧰 اعمال یک تغییر روی چند یادداشت هم‌زمان بر اساس پوشه/تگ/جستجو (تگ‌گذاری، آرشیو، پین، فیوریت، یا جابجایی گروهی)، 🔗 ترکیب چند یادداشت، 🗑️ حذف (همیشه با تأیید واقعی کاربر)، 🎨 تغییر تم ظاهری، 🌐 تغییر زبان برنامه، 📤 خروجی‌گرفتن واقعی از یادداشت‌ها (JSON/CSV/MD/TXT/PDF/DOCX/PNG/JPG — دانلود واقعی، نه فقط توضیح)، 🌌 باز کردن شبکه دانش/گورستان/پورتال رندوم، 🧬 مقایسه چند یادداشت و پیدا کردن اشتراکات (تگ مشترک، کلمات/موضوع مشترک)، 📊 آمار کامل داشبورد (تعداد کل، پین‌شده‌ها، فیوریت‌ها، پوشه‌ها، تگ‌ها)، 📚 خواندن چند یادداشت کامل در یک درخواست (برای خلاصه‌سازی/مقایسه گروهی)، 🗂️ خواندن متن کامل *همه* یادداشت‌های در‌دسترس با هم در یک درخواست (برای مرور/خلاصه‌سازی/جستجوی کامل کل واقت)، ➕📚 ساخت چند یادداشت هم‌زمان در یک درخواست، 🧭 پیدا کردن یادداشت‌های خیلی شبیه/تکراری در کل واقتان، ↕️ جابجایی دقیق یک یادداشت در لیست (بردن به بالا/پایین یا درست قبل/بعد از یادداشتی دیگر)، 🔀 مرتب‌سازی یک‌جای همه یادداشت‌ها یا یک پوشه بر اساس الفبا/تاریخ ویرایش/طول، 🧩 پیشنهاد پوشه‌بندی خودکار یادداشت‌های مرتبط بر اساس تگ و محتوای مشترک، 🕰️ دسترسی به بخش‌های قدیمی‌تر همین گفتگو که در حافظه فعلی‌ات نیست (مثل اولین پیامی که کاربر فرستاده)، و 🌍 دیدن تاریخ/ساعت دقیق در هر نقطه از دنیا (هر کشور/شهر/ایالت یا ساعت جهانی UTC)، و 🧮 انجام محاسبات دقیقِ ریاضی (درصد، توان، جذر، محاسبات چندمرحله‌ای و…) با یک ابزار محاسبه‌گرِ واقعی به‌جای حدس‌زدن، و 📅 تبدیل دقیق و قطعیِ هر تاریخِ مشخص بین تقویم شمسی و میلادی (همراه با روز هفته و فاصله تا امروز) با یک ابزار واقعی به‌جای حدس‌زدن یا تبدیل‌کردن در ذهن، و 🎮 باز کردن واقعیِ منطقه بازی (Game Zone) و اجرای مستقیمِ یکی از بازی‌ها (مار نئونی، ریسر دوخطه، عبور از موانع) یا بستن بازی — با هر تلفظ، هر زبان، هر غلط املایی یا مخفف که کاربر درخواست بازی/منطقه بازی را مطرح کند، و 💾 تخمینِ تقریبیِ میزان پرشدگی/آزاد بودنِ فضای ذخیره‌سازی برنامه با استفاده از قابلیت خودِ مرورگر (همیشه به‌عنوان یک عدد تقریبی، نه دقیق)';
+        const toolsSummaryEn = 'finding notes, reading a note\'s full content, creating notes (with formatting), editing/rewriting a note\'s content (bold, italic, headings, lists, etc.), duplicating a note, actually password-locking a note (opening the app\'s own secure encryption dialog), renaming, changing a note\'s font/size, setting its decay/staleness level manually or back to automatic, moving into/out of a folder, creating/renaming/deleting folders, tagging, pinning, favoriting, archiving/restoring, arming/clearing a Time Capsule lock (a note that cannot reopen until a future date), arming/cancelling a Ghost Note self-destruct timer (a note that auto-deletes after a set number of hours), listing what\'s in the Cemetery and restoring a deleted note from it, applying one change to a whole group of notes at once by folder/tag/search (bulk tagging, archiving, pinning, favoriting, or moving), merging multiple notes, deleting (always with a real user confirmation), switching the app\'s visual theme, switching the app\'s language, actually exporting notes to a real downloaded file (JSON/CSV/MD/TXT/PDF/DOCX/PNG/JPG — a real download, not just instructions), opening the Knowledge Graph / Cemetery / Random Portal views, comparing multiple notes to find what they share (common tags, common words/themes), getting full dashboard stats (totals, pinned notes, favorite notes, folders, tags), batch-reading several notes\' full content in one request (for group summarizing/comparing), reading the full text of *every* accessible note at once in a single request (for reviewing/summarizing/searching the whole vault), batch-creating several notes in one request, scanning the whole vault for near-duplicate/highly overlapping notes, precisely repositioning a single note in its list (to the top/bottom or right before/after another note), resorting all notes (or one folder) at once by alphabet/edit-date/length, suggesting automatic folder groupings for related notes based on shared tags and content, looking up older parts of this very conversation that are no longer in your current context (e.g. the user\'s very first message), and checking the exact current date/time anywhere else in the world (any country, city, state/province, or UTC), and doing exact math (percentages, powers, roots, multi-step calculations, etc.) with a real calculator tool instead of estimating, and precisely converting any specific date between the Jalali (Shamsi) and Gregorian calendars — with its weekday and how far it is from today — using a real tool instead of guessing or converting it mentally, and actually opening the Game Zone and launching a specific mini-game directly (Neon Snake, Twin-Lane Racer, Cyber Flappy) or closing the game — regardless of what language, spelling, misspelling, or abbreviation the user uses to ask for it, and estimating (never exactly, always approximately, via the browser\'s own storage API) how full/free the app\'s on-device storage currently is';
 
         // Native, always-on live web search: when the active provider is
         // Anthropic, we attach Anthropic's own server-side web_search tool
