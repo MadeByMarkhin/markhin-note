@@ -6188,7 +6188,24 @@ window.mu_syncHtmlBg = function(){
 
             clearGameEvents();
             const canvas = document.getElementById('cyberCanvas');
-            const { width, height, ctx } = fitGameCanvas(canvas, 'fill');
+            const { width, height, ctx, dpr } = fitGameCanvas(canvas, 'fill');
+            // Bug fix ("pipes/bird/coins constantly trembling, shaking" —
+            // the actual root cause of the report, worst inside Telegram's
+            // in-app WebView): the other three games (Twin Lane Racer
+            // Classic/Modern, Dead Road) already snap every moving sprite's
+            // draw position into device-pixel space before drawing — see
+            // the full explanation on fitGameCanvas's own `return` above.
+            // Cyber Flappy never picked up that fix: it didn't even
+            // destructure `dpr` out of fitGameCanvas's return value, so its
+            // pipes/coins/bird were drawn straight from raw CSS-pixel
+            // positions every frame. Since `dpr` on real phones is almost
+            // always a non-integer (2.625, 2.75, 3.5...), those positions
+            // land on a fractional device pixel once ctx's dpr-scaled
+            // transform multiplies them, and which way the canvas
+            // internally rounds that shifts frame to frame as an object
+            // moves — exactly the tremor being reported, independent of
+            // (and on top of) the frame-timing fix already in loop() below.
+            function snapPx(v) { return Math.round(v * dpr) / dpr; }
 
             // The bottom strip is a solid landable "ground" (grass + dirt),
             // like the reference — pipes and the bird's death-floor both
@@ -6517,15 +6534,15 @@ window.mu_syncHtmlBg = function(){
                 // ---- pipes ----
                 for (const p of pipes) {
                     const gapTop = p.top, gapBottom = groundTopY - p.bottom;
-                    const renderX = p.prevX + (p.x - p.prevX) * alpha;
+                    const renderX = snapPx(p.prevX + (p.x - p.prevX) * alpha);
                     drawPipePair(renderX, gapTop, gapBottom);
                 }
 
                 // ---- pickups (coins) ----
                 pickups.forEach(pk => {
                     if (pk.taken) return;
-                    const renderX = pk.prevX + (pk.x - pk.prevX) * alpha;
-                    drawCoin(renderX, pk.y, pk.r, ts);
+                    const renderX = snapPx(pk.prevX + (pk.x - pk.prevX) * alpha);
+                    drawCoin(renderX, snapPx(pk.y), pk.r, ts);
                 });
 
                 // ---- ground (grass + dirt), drawn over the pipes' bottom ends ----
@@ -6553,9 +6570,9 @@ window.mu_syncHtmlBg = function(){
                 // ---- bird ----
                 const tilt = Math.max(-0.5, Math.min(0.9, birdVy / (height * 0.02)));
                 const flap = Math.sin(ts / 70) * 0.5 + 0.5;
-                const renderBirdY = birdPrevY + (birdY - birdPrevY) * alpha;
+                const renderBirdY = snapPx(birdPrevY + (birdY - birdPrevY) * alpha);
                 ctx.save();
-                ctx.translate(birdX, renderBirdY);
+                ctx.translate(snapPx(birdX), renderBirdY);
                 ctx.rotate(tilt * 0.5);
                 // belly/body
                 ctx.beginPath();
@@ -18334,7 +18351,7 @@ window.attachWrapperEvents = function(categoryId){
                     if(archived && activeOpenId === item.id) activeOpenId = null;
                     saveToLocalStorage();
                     renderApp(activeOpenId);
-                    showToast(archived ? (fa ? '📦 بایگانی شد' : '📦 Archived') : (fa ? '📦 از بایگانی بازگردانده شد' : '📦 Restored from archive'));
+                    showToast(archived ? (fa ? '📦 بایگانی شد' : '📦 Archived') : (fa ? '📦 از بایگانی بازگردانده شد' : '?? Restored from archive'));
                     return { ok:true, data:{ id:item.id, archived:item.archived } };
                 }
                 case 'merge_notes': {
