@@ -1966,19 +1966,32 @@
             display: block;
             box-shadow: inset 0 0 30px rgba(255,255,255,0.03);
             touch-action: none;
-            /* Telegram's Android in-app browser (a system WebView, often
-               with weaker/less consistent GPU compositing than a full
-               Chrome browser) can end up repainting this canvas as part of
-               the same layer as its surrounding UI, so every one of the
-               60 redraws a second during gameplay also re-composites
-               everything around it — the exact same class of issue the
-               theme background layers above already work around with this
-               same transform/will-change combo. Forcing the canvas onto
-               its own dedicated compositor layer means only the canvas
-               itself needs repainting each frame. */
-            transform: translateZ(0);
-            backface-visibility: hidden;
-            will-change: transform;
+            /* Bug fix ("obstacles/pipes constantly trembling, shaking, jumping
+               like a glitch — much worse and near-constant inside Telegram's
+               in-app WebView"): this element used to also force
+               transform:translateZ(0); backface-visibility:hidden;
+               will-change:transform, on the theory that promoting the canvas to
+               its own GPU compositing layer would stop it being re-composited
+               along with the surrounding UI on every 60fps redraw. In practice
+               that was the actual root cause of the tremor, not a fix for it —
+               the exact same lesson already learned lower in this file (see the
+               "Smoothness pass" note near .note-card/.category-card/.btn-main)
+               about this identical hack backfiring on Telegram's in-app Android
+               WebView, just with a different visible symptom there (blank
+               unpainted elements) versus here. A <canvas> already repaints
+               itself via its own 2D context every frame — it doesn't need (and,
+               on the affected WebView builds, actively suffers from) being
+               forced onto a separate compositor layer: that promotion makes the
+               browser re-resolve the canvas's layer position/scale against a
+               non-integer devicePixelRatio on every composite, and on weaker/
+               inconsistent Android WebView compositors that resolution isn't
+               pixel-stable frame to frame — which is exactly what read as the
+               obstacles/bird/cars trembling and popping, independent of (and on
+               top of) the frame-timing and sub-pixel-snapping fixes already
+               applied inside each game's own render() below. Removing the
+               forced layer promotion here and simply letting the canvas paint
+               normally (like any other element) removes that instability at
+               the source. */
         }
 
         .game-overlay-panel {
