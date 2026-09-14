@@ -8846,6 +8846,25 @@ window.mu_syncHtmlBg = function(){
 
             const dashLen = height * 0.045, dashGap = height * 0.038, dashCycle = dashLen + dashGap;
             let roadOffset = 0, mountainOffset = 0, exhaustTimer = 0;
+            // Bug fix ("obstacles trembling/shaking" — same class of bug
+            // already fixed in Twin Lane Racer and Cyber Flappy): trafficDrift()
+            // below was being driven by the raw rAF `ts` that loop() hands
+            // step(), and on the affected Telegram in-app WebView builds that
+            // `ts` can repeat the exact same value one frame and then jump by
+            // roughly double the next (see the performance.now()/acc fix
+            // further down for the full explanation). That staleness is
+            // already isolated away from the tick accumulator, but trafficDrift
+            // used the raw ts directly to nudge each car's real, collision-
+            // relevant o.y position — so the same stall-then-jump pattern
+            // leaked straight into the traffic's on-screen position as a
+            // visible tremor, even though the fixed-step simulation itself
+            // was running smoothly underneath. simMs is a clock that only
+            // ever advances by exactly STEP_MS once per simulated tick (see
+            // step() below), so it can't inherit the raw rAF timestamp's
+            // staleness — using it in place of ts for trafficDrift removes
+            // the tremor at the source, the same way the other two games'
+            // fixes did for their own obstacles.
+            let simMs = 0;
 
             // Bug fix ("some spots are completely impossible to get through"):
             // spawnWave() below always leaves >=1 lane open WITHIN a single
@@ -9310,6 +9329,7 @@ window.mu_syncHtmlBg = function(){
                 if (dying) {
                     if (ts - dyingStart >= DYING_MS) { dying = false; endDeadRoad(); return; }
                 } else if (!ended) {
+                    simMs += STEP_MS;
                     nitroT = Math.max(0, nitroT - STEP_MS);
                     nitroCooldownMs = Math.max(0, nitroCooldownMs - STEP_MS);
                     timeRampTimer += STEP_MS;
@@ -9332,7 +9352,7 @@ window.mu_syncHtmlBg = function(){
                     if (distSinceSpawn >= nextGap) { distSinceSpawn = 0; nextGap = jitteredGap(); spawnWave(); }
 
                     obstacles.forEach(o => {
-                        o.y += speed * trafficDrift(o, ts);
+                        o.y += speed * trafficDrift(o, simMs);
                         o.exhaustTimer -= STEP_MS;
                         if (o.exhaustTimer <= 0) {
                             o.exhaustTimer = 150 + Math.random() * 200;
