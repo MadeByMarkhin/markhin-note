@@ -11182,8 +11182,6 @@ window.mu_syncHtmlBg = function(){
             const fa = currentLang === 'fa';
             const title = fa ? `خروجی تصویر ${normalized.toUpperCase()}` : `${normalized.toUpperCase()} Image Export`;
             const desc = fa ? 'یادداشت موردنظر را انتخاب کن تا نوع خروجی (یک تصویر یا چند تصویر) را برایش تعیین کنی.' : 'Choose a note to pick its output type (single image or multiple images).';
-            const allSingleLabel = fa ? `✦ همه، یک تصویر برای هرکدام` : `✦ All, single image each`;
-            const allMultiLabel = fa ? `▣ همه، صفحه‌بندی‌شده` : `▣ All, paginated`;
             const closeLabel = fa ? 'بستن' : 'Close';
             const cards = items.map((item, index) => `
                 <button type="button" class="image-export-choice" onclick="chooseImageExportMode('${String(item.id).replace(/'/g,"\\'")}', '${normalized}')">
@@ -11198,11 +11196,8 @@ window.mu_syncHtmlBg = function(){
                     <button class="btn-main" onclick="closeAdvancedModal()">✕</button>
                 </div>
                 <div class="image-export-picker-actions">
-                    <span><button class="btn-main image-export-all-btn" onclick="downloadAllImages('${normalized}','single')">${allSingleLabel}</button>
-                    <button class="btn-main image-export-all-btn" onclick="downloadAllImages('${normalized}','multi')">${allMultiLabel}</button></span>
                     <span class="image-export-count">${items.length} ${fa ? 'یادداشت' : 'notes'}</span>
                 </div>
-                <p style="opacity:.55;font-size:10px;line-height:1.7;margin:0 0 10px">${fa ? '⚠️ حالت «یک تصویر»: کل متن در یک عکس جا می‌شود؛ برای یادداشت‌های بلند ممکن است عکس فشرده و کیفیت/خوانایی‌اش پایین‌تر شود. حالت «صفحه‌بندی‌شده»: یادداشت به چند عکس با کیفیت کامل تقسیم و در یک ZIP بسته می‌شود.' : '⚠️ "Single image" mode fits all text into one picture — for long notes it may get compressed and lose quality/readability. "Paginated" mode splits the note into several full-quality images, bundled into one ZIP.'}</p>
                 <div class="image-export-choice-grid">${cards}</div>
                 <div style="text-align:center;margin-top:12px"><button class="btn-main" onclick="closeAdvancedModal()">${closeLabel}</button></div>
             `);
@@ -11211,7 +11206,8 @@ window.mu_syncHtmlBg = function(){
         /* Lets the person pick between the two image output types for a single
            note: one flat image (fast, but may lose quality/readability on
            long notes since it all has to be squeezed in) or several
-           full-quality paginated images bundled into a ZIP. */
+           full-quality paginated images, each downloadable on its own via a
+           numbered "Download image N" link — no ZIP involved. */
         function chooseImageExportMode(id, format) {
             const item = getExportableCategories().find(x => String(x.id) === String(id));
             if (!item) return;
@@ -11231,7 +11227,7 @@ window.mu_syncHtmlBg = function(){
                     <button type="button" class="image-export-choice" onclick="downloadSelectedImage('${String(id).replace(/'/g,"\\'")}','${format}','multi')">
                         <span class="image-export-choice-icon">▣</span>
                         <span class="image-export-choice-name">${fa ? 'چند تصویر (صفحه‌بندی‌شده)' : 'Multiple images (paginated)'}</span>
-                        <span class="image-export-choice-action">${fa ? 'یادداشت به چند عکس با کیفیت کامل تقسیم و در یک ZIP دانلود می‌شود. برای یادداشت‌های خیلی بلند، بهتر از حالت تک‌عکسی است.' : 'The note is split into several full-quality images and downloaded as one ZIP — better than single-image mode for very long notes.'}</span>
+                        <span class="image-export-choice-action">${fa ? 'یادداشت به چند عکس با کیفیت کامل تقسیم می‌شود و برای هر صفحه یک دکمه‌ی دانلود جداگانه می‌بینی (بدون ZIP). برای یادداشت‌های خیلی بلند، بهتر از حالت تک‌عکسی است.' : 'The note is split into several full-quality images, and you get a separate download button for each page (no ZIP) — better than single-image mode for very long notes.'}</span>
                     </button>
                 </div>
             `);
@@ -11310,23 +11306,21 @@ window.mu_syncHtmlBg = function(){
                 if (isNoteLocked(item)) { const blob=await createEncryptedExport(item); await robustDownload(blob,`${chosenName}.mne.json`,blob.type); return; }
                 if (mode === 'multi') {
                     const blobs = await renderNoteToImagePages(item, format);
-                    if (blobs.length <= 1) {
-                        const method = await robustDownload(blobs[0], `${chosenName}.${format}`, format === 'jpg' ? 'image/jpeg' : 'image/png');
-                        showToast(method === 'manual-fallback-closed'
-                            ? (fa ? 'کارت دانلود رو بستی؛ چیزی ذخیره نشد. دوباره امتحان کن و این‌بار روی دکمه دانلود بزن.' : "You closed the download card without saving. Try again and tap the download button this time.")
-                            : (fa?`تصویر «${item.name}» آماده شد.`:`Image for “${item.name}” is ready.`));
-                        return;
-                    }
-                    // Bug fix / feature request ("give me a download button per
-                    // page instead of a ZIP"): a paginated single-note export
-                    // used to always get bundled into a ZIP, even though the
-                    // ZIP step is unnecessary friction for a single note —
-                    // some hosts (notably in-app WebViews) also make saving a
-                    // ZIP's individual contents awkward. Instead, stash the
-                    // rendered page blobs and open a small picker listing one
-                    // "Download image N" button per page; each tap downloads
-                    // just that page directly, no ZIP involved.
-                    showToast(fa?`${blobs.length} تصویر آماده شد.`:`${blobs.length} images are ready.`);
+                    // Feature request ("remove ZIP from paginated image export
+                    // entirely, and make the numbered download list show up
+                    // from the very start"): this used to special-case a
+                    // single-page result into one silent auto-download and
+                    // only show the "Download image N" list when there were
+                    // 2+ pages — inconsistent, and it meant the link labels
+                    // didn't reflect the real page count until you'd already
+                    // hit multiple pages. Now every paginated export — even a
+                    // one-page one — opens the same numbered picker, so the
+                    // link the person taps always matches the actual image
+                    // count from the first page onward. Nothing is zipped;
+                    // each button downloads just that one page.
+                    showToast(blobs.length > 1
+                        ? (fa?`${blobs.length} تصویر آماده شد.`:`${blobs.length} images are ready.`)
+                        : (fa?'تصویر آماده شد.':'Image is ready.'));
                     showPaginatedPagePicker(item, format, blobs, chosenName);
                     return;
                 }
@@ -11352,127 +11346,6 @@ window.mu_syncHtmlBg = function(){
             catch(err){console.error(err);alert(fa?'دانلود تصویر انجام نشد. دوباره امتحان کن.':'Image download failed. Please try again.');}
         }
 
-        async function downloadAllImages(format, mode) {
-            mode = mode === 'multi' ? 'multi' : 'single';
-            const items=getExportableCategories(); if(!items.length)return;
-            const normalized=format==='jpg'?'jpg':'png';
-            const fa = currentLang === 'fa';
-            if(items.some(isNoteLocked)){
-                // Encrypted notes go through their own dedicated ZIP builder,
-                // which only knows the single-image render — pagination for
-                // a mixed locked/unlocked batch is out of scope here, so this
-                // path stays single-image regardless of the chosen mode.
-                const chosenName=await promptFilename(`Markhin_Note_All_Images_${normalized.toUpperCase()}`,'zip',{desc:fa?'یادداشت‌های قفل‌شده به‌صورت رمزنگاری‌شده داخل ZIP قرار می‌گیرند.':'Locked notes will be included encrypted inside the ZIP.'});
-                if(chosenName===null)return;
-                try{await buildMixedEncryptedExportZip(items,chosenName,normalized);closeAdvancedModal();showToast(fa?'ZIP امن تصاویر آماده شد.':'Secure image export ZIP is ready.');}catch(e){console.error(e);alert(fa?'خروجی تصاویر انجام نشد.':'Image export failed.');}
-                return;
-            }
-            const chosenZipName = await promptFilename(`Markhin_Note_All_Images_${normalized.toUpperCase()}`, 'zip', {
-                desc: mode === 'multi'
-                    ? (fa ? 'هر یادداشت به چند صفحه تقسیم می‌شود؛ همه‌ی صفحه‌های همه‌ی یادداشت‌ها در همین یک ZIP قرار می‌گیرند.' : 'Each note is split into several pages; every page of every note goes into this one ZIP.')
-                    : (fa ? 'نام فایل ZIP شامل تصویر همه یادداشت‌ها.' : 'Name for the ZIP file containing all note images.')
-            });
-            if (chosenZipName === null) return;
-            showToast(fa?'⏳ در حال آماده‌سازی تصاویر…':'⏳ Preparing images…', 60000);
-            try {
-                const files=[];
-                // Bug fix: a single problematic note (huge content, a broken
-                // embedded image, etc.) used to throw and abort the ENTIRE
-                // batch here — even though every other note had already
-                // rendered fine — which then fell into the "browser blocked
-                // the ZIP" recovery dialog below with a misleading message
-                // (nothing about the browser blocked anything; one note's
-                // render just failed). Catching per-item means the batch
-                // keeps going and still produces a ZIP with everything that
-                // DID render, instead of losing the whole export over one
-                // bad note.
-                let failedCount = 0;
-                for(let i=0;i<items.length;i++){
-                    try {
-                        const base=sanitizeFilename(items[i].name)||`note_${i+1}`;
-                        if (mode === 'multi') {
-                            const blobs = await renderNoteToImagePages(items[i], normalized);
-                            blobs.forEach((b,p)=>{
-                                const suffix = blobs.length > 1 ? `_${String(p+1).padStart(2,'0')}_of_${String(blobs.length).padStart(2,'0')}` : '';
-                                files.push({name:`${String(i+1).padStart(3,'0')}_${base}${suffix}.${normalized}`,data:b});
-                            });
-                        } else {
-                            const blob=await renderNoteToImage(items[i],normalized);
-                            files.push({name:`${String(i+1).padStart(3,'0')}_${base}.${normalized}`,data:blob});
-                        }
-                    } catch (itemErr) {
-                        failedCount++;
-                        console.warn('Skipping one note in bulk image export:', items[i]?.name, itemErr);
-                    }
-                    // Yields every iteration (not just every other) so a long
-                    // list of notes doesn't lock up the main thread on weaker
-                    // phones for a stretch long enough to look frozen.
-                    await new Promise(r=>setTimeout(r,0));
-                }
-                if (!files.length) throw new Error('No notes could be rendered to images');
-                const zipBlob=await buildZipRobust(files);
-                const method=await robustDownload(zipBlob,`${chosenZipName}.zip`,'application/zip');
-                closeAdvancedModal();
-                // Bug fix ("exporting several images says it's ready but nothing
-                // was actually downloaded"): the single-note image export
-                // (downloadSelectedImage above) already special-cases
-                // 'manual-fallback-closed' — the outcome where robustDownload()
-                // resolved (so no error was thrown) only because the person
-                // closed the guaranteed last-resort card without tapping its
-                // download link, meaning nothing was actually saved. This bulk
-                // "download all as one ZIP" path was showing the same "ready"
-                // success toast for that outcome too, which is exactly backwards
-                // for a case where nothing was saved. Give it the same honest,
-                // non-misleading message instead of folding it into "ready".
-                if (method === 'manual-fallback-closed') {
-                    showToast(fa ? 'کارت دانلود رو بستی؛ چیزی ذخیره نشد. دوباره امتحان کن و این‌بار روی دکمه دانلود بزن.' : "You closed the download card without saving. Try again and tap the download button this time.", 5000);
-                } else {
-                    showToast(failedCount
-                        ? (fa?`${files.length} تصویر در ZIP آماده شد (${failedCount} یادداشت رد شد).`:`${files.length} images are ready in one ZIP (${failedCount} note(s) skipped).`)
-                        : (fa?`همه ${normalized.toUpperCase()} ها در یک ZIP آماده شدند.`:`All ${normalized.toUpperCase()} images are ready in one ZIP.`));
-                }
-                console.log('image zip download method:',method);
-            } catch(err){
-                console.error(err);
-                // Last-resort mode: download each image separately if ZIP creation/download is blocked by the browser.
-                if(items.length){
-                    const ok=confirm(fa?'ساخت/دانلود ZIP ممکن نشد. تصاویر را یکی‌یکی دانلود کنم؟':'Could not build/download the ZIP. Download the images one by one instead?');
-                    if(ok){
-                        // Bug fix ("nothing happens after I say yes to one-by-one
-                        // download"): this loop used to run silently to
-                        // completion — no closeAdvancedModal(), no toast either
-                        // way — so a person who'd already seen the ZIP path fail
-                        // had no idea whether the one-by-one retry worked, was
-                        // still running, or had quietly failed too (the inner
-                        // catch just swallowed each per-item error). Tracking
-                        // real outcomes and reporting them honestly at the end
-                        // closes that silent gap.
-                        let savedCount = 0, unsavedCount = 0;
-                        for(const item of items){ try{
-                            if (mode === 'multi') {
-                                const blobs = await renderNoteToImagePages(item, normalized);
-                                for (let p=0;p<blobs.length;p++){
-                                    const suffix = blobs.length > 1 ? `_${String(p+1).padStart(2,'0')}_of_${String(blobs.length).padStart(2,'0')}` : '';
-                                    const m = await robustDownload(blobs[p],`${sanitizeFilename(item.name||'Markhin_Note')}${suffix}.${normalized}`,normalized==='jpg'?'image/jpeg':'image/png');
-                                    if (m === 'manual-fallback-closed') unsavedCount++; else savedCount++;
-                                    await new Promise(r=>setTimeout(r,120));
-                                }
-                            } else {
-                                const b=await renderNoteToImage(item,normalized);
-                                const m=await robustDownload(b,`${sanitizeFilename(item.name||'Markhin_Note')}.${normalized}`,normalized==='jpg'?'image/jpeg':'image/png');
-                                if (m === 'manual-fallback-closed') unsavedCount++; else savedCount++;
-                                await new Promise(r=>setTimeout(r,120));
-                            }
-                        }catch(e){console.warn(e); unsavedCount++;} }
-                        closeAdvancedModal();
-                        showToast(unsavedCount
-                            ? (fa?`${savedCount} تصویر ذخیره شد؛ ${unsavedCount} مورد ذخیره نشد.`:`${savedCount} image(s) saved; ${unsavedCount} could not be saved.`)
-                            : (fa?`${savedCount} تصویر جداگانه دانلود شد.`:`${savedCount} images downloaded individually.`));
-                    }
-                }
-            }
-        }
-
         async function exportImages(format) {
             openImageExportPicker(format);
         }
@@ -11490,11 +11363,10 @@ window.mu_syncHtmlBg = function(){
                 </button>`).join('');
             showAdvanced(`
                 <div class="advanced-head image-export-picker-head">
-                    <div><h3 style="margin:0">${fa ? '📄 خروجی PDF' : '📄 PDF Export'}</h3><p style="margin:5px 0 0;opacity:.65;font-size:11px">${fa ? 'انتخاب کن PDF همه یادداشت‌ها ساخته شود یا فقط یک یادداشت.' : 'Choose all notes or a single note.'}</p></div>
+                    <div><h3 style="margin:0">${fa ? '📄 خروجی PDF' : '📄 PDF Export'}</h3><p style="margin:5px 0 0;opacity:.65;font-size:11px">${fa ? 'یک یادداشت را برای ساخت PDF انتخاب کن.' : 'Choose a note to export as PDF.'}</p></div>
                     <button class="btn-main" onclick="closeAdvancedModal()">✕</button>
                 </div>
                 <div class="image-export-picker-actions">
-                    <button class="btn-main image-export-all-btn" onclick="downloadAllPDF()">📚 ${fa ? 'همه یادداشت‌ها' : 'All notes'}</button>
                     <span class="image-export-count">${items.length} ${fa ? 'یادداشت' : 'notes'}</span>
                 </div>
                 <div class="image-export-choice-grid">${cards}</div>
@@ -11537,34 +11409,6 @@ window.mu_syncHtmlBg = function(){
             // export path even when the html2canvas/jsPDF engine is unavailable.
             document.title = chosenName || (items.length === 1 ? sanitizeFilename(items[0].name) : 'Markhin_Note_All_Notes');
             setTimeout(() => { window.print(); setTimeout(() => { printable.remove(); document.title = oldTitle; }, 700); }, 80);
-        }
-
-        async function downloadAllPDF() {
-            const items = getExportableCategories();
-            if (!items.length) return;
-            if (items.some(isNoteLocked)) {
-                const chosenName=await promptFilename('Markhin_Note_All_Notes','zip',{desc:currentLang==='fa'?'یادداشت‌های قفل‌شده به‌صورت رمزنگاری‌شده داخل ZIP قرار می‌گیرند.':'Locked notes will be included encrypted inside the ZIP.'});
-                if(chosenName===null){closeAdvancedModal();return;}
-                try{await buildMixedEncryptedExportZip(items,chosenName,'pdf');closeAdvancedModal();showToast(currentLang==='fa'?'ZIP امن PDF آماده شد.':'Secure PDF export ZIP is ready.');}catch(e){console.error(e);alert(currentLang==='fa'?'خروجی PDF انجام نشد.':'PDF export failed.');}
-                return;
-            }
-            const chosenName = await promptFilename('Markhin_Note_All_Notes', 'pdf', {
-                desc: currentLang === 'fa' ? 'نام فایل PDF شامل همه یادداشت‌ها.' : 'Name for the PDF containing all notes.'
-            });
-            if (chosenName === null) { closeAdvancedModal(); return; }
-            closeAdvancedModal();
-            if (!window.html2canvas || !window.jspdf?.jsPDF) {
-                exportPDFPrint(items, chosenName);
-                return;
-            }
-            try {
-                const blob = await createPDFBlob(items);
-                await triggerDownload(blob, `${chosenName}.pdf`, 'application/pdf');
-                showToast(currentLang === 'fa' ? 'PDF همه یادداشت‌ها آماده شد.' : 'PDF with all notes is ready.');
-            } catch(err) {
-                console.error(err);
-                alert(currentLang==='fa'?'ساخت PDF همه یادداشت‌ها انجام نشد.':'Could not create the all-notes PDF.');
-            }
         }
 
         let __docxEnginePromise = null;
@@ -12828,16 +12672,8 @@ window.mu_syncHtmlBg = function(){
                 if(selected.txt && plainItems.length) await addExport('markhin_notes.txt', async () => plainItems.map((item,index)=>`========================================\n${index+1}. ${item.name}${item.folder?` [Folder: ${item.folder}]`:''}\n========================================\n${getTxtContent(item.id,item).replace(/\n+$/,'')}\n`).join('\n'));
 
                 if(selected.docx && plainItems.length) await addExport(plainItems.length===1?`${sanitizeFilename(plainItems[0].name)}.docx`:'Markhin_Note_All_Notes.docx', () => createDOCXBlob(plainItems));
-                if(selected.pdf && plainItems.length) await addExport(plainItems.length===1?`${sanitizeFilename(plainItems[0].name)}.pdf`:'Markhin_Note_All_Notes.pdf', () => createPDFBlob(plainItems));
 
-                // Images are also isolated one-by-one. A failed image does not stop other images/formats.
-                for(let i=0;i<plainItems.length;i++){
-                    for(const fmt of ['png','jpg']){
-                        if(selected[fmt] && plainItems.length) await addExport(`${fmt.toUpperCase()}/${String(i+1).padStart(3,'0')}_${sanitizeFilename(plainItems[i].name||`note_${i+1}`)}.${fmt}`, () => renderNoteToImage(plainItems[i],fmt));
-                    }
-                    if(selected.png || selected.jpg) await new Promise(r=>setTimeout(r,0));
-                }
-                if(selected.readme) await addExport('README.txt', async () => 'Markhin Note complete export bundle. Includes every format that could be generated successfully; failed formats are skipped automatically.\n');
+                if(selected.readme) await addExport('README.txt', async () => 'Markhin Note complete export bundle.\nIncludes the formats you selected among: JSON backup, CSV, Markdown, TXT, and DOCX. Any failed format is skipped automatically. PDF and image (PNG/JPG) exports are not part of this bundle — export a single note as PDF/PNG/JPG separately from its own export menu.\n');
 
                 if(!files.length) throw new Error('No files available for ZIP');
                 let method = 'zip';
@@ -12877,7 +12713,7 @@ window.mu_syncHtmlBg = function(){
         function exportBundle(){
             const items=getExportableCategories(); if(!items.length){alert(currentLang==='fa'?'یادداشتی برای خروجی وجود ندارد.':'There are no notes to export.');return;}
             const fa=currentLang==='fa';
-            const opts=[['json',fa?'پشتیبان JSON':'JSON Backup',fa?'اطلاعات کامل برنامه':'Full app data'],['csv','CSV',fa?'داده‌های جدولی':'Tabular data'],['md','Markdown',fa?'یادداشت‌ها با قالب Markdown':'Notes in Markdown'],['txt',fa?'متن ساده':'Plain Text',fa?'نسخه متنی':'Plain-text notes'],['docx','DOCX',fa?'فایل Word':'Word document'],['pdf','PDF',fa?'فایل PDF':'PDF document'],['png','PNG',fa?'تصویر همه یادداشت‌ها':'Images of all notes'],['jpg','JPG',fa?'تصویر فشرده همه یادداشت‌ها':'Compressed images'],['readme','README',fa?'راهنمای بسته':'Bundle guide']];
+            const opts=[['json',fa?'پشتیبان JSON':'JSON Backup',fa?'اطلاعات کامل برنامه':'Full app data'],['csv','CSV',fa?'داده‌های جدولی':'Tabular data'],['md','Markdown',fa?'یادداشت‌ها با قالب Markdown':'Notes in Markdown'],['txt',fa?'متن ساده':'Plain Text',fa?'نسخه متنی':'Plain-text notes'],['docx','DOCX',fa?'فایل Word':'Word document'],['readme','README',fa?'راهنمای بسته':'Bundle guide']];
             showAdvanced(`<div class="advanced-head"><h3>📦 ${fa?'انتخاب خروجی‌های ZIP':'Choose ZIP contents'}</h3><button class="btn-main" onclick="closeAdvancedModal()">✕</button></div><p style="opacity:.62;font-size:11px;line-height:1.7">${fa?'خروجی‌هایی را که می‌خواهی داخل ZIP باشند انتخاب کن. اگر یکی خطا بدهد، فقط همان خروجی رد می‌شود و بقیه ادامه پیدا می‌کنند.':'Choose the exports to include. If one fails, only that export is skipped and the rest continue.'}</p><div class="zip-export-picker-actions"><span class="image-export-count">${items.length} ${fa?'یادداشت':'notes'}</span><span><button class="btn-main image-export-all-btn" onclick="toggleZipExportChecks(true)">${fa?'انتخاب همه':'Select all'}</button> <button class="btn-main image-export-all-btn" onclick="toggleZipExportChecks(false)">${fa?'لغو همه':'Clear all'}</button></span></div><div class="zip-export-picker-grid" id="zipExportPickerGrid">${opts.map(([key,name,desc])=>`<label class="zip-export-option"><input type="checkbox" data-zip-key="${key}" checked><span class="zip-export-option-text"><span class="zip-export-option-name">${name}</span><span class="zip-export-option-desc">${desc}</span></span></label>`).join('')}</div><div class="zip-export-picker-actions"><button class="btn-main" onclick="closeAdvancedModal()">${fa?'انصراف':'Cancel'}</button><button class="btn-main" onclick="startSelectedZipExport()">📦 ${fa?'ساخت بسته ZIP':'Build ZIP'}</button></div>`);
         }
         function toggleZipExportChecks(value){document.querySelectorAll('#zipExportPickerGrid input[data-zip-key]').forEach(cb=>cb.checked=!!value);}
