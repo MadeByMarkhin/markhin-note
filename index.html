@@ -3149,6 +3149,14 @@ window.mu_syncHtmlBg = function(){
         // saves nothing. This doesn't depend on live SDK detection like TG does, so it's
         // safe to compute once from the user agent string.
         const IS_KNOWN_INAPP_BROWSER = /Instagram|FBAN|FBAV|FB_IAB|Line\/|MicroMessenger|KAKAOTALK|NAVER|Snapchat|TikTok|musical_ly|Pinterest|WhatsApp|GSA\/|; ?wv\)/i.test(navigator.userAgent || '');
+        // Opening this file directly off the device's storage (double-tapping the
+        // downloaded .html instead of visiting a hosted https:// URL) puts the page
+        // on the file: origin. Chrome for Android silently swallows every Blob/anchor
+        // download attempt from that origin -- no error, no notification, nothing in
+        // chrome://downloads -- so robustDownload() below checks this first and tells
+        // the person plainly instead of cycling through fallback methods that cannot
+        // possibly work here.
+        const IS_FILE_PROTOCOL = (location.protocol === 'file:');
         function mu_applyTelegramSetup(){
             TG = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
             IS_TELEGRAM = !!TG || /Telegram/i.test(navigator.userAgent || '');
@@ -3221,6 +3229,12 @@ window.mu_syncHtmlBg = function(){
         // rejected by the OS-level "open externally" call, so we stay well under
         // where that starts becoming a real risk.
         const TG_BRIDGE_MAX_BLOB_BYTES = 3 * 1024 * 1024;
+        // The manual "last resort" card (showManualDownloadFallback) has nothing
+        // left to try after this, so it's worth risking a bigger/slower handoff
+        // than the automatic pre-flight above attempts — a slow success beats a
+        // guaranteed failure. Still bounded, since extremely long URLs do risk
+        // being truncated by the OS-level "open externally" call.
+        const TG_BRIDGE_MAX_BLOB_BYTES_LAST_RESORT = 15 * 1024 * 1024;
 
         // Small helper so a non-interactive async step (something with no user
         // gesture to wait on — reading a Blob, not a share sheet or file picker
@@ -3239,9 +3253,9 @@ window.mu_syncHtmlBg = function(){
         // Reopens this page in the user's real browser with `blob` waiting to be
         // downloaded there. Returns true if the handoff was launched (not a
         // guarantee the user completed it), false if it couldn't be attempted.
-        async function tgOpenInSystemBrowser(blob, filename, mime) {
+        async function tgOpenInSystemBrowser(blob, filename, mime, maxBytesOverride) {
             if (!IS_TELEGRAM || !blob) return false;
-            if (blob.size > TG_BRIDGE_MAX_BLOB_BYTES) return false;
+            if (blob.size > (maxBytesOverride || TG_BRIDGE_MAX_BLOB_BYTES)) return false;
             try {
                 const dataUrl = await mu_withTimeout(new Promise((resolve, reject) => {
                     const r = new FileReader();
@@ -3475,9 +3489,7 @@ window.mu_syncHtmlBg = function(){
                 mcGroupOrganize: "سازمان‌دهی",
                 mcGroupSecurity: "امنیت یادداشت",
                 mcGroupSpecial: "افکت‌های ویژه",
-                mcGroupExport: "خروجی",
                 mcGroupDanger: "منطقه خطر",
-                mcExportBtn: "خروجی این یادداشت",
                 previewLink: "پیش‌نمایش لینک",
                 hide: "مخفی کردن",
                 show: "نمایش",
@@ -3578,9 +3590,7 @@ window.mu_syncHtmlBg = function(){
                 mcGroupOrganize: "Organize",
                 mcGroupSecurity: "Note Security",
                 mcGroupSpecial: "Special Effects",
-                mcGroupExport: "Export",
                 mcGroupDanger: "Danger Zone",
-                mcExportBtn: "Export this note",
                 previewLink: "Link Preview",
                 hide: "Hide",
                 show: "Show",
@@ -4173,22 +4183,6 @@ window.mu_syncHtmlBg = function(){
                 }
             };
             return new Blob([JSON.stringify(envelope, null, 2)], {type:'application/vnd.markhin.encrypted+json;charset=utf-8'});
-        }
-
-        async function exportLockedAwareSingle(item, chosenName, normalProducer, normalExt, normalMime) {
-            if (isNoteLocked(item)) {
-                const blob = await createEncryptedExport(item);
-                await robustDownload(blob, `${chosenName}.mne.json`, blob.type);
-                return true;
-            }
-            const data = await normalProducer();
-            const blob = data instanceof Blob ? data : new Blob([data], {type: normalMime});
-            await robustDownload(blob, `${chosenName}.${normalExt}`, normalMime);
-            return true;
-        }
-
-        function isEncryptedExportFile(file) {
-            return /\.mne\.json$/i.test(file?.name || '') || String(file?.type || '').includes('application/vnd.markhin.encrypted');
         }
 
         function isNoteLocked(item) {
@@ -5159,13 +5153,6 @@ window.mu_syncHtmlBg = function(){
                                 <button onclick="setTimeCapsule('${item.id}')">⏳ کپسول زمان</button>
                                 <button onclick="setGhostNote('${item.id}')">👻 Ghost</button>
                                 <button onclick="setDecayLevel('${item.id}')">⌛ Decay</button>
-                            </div>
-                        </div>
-
-                        <div class="mc-group">
-                            <span class="mc-group-label">${t.mcGroupExport}</span>
-                            <div class="mc-row">
-                                <button type="button" class="mc-btn-primary" onclick="openNoteExportPicker('${item.id}')">📤 ${t.mcExportBtn}</button>
                             </div>
                         </div>
 
@@ -6765,7 +6752,6 @@ window.mu_syncHtmlBg = function(){
             const LANE_LINE = 'rgba(255,255,255,0.22)';
             const CAR1_COLOR = '#f13866';
             const CAR2_COLOR = '#00a9c0';
-            function colColor(col) { return col < 2 ? CAR1_COLOR : CAR2_COLOR; }
 
             // Perf/smoothness fix: this radial gradient used to be built
             // fresh with ctx.createRadialGradient() on every single animation
@@ -9607,14 +9593,6 @@ window.mu_syncHtmlBg = function(){
             document.getElementById('racerChooserCancel').onclick = function () { overlay.remove(); };
         }
 
-        function applyBold(id) {
-            const textEl = document.getElementById(`text-${id}`);
-            if (textEl) {
-                textEl.focus();
-                document.execCommand('bold', false, null);
-            }
-        }
-
         function toggleDrawingBox(id) {
             const drawBox = document.getElementById(`draw-box-${id}`);
             if (drawBox) {
@@ -10743,28 +10721,6 @@ window.mu_syncHtmlBg = function(){
             return String(item?.text ?? '');
         }
 
-        async function downloadAsTxt(id) {
-            const t = i18n[currentLang];
-            const item = categories.find(c => c.id === id);
-            if (!item) return;
-
-            if (item.isDecoy) {
-                alert(t.unauthorized);
-                return;
-            }
-
-            const chosenName = await promptFilename(item.name, 'txt');
-            if (chosenName === null) return;
-            try {
-                if (isNoteLocked(item)) { const blob = await createEncryptedExport(item); await robustDownload(blob, `${chosenName}.mne.json`, blob.type); }
-                else { const textContent = getTxtContent(id, item); await triggerDownload(textContent, `${chosenName}.txt`, 'text/plain;charset=utf-8'); }
-                showToast(currentLang === 'fa' ? 'فایل متنی آماده شد.' : 'Text file is ready.');
-            } catch (err) {
-                console.error(err);
-                alert(currentLang === 'fa' ? 'دانلود فایل متنی انجام نشد. دوباره امتحان کن.' : 'The text download failed. Please try again.');
-            }
-        }
-
         async function buildMixedEncryptedExportZip(items, chosenName, format) {
             const files = [];
             const locked = items.filter(isNoteLocked);
@@ -10791,43 +10747,6 @@ window.mu_syncHtmlBg = function(){
             if(!files.length) throw new Error('No exportable notes');
             const zip=await buildZipRobust(files);
             await robustDownload(zip,`${chosenName}.zip`,'application/zip');
-        }
-
-        async function downloadAllAsTxt() {
-            if (categories.length === 0) return;
-            const exportItems=getExportableCategories();
-            if (exportItems.some(isNoteLocked)) {
-                const chosenName=await promptFilename('Markhin_Note_All_Texts','zip',{desc:currentLang==='fa'?'یادداشت‌های قفل‌شده داخل فایل‌های رمزنگاری‌شده قرار می‌گیرند.':'Locked notes will be included as encrypted Markhin exports.'});
-                if(chosenName===null)return;
-                try{await buildMixedEncryptedExportZip(exportItems,chosenName,'txt');showToast(currentLang==='fa'?'ZIP امن آماده شد.':'Secure ZIP export is ready.');}catch(e){console.error(e);alert(currentLang==='fa'?'خروجی انجام نشد.':'Export failed.');}
-                return;
-            }
-
-            let mergedContent = '';
-            categories.forEach((item, index) => {
-                if (item.isDecoy) return;
-
-                const folderName = item.folder ? ` [Folder: ${item.folder}]` : '';
-                const itemHeader = `========================================\n${index + 1}. ${item.name}${folderName}\n========================================\n`;
-                const content = getTxtContent(item.id, item);
-
-                mergedContent += itemHeader + content.replace(/\n+$/g, '') + '\n\n\n';
-            });
-
-            if (!mergedContent.trim()) return;
-
-            const chosenName = await promptFilename('Markhin_Note_All_Texts', 'txt', {
-                desc: currentLang === 'fa' ? 'نام فایل متنی شامل همه یادداشت‌ها.' : 'Name for the text file containing all notes.'
-            });
-            if (chosenName === null) return;
-            const fileName = `${chosenName}.txt`;
-            try {
-                await triggerDownload(mergedContent, fileName, 'text/plain;charset=utf-8');
-                showToast(currentLang === 'fa' ? 'فایل متنی همه یادداشت‌ها آماده شد.' : 'Text file with all notes is ready.');
-            } catch (err) {
-                console.error(err);
-                alert(currentLang === 'fa' ? 'دانلود فایل متنی انجام نشد. دوباره امتحان کن.' : 'The text download failed. Please try again.');
-            }
         }
 
         function getExportableCategories() {
@@ -10987,7 +10906,22 @@ window.mu_syncHtmlBg = function(){
             const card = document.createElement('article');
             card.dir = currentLang === 'fa' ? 'rtl' : 'ltr';
             card.lang = currentLang;
-            card.style.cssText = 'position:relative;width:100%;box-sizing:border-box;padding:56px;background:#fff;color:#111;font-family:Arial,sans-serif;font-size:18px;line-height:1.9;word-break:break-word;overflow:hidden;';
+            // Bug fix ("text in the image export looks worse than in the note"):
+            // this used to hardcode font-family:Arial and font-size:18px no
+            // matter what font/size the person picked for the note from the
+            // editor's own font toolbar (item.fontFamily/item.fontSize — the
+            // same fields createPDFBlob() already reads and patches onto this
+            // same card after the fact for PDF export). Image export never got
+            // that patch, so PNG/JPG output silently ignored the chosen font
+            // and fell back to a generic one, while the PDF export of the same
+            // note honored it — exactly the inconsistency being reported.
+            // Reading it here means every caller (image export AND PDF export,
+            // whose own inline override below is now redundant but harmless)
+            // gets the note's real font consistently.
+            const exportFontFamily = (item && typeof item.fontFamily === 'string' && item.fontFamily.trim())
+                ? item.fontFamily.trim() : 'Arial, sans-serif';
+            const exportFontSize = (item && Number(item.fontSize) > 0) ? Number(item.fontSize) : 18;
+            card.style.cssText = `position:relative;width:100%;box-sizing:border-box;padding:56px;background:#fff;color:#111;font-family:${exportFontFamily};font-size:${exportFontSize}px;line-height:1.9;word-break:break-word;overflow:hidden;`;
 
             const title = document.createElement('h1');
             title.textContent = item.name || 'Markhin Note';
@@ -11417,27 +11351,62 @@ window.mu_syncHtmlBg = function(){
                 const zipBlob=await buildZipRobust(files);
                 const method=await robustDownload(zipBlob,`${chosenZipName}.zip`,'application/zip');
                 closeAdvancedModal();
-                showToast(failedCount
-                    ? (fa?`${files.length} تصویر در ZIP آماده شد (${failedCount} یادداشت رد شد).`:`${files.length} images are ready in one ZIP (${failedCount} note(s) skipped).`)
-                    : (fa?`همه ${normalized.toUpperCase()} ها در یک ZIP آماده شدند.`:`All ${normalized.toUpperCase()} images are ready in one ZIP.`));
+                // Bug fix ("exporting several images says it's ready but nothing
+                // was actually downloaded"): the single-note image export
+                // (downloadSelectedImage above) already special-cases
+                // 'manual-fallback-closed' — the outcome where robustDownload()
+                // resolved (so no error was thrown) only because the person
+                // closed the guaranteed last-resort card without tapping its
+                // download link, meaning nothing was actually saved. This bulk
+                // "download all as one ZIP" path was showing the same "ready"
+                // success toast for that outcome too, which is exactly backwards
+                // for a case where nothing was saved. Give it the same honest,
+                // non-misleading message instead of folding it into "ready".
+                if (method === 'manual-fallback-closed') {
+                    showToast(fa ? 'کارت دانلود رو بستی؛ چیزی ذخیره نشد. دوباره امتحان کن و این‌بار روی دکمه دانلود بزن.' : "You closed the download card without saving. Try again and tap the download button this time.", 5000);
+                } else {
+                    showToast(failedCount
+                        ? (fa?`${files.length} تصویر در ZIP آماده شد (${failedCount} یادداشت رد شد).`:`${files.length} images are ready in one ZIP (${failedCount} note(s) skipped).`)
+                        : (fa?`همه ${normalized.toUpperCase()} ها در یک ZIP آماده شدند.`:`All ${normalized.toUpperCase()} images are ready in one ZIP.`));
+                }
                 console.log('image zip download method:',method);
             } catch(err){
                 console.error(err);
                 // Last-resort mode: download each image separately if ZIP creation/download is blocked by the browser.
                 if(items.length){
                     const ok=confirm(fa?'ساخت/دانلود ZIP ممکن نشد. تصاویر را یکی‌یکی دانلود کنم؟':'Could not build/download the ZIP. Download the images one by one instead?');
-                    if(ok){ for(const item of items){ try{
-                        if (mode === 'multi') {
-                            const blobs = await renderNoteToImagePages(item, normalized);
-                            for (let p=0;p<blobs.length;p++){
-                                const suffix = blobs.length > 1 ? `_${String(p+1).padStart(2,'0')}_of_${String(blobs.length).padStart(2,'0')}` : '';
-                                await robustDownload(blobs[p],`${sanitizeFilename(item.name||'Markhin_Note')}${suffix}.${normalized}`,normalized==='jpg'?'image/jpeg':'image/png');
+                    if(ok){
+                        // Bug fix ("nothing happens after I say yes to one-by-one
+                        // download"): this loop used to run silently to
+                        // completion — no closeAdvancedModal(), no toast either
+                        // way — so a person who'd already seen the ZIP path fail
+                        // had no idea whether the one-by-one retry worked, was
+                        // still running, or had quietly failed too (the inner
+                        // catch just swallowed each per-item error). Tracking
+                        // real outcomes and reporting them honestly at the end
+                        // closes that silent gap.
+                        let savedCount = 0, unsavedCount = 0;
+                        for(const item of items){ try{
+                            if (mode === 'multi') {
+                                const blobs = await renderNoteToImagePages(item, normalized);
+                                for (let p=0;p<blobs.length;p++){
+                                    const suffix = blobs.length > 1 ? `_${String(p+1).padStart(2,'0')}_of_${String(blobs.length).padStart(2,'0')}` : '';
+                                    const m = await robustDownload(blobs[p],`${sanitizeFilename(item.name||'Markhin_Note')}${suffix}.${normalized}`,normalized==='jpg'?'image/jpeg':'image/png');
+                                    if (m === 'manual-fallback-closed') unsavedCount++; else savedCount++;
+                                    await new Promise(r=>setTimeout(r,120));
+                                }
+                            } else {
+                                const b=await renderNoteToImage(item,normalized);
+                                const m=await robustDownload(b,`${sanitizeFilename(item.name||'Markhin_Note')}.${normalized}`,normalized==='jpg'?'image/jpeg':'image/png');
+                                if (m === 'manual-fallback-closed') unsavedCount++; else savedCount++;
                                 await new Promise(r=>setTimeout(r,120));
                             }
-                        } else {
-                            const b=await renderNoteToImage(item,normalized); await robustDownload(b,`${sanitizeFilename(item.name||'Markhin_Note')}.${normalized}`,normalized==='jpg'?'image/jpeg':'image/png'); await new Promise(r=>setTimeout(r,120));
-                        }
-                    }catch(e){console.warn(e);} } }
+                        }catch(e){console.warn(e); unsavedCount++;} }
+                        closeAdvancedModal();
+                        showToast(unsavedCount
+                            ? (fa?`${savedCount} تصویر ذخیره شد؛ ${unsavedCount} مورد ذخیره نشد.`:`${savedCount} image(s) saved; ${unsavedCount} could not be saved.`)
+                            : (fa?`${savedCount} تصویر جداگانه دانلود شد.`:`${savedCount} images downloaded individually.`));
+                    }
                 }
             }
         }
@@ -11534,11 +11503,6 @@ window.mu_syncHtmlBg = function(){
                 console.error(err);
                 alert(currentLang==='fa'?'ساخت PDF همه یادداشت‌ها انجام نشد.':'Could not create the all-notes PDF.');
             }
-        }
-
-        async function exportAllPDF() {
-            // Kept for compatibility with older buttons/scripts.
-            openPDFExportPicker();
         }
 
         let __docxEnginePromise = null;
@@ -11926,6 +11890,20 @@ window.mu_syncHtmlBg = function(){
         async function robustDownload(blob, filename, mime) {
             const safeName = sanitizeFilename(filename || 'download') || 'download';
 
+            // Method -1: file:// origin (the page was opened by directly launching the
+            // downloaded .html instead of visiting a hosted https:// URL). Every method
+            // below -- the anchor click, the File System Access picker, share(), even
+            // window.open() -- either throws or silently no-ops on this origin in Chrome
+            // for Android, so there is no fallback worth attempting. Tell the person the
+            // real cause up front instead of leaving them staring at a button that never
+            // does anything.
+            if (IS_FILE_PROTOCOL) {
+                alert(currentLang === 'fa'
+                    ? '⚠️ چون این فایل مستقیماً از حافظه گوشی باز شده، دانلود در کروم اندروید کار نمی‌کند. این صفحه را باید روی یک آدرس اینترنتی (https://...) میزبانی کنی و از همان‌جا باز کنی تا خروجی‌گیری کار کند.'
+                    : '⚠️ Downloads don\u2019t work in Chrome for Android when this file is opened directly from storage. Host this page at a real https:// URL and open it from there for exports to work.');
+                return 'file-protocol-blocked';
+            }
+
             // Method 0 (Telegram only): a plain blob-anchor click (Method 1 below) is
             // exactly the thing that silently fails inside Telegram's in-app browser —
             // it fires with no error, but nothing gets saved. So when we detect Telegram,
@@ -12187,21 +12165,103 @@ window.mu_syncHtmlBg = function(){
                 card.innerHTML = `
                     <div style="font-size:32px;margin-bottom:10px">📥</div>
                     <h3 style="margin:0 0 8px;font-size:15px">${fa ? 'دانلود خودکار انجام نشد' : "Automatic download didn't work"}</h3>
-                    <p style="margin:0 0 14px;font-size:12px;opacity:.7;line-height:1.9">${fa
-                        ? 'روی دکمه پایین بزن؛ اگر باز هم چیزی ذخیره نشد، انگشتت را روی دکمه نگه‌دار و «ذخیره لینک» یا «ذخیره تصویر» را بزن.'
-                        : 'Tap the button below. If it still doesn\u2019t save, press-and-hold it and choose "Save Link" or "Save Image".'}</p>
+                    <p style="margin:0 0 14px;font-size:12px;opacity:.7;line-height:1.9">${IS_TELEGRAM
+                        ? (fa
+                            ? 'روی دکمه پایین بزن. این کار یا پنجره اشتراک‌گذاری گوشی را باز می‌کند یا فایل را در مرورگر گوشی‌ات باز می‌کند تا از آنجا دانلودش کنی.'
+                            : 'Tap the button below. It will either open your phone\u2019s share sheet, or open the file in your phone\u2019s browser so you can download it from there.')
+                        : (fa
+                            ? 'روی دکمه پایین بزن؛ اگر باز هم چیزی ذخیره نشد، انگشتت را روی دکمه نگه‌دار و «ذخیره لینک» یا «ذخیره تصویر» را بزن.'
+                            : 'Tap the button below. If it still doesn\u2019t save, press-and-hold it and choose "Save Link" or "Save Image".')}</p>
                     ${isImg && url ? `<img src="${url}" alt="${safeFilename}" style="max-width:100%;border-radius:10px;margin-bottom:14px;border:1px solid #334155">` : ''}
                     <p style="margin:0 0 14px;font-size:11px;opacity:.55;word-break:break-all">${safeFilename}</p>
                 `;
                 if (url) {
                     const link = document.createElement('a');
-                    link.href = url; link.download = safeFilename; link.target = '_blank'; link.rel = 'noopener';
                     link.textContent = fa ? '⬇️ دانلود / ذخیره فایل' : '⬇️ Download / save file';
-                    link.style.cssText = 'display:block;background:#2563eb;color:#fff;padding:13px;border-radius:11px;text-decoration:none;font-weight:800;font-size:13px;margin-bottom:10px';
-                    // Give the browser a moment to actually act on the tap (start the
-                    // navigation/save) before we tear the overlay down — otherwise we'd
-                    // risk removing the anchor (and revoking its blob: URL) mid-click.
-                    link.onclick = () => { setTimeout(() => finish('manual-fallback-tapped'), 400); };
+                    link.style.cssText = 'display:block;background:#2563eb;color:#fff;padding:13px;border-radius:11px;text-decoration:none;font-weight:800;font-size:13px;margin-bottom:10px;cursor:pointer';
+                    if (IS_TELEGRAM) {
+                        // Bug fix ("automatic download failed, then the manual button
+                        // does nothing either"): this button used to just be a plain
+                        // <a href="data:/blob:..." download> for the user to tap. But
+                        // per the block comment at the top of the file, Telegram's
+                        // in-app WebView silently blocks EXACTLY that — a tap on a
+                        // data:/blob: anchor fires no error and saves nothing, even
+                        // though it's a real, user-initiated click. So this "guaranteed
+                        // last resort" was actually guaranteed to fail inside Telegram
+                        // specifically, which is exactly what was being reported.
+                        // Fix: inside Telegram, this button doesn't depend on the
+                        // browser following href at all. It actively re-drives the two
+                        // methods documented to actually work in Telegram — native
+                        // share, then the system-browser handoff — from this genuine
+                        // tap (a stronger gesture context than the earlier automatic
+                        // attempts, and with a larger size budget since there's
+                        // nothing left to fall back to after this).
+                        link.href = '#';
+                        link.onclick = async (e) => {
+                            // Bug fix: once both automated methods below (share, then the
+                            // system-browser bridge) have already been tried and failed once,
+                            // this handler used to stay attached forever — every further tap
+                            // called e.preventDefault() first and re-ran the exact same two
+                            // failed methods again, so the real <a href download> underneath
+                            // could never actually navigate. That's the "I tap it and nothing
+                            // happens" loop. Once we've genuinely exhausted both methods and
+                            // fallen back to a real href below, this flag makes the handler get
+                            // out of the way on the next tap instead of intercepting it again,
+                            // so the browser's normal anchor navigation (a real user gesture on
+                            // a real href) gets its own honest shot.
+                            if (link.dataset.fallbackExhausted) return;
+                            e.preventDefault();
+                            if (link.dataset.busy) return;
+                            link.dataset.busy = '1';
+                            const originalText = link.textContent;
+                            link.textContent = fa ? '⏳ در حال باز کردن…' : '⏳ Opening…';
+                            try {
+                                if (navigator.share && typeof File !== 'undefined') {
+                                    const file = new File([blob], filename, {type: mime || blob.type || 'application/octet-stream'});
+                                    if (!navigator.canShare || navigator.canShare({files:[file]})) {
+                                        await mu_withTimeout(navigator.share({title: filename, files:[file]}), 15000);
+                                        finish('manual-fallback-share');
+                                        return;
+                                    }
+                                }
+                            } catch (err) {
+                                if (err?.name === 'AbortError') { finish('cancelled'); return; }
+                                console.warn('Manual card share retry failed', err);
+                            }
+                            try {
+                                if (await tgOpenInSystemBrowser(blob, filename, mime, TG_BRIDGE_MAX_BLOB_BYTES_LAST_RESORT)) {
+                                    finish('manual-fallback-bridge');
+                                    return;
+                                }
+                            } catch (err) { console.warn('Manual card bridge retry failed', err); }
+                            // Both proven-in-Telegram methods failed (or the file is too
+                            // large for the bridge) — fall back to letting the raw link
+                            // try anyway. Documented-unreliable in Telegram, but it's a
+                            // free last gasp (some Telegram Desktop/older-client WebViews
+                            // are more capable, per the top-of-file comment) rather than
+                            // just stopping here.
+                            // Bug fix: this used to leave the onclick handler above still
+                            // attached, so the NEXT tap hit e.preventDefault() again and
+                            // re-ran share()/tgOpenInSystemBrowser() (which had already just
+                            // failed) instead of letting this href navigate — every tap
+                            // repeated the identical failure forever. Marking the handler
+                            // "exhausted" here means the next tap is a real, unintercepted
+                            // click on a real download link.
+                            link.busy = false; delete link.dataset.busy;
+                            link.dataset.fallbackExhausted = '1';
+                            link.href = url; link.download = safeFilename; link.target = '_blank'; link.rel = 'noopener';
+                            link.textContent = originalText;
+                            showToast(fa
+                                ? 'اشتراک‌گذاری و باز کردن در مرورگر ممکن نشد؛ یک‌بار دیگر روی همین دکمه بزن.'
+                                : "Couldn't share or open in browser; tap this button once more.", 4000);
+                        };
+                    } else {
+                        link.href = url; link.download = safeFilename; link.target = '_blank'; link.rel = 'noopener';
+                        // Give the browser a moment to actually act on the tap (start the
+                        // navigation/save) before we tear the overlay down — otherwise we'd
+                        // risk removing the anchor (and revoking its blob: URL) mid-click.
+                        link.onclick = () => { setTimeout(() => finish('manual-fallback-tapped'), 400); };
+                    }
                     card.appendChild(link);
                 } else {
                     const warn = document.createElement('p');
@@ -12348,24 +12408,6 @@ window.mu_syncHtmlBg = function(){
             }
         }
 
-        async function renameCategory(id) {
-            const item = categories.find(c => c.id === id);
-            if (item) {
-                const fa = currentLang === 'fa';
-                const newName = await promptStyledText({
-                    title: fa ? '✏️ تغییر نام یادداشت' : '✏️ Rename note',
-                    placeholder: i18n[currentLang].promptRename,
-                    defaultValue: item.name,
-                    okText: fa ? '✔️ ذخیره' : '✔️ Save'
-                });
-                if (newName && newName.trim() !== '') {
-                    mu_recordTitleHistory(item, newName.trim());
-                    saveToLocalStorage();
-                    renderApp(id);
-                }
-            }
-        }
-
         // Shared by every rename path (this manual dialog and the AI's
         // rename_note tool) so a note's title history is always complete
         // regardless of how it was renamed. Keeps every previous title,
@@ -12397,15 +12439,6 @@ window.mu_syncHtmlBg = function(){
             }
         }
 
-        function moveCategory(id, direction) {
-            const index = categories.findIndex(c => c.id === id);
-            const target = index + Number(direction);
-            if (index < 0 || target < 0 || target >= categories.length) return;
-            [categories[index], categories[target]] = [categories[target], categories[index]];
-            saveToLocalStorage();
-            renderApp(id);
-        }
-
         function deleteCategory(id) {
             if (confirm(i18n[currentLang].confirmDelete)) {
                 categories = categories.filter(c => c.id !== id);
@@ -12415,7 +12448,6 @@ window.mu_syncHtmlBg = function(){
             }
         }
 
-        function exportBackup() { openStructuredExportPicker('json'); }
 
         function importBackup(event) {
             const file = event.target.files?.[0];
@@ -12504,7 +12536,6 @@ window.mu_syncHtmlBg = function(){
             return `"${String(value ?? '').replace(/"/g, '""').replace(/\r\n?/g, '\n')}"`;
         }
 
-        function exportCSV() { openStructuredExportPicker('csv'); }
 
         function openStructuredExportPicker(type) {
             const items = getExportableCategories();
@@ -12701,7 +12732,6 @@ window.mu_syncHtmlBg = function(){
             return text || String(fallbackText ?? '').trim();
         }
 
-        function exportAllMarkdown() { openStructuredExportPicker('md'); }
 
         async function buildExportBundle(selected = {}, chosenZipName = null) {
             const items=getExportableCategories(); if(!items.length)return;
@@ -13130,7 +13160,6 @@ window.mu_syncHtmlBg = function(){
             const ts=Date.parse(raw); if(!Number.isFinite(ts)||ts<=Date.now()){showToast(currentLang==='fa'?'زمان باید در آینده باشد.':'Time must be in the future.');return;}
             item.unlockAt=ts; saveToLocalStorage(); renderApp(id); showToast(currentLang==='fa'?'کپسول زمان فعال شد.':'Time Capsule armed.');
         }
-        function clearTimeCapsule(id){const item=categories.find(c=>c.id===id);if(!item)return;item.unlockAt='';saveToLocalStorage();renderApp(id)}
 
         async function setGhostNote(id){
             const item=categories.find(c=>c.id===id);if(!item)return;
@@ -13144,7 +13173,6 @@ window.mu_syncHtmlBg = function(){
             if(raw===null)return; const hours=Number(raw); if(!Number.isFinite(hours)||hours<=0){showToast(currentLang==='fa'?'عدد نامعتبر است.':'Invalid duration.');return;}
             item.ghostUntil=Date.now()+hours*3600000; saveToLocalStorage(); renderApp(id); showToast(currentLang==='fa'?'Ghost Note فعال شد.':'Ghost Note armed.');
         }
-        function clearGhostNote(id){const item=categories.find(c=>c.id===id);if(!item)return;item.ghostUntil='';saveToLocalStorage();renderApp(id)}
 
         function noteAgeDays(item){return Math.max(0,(Date.now()-(Date.parse(item.lastEdited)||Date.now()))/86400000)}
 
@@ -13216,7 +13244,6 @@ window.mu_syncHtmlBg = function(){
                     `<div><p class="dna-section-title">${fa?'تگ‌ها':'Tags'}</p><div class="dna-keywords">${tagsHtml}</div></div>`+
                 `</div>`);
         }
-        function wordSet(html){return new Set((String(html||'').replace(/<[^>]+>/g,' ').toLowerCase().match(/[\p{L}\p{N}]{2,}/gu)||[]));}
         async function setDecayLevel(id){
             const item=categories.find(c=>c.id===id);if(!item)return;
             const fa=currentLang==='fa';
@@ -13229,10 +13256,6 @@ window.mu_syncHtmlBg = function(){
             if(raw===null)return;
             const v=Math.max(0,Math.min(3,parseInt(raw,10)||0));
             item.decayLevel=v; item.decayManual=true; saveToLocalStorage(); renderApp(id);
-        }
-        async function simpleHash(value){
-            try{if(window.crypto?.subtle){const data=new TextEncoder().encode(value);const buf=await crypto.subtle.digest('SHA-256',data);return [...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,'0')).join('');}}catch(e){}
-            let h=2166136261;for(let i=0;i<value.length;i++){h^=value.charCodeAt(i);h=Math.imul(h,16777619);}return String(h>>>0);
         }
         function openCemetery(){
             const cemetery=safeParseJSON(localStorage.getItem('markhin_cemetery_v1')||'[]',[]); let html='<div class="advanced-head"><h3>⚰️ Digital Cemetery</h3><button class="btn-main" onclick="closeAdvancedModal()">✕</button></div><div style="text-align:center;font-size:9px;opacity:.42;letter-spacing:.5px;margin:-4px 0 8px">هیچ چیز همیشگی نیست..</div><p style="opacity:.65;font-size:11px">یادداشت‌های حذف‌شده اینجا به‌صورت آرشیوی نگه داشته می‌شوند.</p>';
@@ -13946,51 +13969,12 @@ function mcCommitTitle(id){
         tab.innerHTML = lockIcon + escapeHtml(item.name);
     }
 }
-function openNoteExportPicker(id){
-    // A centered, themed modal (the same one every other export picker in
-    // the app uses) instead of an inline dropdown -- it never gets pushed
-    // off-screen and always matches the current color theme.
-    const item = categories.find(c => String(c.id) === String(id));
-    if (!item) return;
-    const fa = currentLang === 'fa';
-    const formats = [
-        { icon: '📄', name: 'TXT', action: `downloadAsTxt('${id}')` },
-        { icon: 'M↓', name: fa ? 'Markdown' : 'Markdown', action: `downloadStructuredSingle('${id}','md')` },
-        { icon: '⌘', name: 'JSON', action: `downloadStructuredSingle('${id}','json')` },
-        { icon: '▤', name: 'CSV', action: `downloadStructuredSingle('${id}','csv')` },
-        { icon: '🌐', name: 'HTML', action: `exportSingleHTML('${id}')` },
-        { icon: '📕', name: 'PDF', action: `downloadSelectedPDF('${id}')` },
-        { icon: '📝', name: 'DOCX', action: `downloadSelectedDOCX('${id}')` },
-        { icon: '🖼️', name: 'PNG', action: `chooseImageExportMode('${id}','png')` },
-        { icon: '🖼️', name: 'JPG', action: `chooseImageExportMode('${id}','jpg')` }
-    ];
-    // NOTE: each action below (downloadAsTxt / downloadStructuredSingle / exportSingleHTML /
-    // downloadSelectedPDF / downloadSelectedDOCX / downloadSelectedImage) opens its own
-    // filename-prompt modal via promptFilename(), which reuses this SAME #advancedModal and
-    // closes it itself once the user confirms/cancels. Do NOT chain closeAdvancedModal() here:
-    // that used to run synchronously right after starting the (async) action, instantly hiding
-    // the filename prompt before the user could ever see or use it -- so the download never
-    // actually fired. This is the fix for that bug.
-    const cards = formats.map(f => `<button type="button" class="image-export-choice" onclick="${f.action};">
-        <span class="image-export-choice-icon">${f.icon}</span>
-        <span class="image-export-choice-name">${escapeHtml(f.name)}</span>
-        <span class="image-export-choice-action">${fa ? `خروجی ${escapeHtml(f.name)} همین یادداشت` : `Export this note as ${escapeHtml(f.name)}`}</span>
-    </button>`).join('');
-    showAdvanced(`
-        <div class="advanced-head image-export-picker-head">
-            <div><h3 style="margin:0">📤 ${fa ? 'خروجی یادداشت' : 'Export note'}</h3><p style="margin:5px 0 0;opacity:.65;font-size:11px">${escapeHtml(item.name || '')}</p></div>
-            <button class="btn-main" onclick="closeAdvancedModal()">✕</button>
-        </div>
-        <div class="image-export-choice-grid">${cards}</div>
-    `);
-}
 // These run from inline onclick/oninput attributes in the note template,
 // which execute in global scope -- but this whole block sits inside an
 // IIFE, so the plain function declarations above are only local to it
 // unless explicitly exposed on window here.
 window.mcLiveTitle = mcLiveTitle;
 window.mcCommitTitle = mcCommitTitle;
-window.openNoteExportPicker = openNoteExportPicker;
 function toggleFlag(item,key){ensureItem(item);item[key]=!item[key];saveToLocalStorage();renderApp(item.id);const msg=key==='pinned'?(item[key]?(currentLang==='fa'?'📌 یادداشت پین شد':'📌 Note pinned'):(currentLang==='fa'?'📌 پین یادداشت برداشته شد':'📌 Note unpinned')):(item[key]?(currentLang==='fa'?'⭐ به فیوریت اضافه شد':'⭐ Added to Favorites'):(currentLang==='fa'?'⭐ از فیوریت حذف شد':'⭐ Removed from Favorites'));showToast(msg);}
 /* Archive: keeps the note itself untouched but hides it from every normal
    list (main view, folders, search, dashboard counts — all already route
