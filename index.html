@@ -186,6 +186,7 @@
         body.theme-aurora::before, body.theme-aurora::after,
         body.theme-phantom::before, body.theme-phantom::after,
         body.theme-aurora-phantom::before, body.theme-aurora-phantom::after,
+        body.theme-redhorizon::before, body.theme-redhorizon::after,
         .top-right-controls {
             transform: translateZ(0);
             backface-visibility: hidden;
@@ -480,6 +481,101 @@
             text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6) !important;
         }
 
+        /* Red Horizon — a warm desert-night skyline: a dim rust-red sky, a
+           softly glowing amber moon breathing low over dark dune ridges, and
+           a scatter of faint stars above. Mirrors the "جاده مرگ" (Dead Road)
+           game's own night-road art (see .theme-deadroad) so the app itself
+           can carry that same moody sunset-on-Mars atmosphere. Built from the
+           same two-layer recipe as Aurora/Phantom above (a blurred drifting
+           glow + a static twinkle layer) so it costs no more GPU than those. */
+        body.theme-redhorizon {
+            --bg-gradient: radial-gradient(ellipse 90% 55% at 50% 6%, #4a1508 0%, #2c0f07 32%, #170905 58%, #0a0403 82%, #030201 100%) !important;
+            --panel-bg: rgba(255, 158, 89, 0.04) !important;
+            --panel-border: rgba(255, 158, 89, 0.22) !important;
+            --card-bg: rgba(22, 9, 6, 0.85) !important;
+            --text-color: #ffb37a !important;
+            text-shadow: 0 1px 3px rgba(20, 6, 2, 0.6) !important;
+        }
+        body.theme-redhorizon::before {
+            content: "";
+            position: fixed;
+            top: -8%; left: -8%; right: -8%; bottom: -8%;
+            background:
+                radial-gradient(ellipse 65% 26% at 18% 78%, rgba(74, 21, 8, 0.55) 0%, transparent 68%),
+                radial-gradient(ellipse 70% 28% at 82% 74%, rgba(58, 16, 7, 0.5) 0%, transparent 68%),
+                radial-gradient(ellipse 80% 24% at 50% 92%, rgba(30, 9, 5, 0.6) 0%, transparent 70%);
+            filter: blur(5px);
+            pointer-events: none;
+            z-index: -1;
+            contain: paint;
+            animation: redHorizonGlow 9s ease-in-out infinite, redHorizonDrift 24s ease-in-out infinite alternate;
+        }
+        @keyframes redHorizonGlow {
+            0%, 100% { opacity: .85; }
+            50%      { opacity: 1; }
+        }
+        @keyframes redHorizonDrift {
+            0%   { transform: translate3d(0, 0, 0); }
+            50%  { transform: translate3d(-1.5%, 1%, 0); }
+            100% { transform: translate3d(1.5%, -1%, 0); }
+        }
+        body.theme-redhorizon::after {
+            content: "";
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: -1;
+            contain: paint;
+            background-image:
+                radial-gradient(circle 1px at 10% 14%, rgba(255, 240, 224, .75), transparent 100%),
+                radial-gradient(circle 1.5px at 30% 8%, rgba(255, 240, 224, .6), transparent 100%),
+                radial-gradient(circle 1px at 72% 10%, rgba(255, 240, 224, .55), transparent 100%),
+                radial-gradient(circle 1.5px at 90% 20%, rgba(255, 240, 224, .5), transparent 100%),
+                radial-gradient(circle 1px at 50% 16%, rgba(255, 240, 224, .4), transparent 100%);
+            animation: redHorizonTwinkle 6.5s ease-in-out infinite alternate;
+        }
+        @keyframes redHorizonTwinkle {
+            0%   { opacity: .45; }
+            50%  { opacity: 1; }
+            100% { opacity: .55; }
+        }
+        /* Actual mountain silhouette — the soft blurred tint in ::before above
+           only reads as atmosphere, not a mountain, so this is a dedicated
+           element with a real jagged skyline cut via clip-path: two ridges
+           layered for depth (a hazier far ridge behind a darker, taller near
+           ridge), fixed to the bottom of the viewport like a horizon. Hidden
+           for every other theme; only shown while .theme-redhorizon is on
+           body. */
+        .mu-redhorizon-mountains { display: none; }
+        body.theme-redhorizon .mu-redhorizon-mountains {
+            display: block;
+            position: fixed;
+            left: -5%; right: -5%; bottom: -2%;
+            height: 26vh;
+            min-height: 150px;
+            pointer-events: none;
+            z-index: -1;
+            contain: paint;
+        }
+        body.theme-redhorizon .mu-redhorizon-mountains::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background: #2a0f08;
+            opacity: .65;
+            clip-path: polygon(0% 100%, 0% 68%, 6% 60%, 12% 66%, 18% 52%,
+                25% 64%, 32% 48%, 40% 62%, 47% 50%, 55% 64%, 62% 46%,
+                70% 60%, 77% 50%, 85% 63%, 92% 48%, 100% 60%, 100% 100%);
+        }
+        body.theme-redhorizon .mu-redhorizon-mountains::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background: #170905;
+            clip-path: polygon(0% 100%, 0% 80%, 10% 58%, 20% 74%, 30% 44%,
+                42% 72%, 55% 40%, 65% 70%, 75% 48%, 85% 68%, 92% 52%,
+                100% 72%, 100% 100%);
+        }
         /* Aurora — layered ribbons of northern-lights color drifting across a
            starry night sky, with a gentle twinkle for extra depth. */
         body.theme-aurora {
@@ -1852,11 +1948,17 @@
             top: 0; left: 0;
             width: 100vw; height: 100vh;
             height: calc(var(--app-1vh, 1vh) * 100);
+            /* New "arcade night sky" backdrop: one flat two-stop gradient
+               plus a single soft glow near the bottom, replacing the old
+               three-ellipse gradient stack. Fewer gradient layers means
+               less for the browser to composite on first paint, and there
+               is nothing here that animates — all motion in this modal now
+               lives in the ::before/::after layers below, each doing one
+               cheap, GPU-friendly thing (opacity or transform only, no
+               animated gradients, no per-frame blur recompute). */
             background:
-                radial-gradient(ellipse 70% 50% at 50% 0%, rgba(255, 0, 200, 0.16), transparent 60%),
-                radial-gradient(ellipse 60% 45% at 15% 100%, rgba(0, 225, 255, 0.16), transparent 65%),
-                radial-gradient(ellipse 60% 45% at 100% 100%, rgba(140, 0, 255, 0.14), transparent 65%),
-                linear-gradient(180deg, #05030e 0%, #0a0620 45%, #04030c 100%);
+                radial-gradient(ellipse 90% 55% at 50% 105%, rgba(0, 225, 255, 0.10), transparent 65%),
+                linear-gradient(165deg, #060815 0%, #0b0e24 52%, #040509 100%);
             z-index: 9999;
             flex-direction: column;
             align-items: center;
@@ -1887,40 +1989,50 @@
             -webkit-touch-callout: none;
         }
 
-        /* Perspective grid floor + drifting glow orbs, shown only behind the
-           game-selection menu (not during actual gameplay, where the game's
-           own canvas already fills the screen and this would just be wasted
-           paint underneath it). Pure CSS, no images/network, so it costs
-           nothing to load and nothing at runtime beyond two lightweight
-           transform animations. */
+        /* Twinkling starfield + a slow drifting duo of glow blobs, shown
+           only behind the game-selection menu (not during actual gameplay,
+           where the game's own canvas already fills the screen and this
+           would just be wasted paint underneath it). Replaces the previous
+           perspective-grid-floor treatment: no CSS mask, no 3D transform,
+           no rotateX — this version is a flatter, cheaper composition that
+           still reads as "arcade at night" rather than a plain gradient.
+           Pure CSS, no images/network, nothing here costs more than a
+           single paint plus a compositor-only opacity/transform animation,
+           so it's lighter than what it replaces, not heavier. */
         #gameModal::before {
             content: '';
             position: absolute;
             inset: 0;
             pointer-events: none;
             background-image:
-                linear-gradient(rgba(0, 225, 255, 0.16) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(0, 225, 255, 0.16) 1px, transparent 1px);
-            background-size: 42px 42px;
-            -webkit-mask-image: radial-gradient(ellipse 85% 75% at 50% 100%, #000 55%, transparent 100%);
-            mask-image: radial-gradient(ellipse 85% 75% at 50% 100%, #000 55%, transparent 100%);
-            transform: perspective(300px) rotateX(58deg) scale(2.2);
-            transform-origin: 50% 100%;
+                radial-gradient(1.6px 1.6px at 12% 18%, #fff, transparent),
+                radial-gradient(1.2px 1.2px at 28% 62%, #fff, transparent),
+                radial-gradient(1.8px 1.8px at 42% 30%, #fff, transparent),
+                radial-gradient(1.2px 1.2px at 58% 78%, #fff, transparent),
+                radial-gradient(1.5px 1.5px at 68% 15%, #fff, transparent),
+                radial-gradient(1.3px 1.3px at 78% 55%, #fff, transparent),
+                radial-gradient(1.7px 1.7px at 88% 25%, #fff, transparent),
+                radial-gradient(1.2px 1.2px at 20% 88%, #fff, transparent),
+                radial-gradient(1.5px 1.5px at 50% 92%, #fff, transparent),
+                radial-gradient(1.3px 1.3px at 93% 80%, #fff, transparent),
+                radial-gradient(1.1px 1.1px at 8% 50%, #fff, transparent),
+                radial-gradient(1.4px 1.4px at 62% 6%, #fff, transparent);
             opacity: 0;
-            transition: opacity 0.5s ease;
+            animation: gmStarTwinkle 5s ease-in-out infinite;
+            transition: opacity 0.6s ease;
         }
         #gameModal::after {
             content: '';
             position: absolute;
-            inset: -10%;
+            inset: -15%;
             pointer-events: none;
             background:
-                radial-gradient(circle, rgba(255, 0, 200, 0.5) 0%, transparent 70%) 15% 20% / 38% 38% no-repeat,
-                radial-gradient(circle, rgba(0, 225, 255, 0.45) 0%, transparent 70%) 85% 75% / 32% 32% no-repeat;
-            filter: blur(6px);
+                radial-gradient(circle, rgba(0, 225, 255, 0.32) 0%, transparent 68%) 12% 18% / 46% 46% no-repeat,
+                radial-gradient(circle, rgba(255, 0, 200, 0.24) 0%, transparent 68%) 88% 84% / 42% 42% no-repeat;
+            filter: blur(22px);
             opacity: 0;
-            animation: gameMenuOrbDrift 14s ease-in-out infinite;
-            transition: opacity 0.5s ease;
+            animation: gmGlowDrift 20s ease-in-out infinite;
+            transition: opacity 0.6s ease;
         }
         /* Both pseudo-elements only turn on while the selection menu (not
            gameplay) is showing — toggled via this class on #gameModal
@@ -1932,12 +2044,16 @@
         #gameModal.gm-menu-mode::after {
             opacity: 1;
         }
-        @keyframes gameMenuOrbDrift {
+        @keyframes gmStarTwinkle {
+            0%, 100% { opacity: 0.85; }
+            50% { opacity: 0.35; }
+        }
+        @keyframes gmGlowDrift {
             0%, 100% { transform: translate(0, 0) scale(1); }
-            33% { transform: translate(3%, -4%) scale(1.08); }
-            66% { transform: translate(-3%, 3%) scale(0.95); }
+            50% { transform: translate(-3%, 2%) scale(1.06); }
         }
         @media (prefers-reduced-motion: reduce) {
+            #gameModal::before,
             #gameModal::after { animation: none; }
         }
 
@@ -2331,6 +2447,46 @@
             display: inline-flex; align-items: center; justify-content: center;
             font-size: 15px;
         }
+
+        /* ---- "مار نئونی" (Neon Snake) theme ----
+           Same immersive fullscreen HUD treatment as the themes above: a
+           transparent, absolutely-positioned topbar (title hidden) so the
+           new synthwave-sun-and-drifting-embers backdrop the game now draws
+           (see startNeonSnake / drawNeonBackdrop) shows edge-to-edge behind
+           it, plus a glowing cyan score pill (top-left) and round icon-only
+           menu/exit buttons (top-right) recolored into the game's own
+           cyan/magenta neon palette instead of the plain default topbar.
+           Toggled only while Neon Snake is the active game (see
+           startNeonSnake / openGameMenu / backToGameMenu / closeGame). */
+        .game-card.theme-snake .game-topbar {
+            position: absolute; top: 0; left: 0; right: 0; z-index: 5;
+            background: transparent; border-bottom-color: transparent;
+            padding: 12px 14px; pointer-events: none;
+        }
+        .game-card.theme-snake .game-topbar-title { display: none; }
+        .game-card.theme-snake .game-topbar-actions {
+            pointer-events: auto; width: 100%; gap: 0;
+            justify-content: space-between; align-items: flex-start;
+        }
+        .game-card.theme-snake .game-topbar-actions #gameScore {
+            background: rgba(4, 20, 22, 0.55); border: 1px solid rgba(0,240,255,0.35);
+            padding: 6px 14px; font-size: 12.5px; font-weight: 800;
+            color: #baffef; letter-spacing: 0.3px; border-radius: 999px;
+            box-shadow: 0 6px 18px rgba(0,0,0,0.3), 0 0 14px rgba(0,240,255,0.22);
+            text-shadow: 0 0 8px rgba(0,240,255,0.65);
+        }
+        .game-card.theme-snake .game-topbar-nav .img-btn {
+            width: 32px; height: 32px; padding: 0 !important; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center; font-size: 0 !important;
+            background: rgba(4, 20, 22, 0.55) !important;
+            border: 1px solid rgba(0,240,255,0.35) !important;
+            box-shadow: 0 6px 16px rgba(0,0,0,0.3), 0 0 12px rgba(0,240,255,0.2);
+        }
+        .game-card.theme-snake #btnGameMenu::before { content: "\2630"; font-size: 14px; color: #baffef; }
+        .game-card.theme-snake #btnGameExit {
+            background: rgba(255,45,110,0.22) !important; border-color: rgba(255,45,110,0.5) !important;
+        }
+        .game-card.theme-snake #btnGameExit::before { content: "\2715"; font-size: 14px; color: #ffd6e8; }
 
         .audio-wrapper {
             margin: 10px 0;
@@ -3102,7 +3258,7 @@ window.mu_syncHtmlBg = function(){
         if (saved === null) return;
         var idx = parseInt(saved, 10);
         if (!Number.isFinite(idx) || idx < 0) return;
-        var classes = ['theme-oceanic','theme-phantom','theme-aurora','theme-aurora-phantom','theme-spider','theme-galaxy','theme-cloudy','theme-dreamy','theme-cyberpunk','theme-love','theme-snowy','theme-rainy','theme-autumn','theme-anonymous','theme-terminal','theme-darkweb','theme-acid'];
+        var classes = ['theme-oceanic','theme-phantom','theme-aurora','theme-aurora-phantom','theme-spider','theme-galaxy','theme-cloudy','theme-dreamy','theme-cyberpunk','theme-love','theme-snowy','theme-rainy','theme-autumn','theme-anonymous','theme-terminal','theme-darkweb','theme-acid','theme-redhorizon'];
         var cls = classes[idx];
         if (cls && cls !== 'theme-oceanic') {
             document.body.classList.remove('theme-oceanic');
@@ -3112,6 +3268,7 @@ window.mu_syncHtmlBg = function(){
     window.mu_syncHtmlBg();
 })();
 </script>
+    <div class="mu-redhorizon-mountains" aria-hidden="true"></div>
     <div class="header-nav">
         <div class="brand-container">
             <div class="brand-logo" id="brandLogoText" onclick="baseTriggerLogoTyping()">MARKHIN</div>
@@ -3820,6 +3977,7 @@ window.mu_syncHtmlBg = function(){
             { id: 'phantom', emoji: '👁️', nameFa: 'تم فانتوم', nameEn: 'Phantom', class: 'theme-phantom' },
             { id: 'aurora', emoji: '🌈', nameFa: 'تم شفق قطبی', nameEn: 'Aurora', class: 'theme-aurora' },
             { id: 'aurora-phantom', emoji: '🔮', nameFa: 'تم شفق فانتومی', nameEn: 'Aurora Phantom', class: 'theme-aurora-phantom' },
+            { id: 'redhorizon', emoji: '🌅', nameFa: 'تم افق سرخ', nameEn: 'Red Horizon', class: 'theme-redhorizon' },
             { id: 'spider', emoji: '🕷️', nameFa: 'تم عنکبوتی', nameEn: 'Spider', class: 'theme-spider' },
             { id: 'dreamy', emoji: '✨', nameFa: 'تم رویایی', nameEn: 'Dreamy', class: 'theme-dreamy' },
             { id: 'galaxy', emoji: '🌌', nameFa: 'تم کهکشانی', nameEn: 'Galaxy', class: 'theme-galaxy' },
@@ -5472,6 +5630,7 @@ window.mu_syncHtmlBg = function(){
             document.getElementById('gameCard').classList.remove('theme-racer');
             document.getElementById('gameCard').classList.remove('theme-flappy');
             document.getElementById('gameCard').classList.remove('theme-deadroad');
+            document.getElementById('gameCard').classList.remove('theme-snake');
             clearGameEvents();
             mAiGameTelegramChrome(true);
             // Pauses the animated theme background for as long as any game
@@ -5492,6 +5651,7 @@ window.mu_syncHtmlBg = function(){
             document.getElementById('gameCard').classList.remove('theme-racer');
             document.getElementById('gameCard').classList.remove('theme-flappy');
             document.getElementById('gameCard').classList.remove('theme-deadroad');
+            document.getElementById('gameCard').classList.remove('theme-snake');
         }
 
         function closeGame() {
@@ -5504,6 +5664,7 @@ window.mu_syncHtmlBg = function(){
             document.getElementById('gameCard').classList.remove('theme-racer');
             document.getElementById('gameCard').classList.remove('theme-flappy');
             document.getElementById('gameCard').classList.remove('theme-deadroad');
+            document.getElementById('gameCard').classList.remove('theme-snake');
             clearGameEvents();
             mAiGameTelegramChrome(false);
             document.body.classList.remove('mu-game-open');
@@ -5843,6 +6004,7 @@ window.mu_syncHtmlBg = function(){
             window.__markhinActiveGame = 'snake';
             const fa = currentLang === 'fa';
             enterGamePlayMode();
+            document.getElementById('gameCard').classList.add('theme-snake');
             document.getElementById('gameTitleActive').innerText = 'NEON SNAKE';
             document.getElementById('gameDescActive').innerText = fa
                 ? 'با کلیدهای جهت‌نما یا کشیدن دست مار را هدایت کن! مراقب موانع بنفش باش و دانه‌های طلایی رو سریع بگیر!'
@@ -5855,6 +6017,48 @@ window.mu_syncHtmlBg = function(){
             // "game is just a little patch" issue). 'fill' uses the entire
             // area under the top bar instead, same as Flappy already did.
             const { width, height, ctx } = fitGameCanvas(canvas, 'fill');
+
+            // ---- ambient neon backdrop: a dark gradient sky with
+            //      slow-drifting, twinkling embers behind the play grid —
+            //      the "something's always moving" life the Dead Road
+            //      backdrop above gets from its scrolling terrain, just
+            //      driven by drifting dots instead (this board doesn't
+            //      scroll). Drawn full-canvas, BEFORE the board's
+            //      offsetX/offsetY translate below, so it shows through
+            //      the letterboxed margin around the grid too instead of
+            //      stopping at the board edge. ----
+            const snakeBgGrad = ctx.createLinearGradient(0, 0, 0, height);
+            snakeBgGrad.addColorStop(0, '#170a28');
+            snakeBgGrad.addColorStop(0.55, '#0a0616');
+            snakeBgGrad.addColorStop(1, '#050505');
+            const SNAKE_EMBER_COUNT = Math.round(14 + width / 60);
+            const snakeEmbers = [];
+            for (let i = 0; i < SNAKE_EMBER_COUNT; i++) {
+                snakeEmbers.push({
+                    x: Math.random() * width, y: Math.random() * height,
+                    r: 0.8 + Math.random() * 1.8, speed: 8 + Math.random() * 18,
+                    drift: (Math.random() * 2 - 1) * 6, seed: Math.random() * Math.PI * 2,
+                    rgb: Math.random() < 0.5 ? '0,240,255' : '255,60,220'
+                });
+            }
+            // Slow-rising, twinkling embers, wrapped back to the bottom once
+            // they drift off the top.
+            function drawNeonBackdrop(ts) {
+                ctx.fillStyle = snakeBgGrad;
+                ctx.fillRect(0, 0, width, height);
+                snakeEmbers.forEach(e => {
+                    const span = height + 20;
+                    const y = ((e.y - (ts * e.speed / 1000)) % span + span) % span - 10;
+                    const x = e.x + Math.sin(ts / 1400 + e.seed) * e.drift;
+                    const tw = 0.35 + Math.sin(ts / 500 + e.seed * 3) * 0.3;
+                    ctx.globalAlpha = Math.max(0, tw);
+                    ctx.fillStyle = `rgb(${e.rgb})`;
+                    ctx.beginPath();
+                    ctx.arc(x, y, e.r, 0, Math.PI * 2);
+                    ctx.fill();
+                });
+                ctx.globalAlpha = 1;
+            }
 
             // Aim for a comfortably touch-friendly grid rather than a fixed
             // pixel size, so the arena scales with the actual screen.
@@ -5972,19 +6176,85 @@ window.mu_syncHtmlBg = function(){
                 return true;
             }
 
+            // ---- fairness guard: never let a spawn create an "impossible"
+            //      spot — food the player physically can't reach, or a
+            //      pocket so cramped that going in after it seals the
+            //      snake in behind its own just-grown tail with no way
+            //      back out. Everything below is a BFS walk over the
+            //      board's currently-free cells (snake body + obstacles
+            //      block movement, same as the real game), so it reflects
+            //      the actual walkable floor plan at this instant rather
+            //      than guessing from a cell's immediate neighbors. ----
+            function floodRegion(gx, gy, blockedExtra, capSize) {
+                const blocked = new Set();
+                snake.forEach(p => blocked.add(p.x + ',' + p.y));
+                obstacles.forEach(o => blocked.add(o.x + ',' + o.y));
+                if (blockedExtra) blockedExtra.forEach(c => blocked.add(c.x + ',' + c.y));
+                const startKey = gx + ',' + gy;
+                const seen = new Set();
+                if (blocked.has(startKey)) return { size: 0, cells: seen };
+                seen.add(startKey);
+                const queue = [{x: gx, y: gy}];
+                const maxX = cols * gridSize, maxY = rows * gridSize;
+                while (queue.length && seen.size < capSize) {
+                    const cur = queue.shift();
+                    const neighbors = [
+                        {x: cur.x + gridSize, y: cur.y}, {x: cur.x - gridSize, y: cur.y},
+                        {x: cur.x, y: cur.y + gridSize}, {x: cur.x, y: cur.y - gridSize}
+                    ];
+                    for (const n of neighbors) {
+                        if (n.x < 0 || n.y < 0 || n.x >= maxX || n.y >= maxY) continue;
+                        const key = n.x + ',' + n.y;
+                        if (seen.has(key) || blocked.has(key)) continue;
+                        seen.add(key);
+                        queue.push(n);
+                        if (seen.size >= capSize) break;
+                    }
+                }
+                return { size: seen.size, cells: seen };
+            }
+            // How much open floor the snake needs left over to still have
+            // real room to maneuver — scales with its own length (a longer
+            // snake needs more elbow room to turn around), but never asks
+            // for more than the board could possibly still have free.
+            function safeMinRegion() {
+                const need = snake.length + 8;
+                const openCells = cols * rows - obstacles.length - snake.length;
+                return Math.max(4, Math.min(need, openCells - 2));
+            }
+
             function spawnFood() {
-                let attempts = 0, gx, gy;
-                do {
+                const minRegion = safeMinRegion();
+                let attempts = 0, gx = 0, gy = 0, ok = false;
+                while (attempts < 300 && !ok) {
                     gx = Math.floor(Math.random() * cols) * gridSize;
                     gy = Math.floor(Math.random() * rows) * gridSize;
                     attempts++;
-                } while (!cellIsFree(gx, gy) && attempts < 200);
+                    if (!cellIsFree(gx, gy)) continue;
+                    // Reject spots only reachable through a cramped pocket —
+                    // eating there could trap the snake with nowhere left
+                    // to turn once its own tail seals the way back in.
+                    const region = floodRegion(snake[0].x, snake[0].y, null, minRegion + 1);
+                    ok = region.cells.has(gx + ',' + gy) && region.size >= minRegion;
+                }
+                if (!ok) {
+                    // Board's gotten tight enough that no spacious spot
+                    // exists — fall back to merely reachable rather than
+                    // spinning forever or leaving stale food on the board.
+                    attempts = 0;
+                    do {
+                        gx = Math.floor(Math.random() * cols) * gridSize;
+                        gy = Math.floor(Math.random() * rows) * gridSize;
+                        attempts++;
+                    } while (!cellIsFree(gx, gy) && attempts < 200);
+                }
                 food.x = gx; food.y = gy;
             }
             spawnFood();
 
             function spawnObstacle() {
                 if (obstacles.length >= maxObstacles) return;
+                const minRegion = safeMinRegion();
                 let attempts = 0, gx = 0, gy = 0, ok = false;
                 while (attempts < 200 && !ok) {
                     gx = Math.floor(Math.random() * cols) * gridSize;
@@ -5993,7 +6263,19 @@ window.mu_syncHtmlBg = function(){
                     // Keep a small buffer around the current head so a fresh
                     // obstacle can never spawn an instant, unavoidable death.
                     const nearHead = Math.abs(gx - snake[0].x) <= gridSize * 2 && Math.abs(gy - snake[0].y) <= gridSize * 2;
-                    ok = cellIsFree(gx, gy) && !(food.x === gx && food.y === gy) && !nearHead;
+                    if (!cellIsFree(gx, gy) || (food.x === gx && food.y === gy) || nearHead) continue;
+                    // The core fairness check: pretend this obstacle is
+                    // already placed and re-walk the board from the snake's
+                    // head. Reject it outright if that would either choke
+                    // the snake's remaining open floor down too far, or
+                    // wall the current food off into a pocket it can no
+                    // longer be reached from — an obstacle should never be
+                    // able to turn "go get the food" into "you can't" or
+                    // "you'll die trying".
+                    const region = floodRegion(snake[0].x, snake[0].y, [{x: gx, y: gy}], minRegion + 1);
+                    const foodReachable = region.cells.has(food.x + ',' + food.y);
+                    const goldReachable = !goldFood || region.cells.has(goldFood.x + ',' + goldFood.y);
+                    ok = region.size >= minRegion && foodReachable && goldReachable;
                 }
                 if (!ok) return;
                 obstacles.push({x: gx, y: gy});
@@ -6001,13 +6283,19 @@ window.mu_syncHtmlBg = function(){
 
             function tryStartGoldFood() {
                 if (goldFood || Math.random() >= GOLD_SPAWN_CHANCE) return;
-                let attempts = 0, gx, gy;
-                do {
+                const minRegion = safeMinRegion();
+                let attempts = 0, gx = 0, gy = 0, ok = false;
+                while (attempts < 300 && !ok) {
                     gx = Math.floor(Math.random() * cols) * gridSize;
                     gy = Math.floor(Math.random() * rows) * gridSize;
                     attempts++;
-                } while ((!cellIsFree(gx, gy) || (food.x === gx && food.y === gy)) && attempts < 200);
-                if (attempts >= 200) return;
+                    if (!cellIsFree(gx, gy) || (food.x === gx && food.y === gy)) continue;
+                    const region = floodRegion(snake[0].x, snake[0].y, null, minRegion + 1);
+                    ok = region.cells.has(gx + ',' + gy) && region.size >= minRegion;
+                }
+                // No safe spot this round — skip it rather than risk a trap;
+                // it's a bonus, not something the player is owed every time.
+                if (!ok) return;
                 goldFood = {x: gx, y: gy, ticksLeft: GOLD_LIFE_TICKS, totalTicks: GOLD_LIFE_TICKS};
             }
             // ---------------------------------------------------------------------
@@ -6082,7 +6370,7 @@ window.mu_syncHtmlBg = function(){
                 presentGameOver(gameScore, 'snake', fa ? '🐍 بازی تمام شد!' : '🐍 Game over!', startNeonSnake);
             }
 
-            let raf = null, lastTick = 0, acc = 0;
+            let raf = null, lastTick = 0, acc = 0, prevSnake = null;
             function loop(ts) {
                 raf = requestAnimationFrame(loop);
                 if (gamePaused) { lastTick = ts; return; }
@@ -6094,18 +6382,40 @@ window.mu_syncHtmlBg = function(){
                 let dt = Math.min(ts - lastTick, 250);
                 lastTick = ts;
 
-                var frameStartSnake = null;
                 if (dying) {
                     if (ts - dyingStart >= DYING_MS) { dying = false; endSnake(); return; }
                 } else if (!ended) {
-                    // Snapshot pre-tick positions once per frame so the snake
-                    // can be drawn eased between grid steps below instead of
-                    // visibly snapping from cell to cell.
-                    frameStartSnake = snake.map(p => ({x: p.x, y: p.y}));
                     acc += dt;
 
                     while (acc >= stepMs) {
                         acc -= stepMs;
+                        // Bug fix ("snake's body trembling/vibrating, popping
+                        // forward like a glitch"): this snapshot used to be
+                        // taken once per RENDERED frame, right before this
+                        // while loop, instead of once per SIMULATED tick,
+                        // inside it. stepMs (grid speed) is much slower than
+                        // the ~16ms frame interval, so on the vast majority
+                        // of frames zero ticks run here — the snake hasn't
+                        // moved — but that per-frame snapshot still
+                        // re-captured the snake's current (unchanged)
+                        // position every single time, overwriting the real
+                        // "one tick ago" position needed for the eased
+                        // render below. Net effect: the interpolation
+                        // collapsed to a no-op on every frame except the one
+                        // rare frame where a tick actually landed (which
+                        // showed the snake barely nudged from its old cell),
+                        // and then, one frame later, the snapshot resynced to
+                        // the already-moved position so the body appeared to
+                        // snap the rest of the way there instantly. Repeating
+                        // every tick, that reads exactly as trembling/
+                        // glitching rather than a smooth glide. Snapshotting
+                        // here instead — right before each tick actually
+                        // mutates the snake, however many ticks (0, 1, or
+                        // more on a catch-up frame) run this frame — keeps
+                        // prevSnake correctly one full tick behind at all
+                        // times, matching the same pattern already used for
+                        // the obstacles/pipes in the other games.
+                        prevSnake = snake.map(p => ({x: p.x, y: p.y}));
                         if (inputQueue.length) {
                             const next = inputQueue.shift();
                             dx = next.x; dy = next.y;
@@ -6188,8 +6498,7 @@ window.mu_syncHtmlBg = function(){
 
                 // -------- draw --------
                 ctx.clearRect(0, 0, width, height);
-                ctx.fillStyle = '#050505';
-                ctx.fillRect(0, 0, width, height);
+                drawNeonBackdrop(ts);
 
                 ctx.save();
                 // A brief, decaying shake on death — confined to the short
@@ -6268,7 +6577,7 @@ window.mu_syncHtmlBg = function(){
                 // instead of hard-snapping cell to cell — same collision/logic
                 // timing as before, just smoother to look at. Frozen at the
                 // exact final position while dying/no snapshot available.
-                const progress = (dying || !frameStartSnake) ? 1 : Math.min(1, acc / stepMs);
+                const progress = (dying || !prevSnake) ? 1 : Math.min(1, acc / stepMs);
                 // Further trim on the fix above: this used to write
                 // ctx.shadowBlur once per segment (14 for the head, 0 for
                 // every body segment) — one canvas state write per segment,
@@ -6278,8 +6587,8 @@ window.mu_syncHtmlBg = function(){
                 // whole rest of the body.
                 ctx.shadowBlur = 14;
                 snake.forEach((part, index) => {
-                    const prev = (frameStartSnake && frameStartSnake[index]) ? frameStartSnake[index]
-                        : (frameStartSnake && frameStartSnake[index - 1]) ? frameStartSnake[index - 1] : part;
+                    const prev = (prevSnake && prevSnake[index]) ? prevSnake[index]
+                        : (prevSnake && prevSnake[index - 1]) ? prevSnake[index - 1] : part;
                     const rx = prev.x + (part.x - prev.x) * progress;
                     const ry = prev.y + (part.y - prev.y) * progress;
                     if (index === 1) ctx.shadowBlur = 0;
@@ -7470,6 +7779,24 @@ window.mu_syncHtmlBg = function(){
 
                 if (ended) return;
 
+                // Bug fix ("still a little tremor left on the cars/obstacles
+                // after the snake fix"): same class of bug as Neon Snake's
+                // body, just on the player cars here instead of the snake
+                // segments. This prevCar1X/prevCar2X snapshot used to be
+                // taken once per RENDERED frame, at the end of render() —
+                // but STEP_MS (60 ticks/sec) doesn't line up with every
+                // phone's real display rate (90Hz/120Hz screens are common
+                // and fire requestAnimationFrame faster than the sim ticks),
+                // so a frame with zero ticks would still re-sync
+                // prevCar1X/2X to the unchanged car1X/2X, and the next frame
+                // that did carry a tick would then show a small snap instead
+                // of a smooth glide — a milder version of the exact snake
+                // bug. Snapshotting here, once per tick right before this
+                // tick's tween step, keeps it correctly one tick behind at
+                // all times, matching the pattern already used for
+                // obstacles/bonuses above.
+                prevCar1X = car1X; prevCar2X = car2X;
+
                 // Move the drawn car positions toward their (already-switched)
                 // logical column on a fixed-duration ease-out tween — the
                 // whole dash completes in LANE_MOVE_MS with a quick start and
@@ -7602,7 +7929,9 @@ window.mu_syncHtmlBg = function(){
                 drawPlayerCar(renderCar1X, carRowY, carW, carH, CAR1_COLOR, { tilt: tilt1, squashX: squash1.sx, squashY: squash1.sy });
                 drawPlayerCar(renderCar2X, carRowY, carW, carH, CAR2_COLOR, { tilt: tilt2, squashX: squash2.sx, squashY: squash2.sy });
                 ctx.restore();
-                prevCar1X = car1X; prevCar2X = car2X;
+                // prevCar1X/prevCar2X are now snapshotted once per tick,
+                // inside step() above — not here — so they stay correctly
+                // one tick behind regardless of the device's real frame rate.
 
                 ctx.globalAlpha = 1;
                 particles.forEach(p => {
@@ -8486,6 +8815,14 @@ window.mu_syncHtmlBg = function(){
 
                 if (ended) return;
 
+                // Bug fix ("still a little tremor left on the cars"): same
+                // class of bug as Neon Snake's body — this snapshot used to
+                // be taken once per RENDERED frame in render() instead of
+                // once per TICK here. See the matching, more detailed
+                // comment in Twin Lane Racer Classic's step() for the full
+                // explanation.
+                prevCar1X = car1X; prevCar2X = car2X;
+
                 // Move the drawn car positions toward their (already-switched)
                 // logical column on a fixed-duration ease-out tween, instead
                 // of the old per-frame decay — the whole dash completes in
@@ -8671,7 +9008,9 @@ window.mu_syncHtmlBg = function(){
                 drawPlayerCarFast(renderCar1X, carRowY, playerCarSprite1, tilt1, squash1.sx, squash1.sy);
                 drawPlayerCarFast(renderCar2X, carRowY, playerCarSprite2, tilt2, squash2.sx, squash2.sy);
                 ctx.restore();
-                prevCar1X = car1X; prevCar2X = car2X;
+                // prevCar1X/prevCar2X are now snapshotted once per tick,
+                // inside step() above — not here — so they stay correctly
+                // one tick behind regardless of the device's real frame rate.
 
                 ctx.globalAlpha = 1;
                 particles.forEach(p => {
@@ -9297,10 +9636,50 @@ window.mu_syncHtmlBg = function(){
                 ctx.fill();
             }
 
+            // Perf fix (weaker Telegram Android WebViews get visibly
+            // choppier the busier the road gets): the body fill (a
+            // rounded-rect path built and filled from scratch), the truck
+            // cargo highlight, and the windshield were all re-drawn for
+            // every traffic vehicle, every single frame -- but none of
+            // those three shapes ever change for a given vehicle: shape,
+            // color, width and height are all fixed the moment a vehicle
+            // spawns (see spawnWave). Only 5 colors x 2 shapes exist
+            // (TRAFFIC_COLORS x car/truck), so every possible body is
+            // baked once into a tiny offscreen canvas here and reused for
+            // the rest of the run -- with several cars on screen at once
+            // this turns 2-3 path/fill operations per vehicle per frame
+            // into a single drawImage() blit per vehicle, same
+            // "cache the pixels, just blit them" principle already used
+            // for the moon/badge/bonus sprites elsewhere in these games.
+            // The wheel brightness flicker and taillight glow are
+            // genuinely time-based, so those two still draw fresh each
+            // frame -- only the static part underneath them is cached.
+            const trafficSpriteCache = Object.create(null);
+            function getTrafficBodySprite(shape, color, bw, bh) {
+                const key = shape + '|' + color;
+                const cached = trafficSpriteCache[key];
+                if (cached) return cached;
+                const isTruck = shape === 'truck';
+                const sw = Math.ceil(bw * 1.2), sh = Math.ceil(bh * 1.1);
+                const off = document.createElement('canvas');
+                off.width = sw; off.height = sh;
+                const octx = off.getContext('2d');
+                octx.translate(sw / 2, sh / 2);
+                octx.beginPath();
+                octx.roundRect(-bw / 2, -bh / 2, bw, bh, bw * (isTruck ? 0.22 : 0.3));
+                octx.fillStyle = color; octx.fill();
+                if (isTruck) {
+                    octx.fillStyle = 'rgba(255,255,255,0.14)';
+                    octx.fillRect(-bw * 0.42, -bh * 0.44, bw * 0.84, bh * 0.22);
+                }
+                octx.fillStyle = 'rgba(10,14,26,0.55)';
+                octx.fillRect(-bw * 0.32, -bh * 0.32, bw * 0.64, bh * (isTruck ? 0.36 : 0.26));
+                trafficSpriteCache[key] = off;
+                return off;
+            }
             function drawTrafficVehicle(cx, cy, w, h, color, shape, ts, seed) {
                 ctx.save();
                 ctx.translate(snapPx(cx), snapPx(cy));
-                const isTruck = shape === 'truck';
                 const bw = w, bh = h;
                 // Wheels drawn first so the body sits on top of them. The
                 // brightness pulse (driven by time + a per-car seed) reads
@@ -9311,17 +9690,8 @@ window.mu_syncHtmlBg = function(){
                 ctx.fillRect(bw * 0.48, -bh * 0.32, bw * 0.1, bh * 0.2);
                 ctx.fillRect(-bw * 0.58, bh * 0.12, bw * 0.1, bh * 0.2);
                 ctx.fillRect(bw * 0.48, bh * 0.12, bw * 0.1, bh * 0.2);
-                ctx.beginPath();
-                ctx.roundRect(-bw / 2, -bh / 2, bw, bh, bw * (isTruck ? 0.22 : 0.3));
-                ctx.fillStyle = color; ctx.fill();
-                if (isTruck) {
-                    // Cargo bed vs. cabin, so a truck reads as a genuinely
-                    // different, longer vehicle rather than just a bigger car.
-                    ctx.fillStyle = 'rgba(255,255,255,0.14)';
-                    ctx.fillRect(-bw * 0.42, -bh * 0.44, bw * 0.84, bh * 0.22);
-                }
-                ctx.fillStyle = 'rgba(10,14,26,0.55)';
-                ctx.fillRect(-bw * 0.32, -bh * 0.32, bw * 0.64, bh * (isTruck ? 0.36 : 0.26));
+                const sprite = getTrafficBodySprite(shape, color, bw, bh);
+                ctx.drawImage(sprite, -sprite.width / 2, -sprite.height / 2);
                 // Taillights facing the player — this traffic is ahead of us
                 // on the road, and we're the one closing the gap. A gentle
                 // brightness flicker (same time-driven pulse as the wheels)
@@ -9334,34 +9704,56 @@ window.mu_syncHtmlBg = function(){
                 ctx.restore();
             }
 
+            // Perf fix: both of these small glow effects were building a
+            // brand new ctx.createRadialGradient() every single call --
+            // drawNitroBolt every frame a pickup is on screen, and
+            // drawHeadlightGlow every single frame of the whole run (it's
+            // the player's own headlight beam). Neither gradient's SHAPE
+            // actually depends on the player's on-screen position, which
+            // is the only thing changing frame to frame: the nitro glow
+            // only depends on the pulsing radius r, and the headlight cone
+            // only depends on the car's fixed width/height. Both are now
+            // built once in local (untranslated/unscaled) space and reused
+            // every call -- drawNitroBolt reaches its per-frame radius
+            // with ctx.scale() instead of recomputing gradient stops, and
+            // drawHeadlightGlow translates to the player's position instead
+            // of baking that position into the gradient itself. Same
+            // "build once, reuse every frame" principle as every other
+            // gradient in this game -- these two were just the last ones
+            // still allocating fresh every frame.
+            const nitroBoltGlowGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, 1.7);
+            nitroBoltGlowGrad.addColorStop(0, 'rgba(255,180,60,0.9)'); nitroBoltGlowGrad.addColorStop(1, 'rgba(255,120,30,0)');
             function drawNitroBolt(cx, cy, d, ts) {
                 const p = 1 + Math.sin(ts / 120) * 0.16;
                 const r = (d / 2) * p;
                 ctx.save();
                 ctx.translate(snapPx(cx), snapPx(cy));
-                const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, r * 1.7);
-                grad.addColorStop(0, 'rgba(255,180,60,0.9)'); grad.addColorStop(1, 'rgba(255,120,30,0)');
-                ctx.fillStyle = grad; ctx.beginPath(); ctx.arc(0, 0, r * 1.7, 0, Math.PI * 2); ctx.fill();
+                ctx.scale(r, r);
+                ctx.fillStyle = nitroBoltGlowGrad; ctx.beginPath(); ctx.arc(0, 0, 1.7, 0, Math.PI * 2); ctx.fill();
                 ctx.fillStyle = '#fff3c4';
                 ctx.beginPath();
-                ctx.moveTo(-r * 0.15, -r * 0.7); ctx.lineTo(r * 0.35, -r * 0.1); ctx.lineTo(r * 0.02, -r * 0.1);
-                ctx.lineTo(r * 0.2, r * 0.7); ctx.lineTo(-r * 0.35, r * 0.05); ctx.lineTo(-r * 0.02, r * 0.05);
+                ctx.moveTo(-0.15, -0.7); ctx.lineTo(0.35, -0.1); ctx.lineTo(0.02, -0.1);
+                ctx.lineTo(0.2, 0.7); ctx.lineTo(-0.35, 0.05); ctx.lineTo(-0.02, 0.05);
                 ctx.closePath(); ctx.fill();
                 ctx.restore();
             }
 
+            let headlightGlowCache = null;
             function drawHeadlightGlow(cx, cy, w, h) {
                 // The player's nose faces up the screen (toward the
-                // horizon), since traffic scrolls down toward us — so the
+                // horizon), since traffic scrolls down toward us -- so the
                 // beam is drawn as a soft cone ahead of the car, upward.
-                const gx = cx, gy = cy - h * 0.5;
-                const grad = ctx.createRadialGradient(gx, gy, 0, gx, gy - h * 3, h * 3);
-                grad.addColorStop(0, 'rgba(255,241,205,0.28)'); grad.addColorStop(1, 'rgba(255,241,205,0)');
                 ctx.save();
-                ctx.fillStyle = grad;
+                ctx.translate(cx, cy - h * 0.5);
+                if (!headlightGlowCache || headlightGlowCache.w !== w || headlightGlowCache.h !== h) {
+                    const grad = ctx.createRadialGradient(0, 0, 0, 0, -h * 3, h * 3);
+                    grad.addColorStop(0, 'rgba(255,241,205,0.28)'); grad.addColorStop(1, 'rgba(255,241,205,0)');
+                    headlightGlowCache = { w, h, grad };
+                }
+                ctx.fillStyle = headlightGlowCache.grad;
                 ctx.beginPath();
-                ctx.moveTo(gx - w * 0.5, gy); ctx.lineTo(gx - w * 1.7, gy - h * 3);
-                ctx.lineTo(gx + w * 1.7, gy - h * 3); ctx.lineTo(gx + w * 0.5, gy);
+                ctx.moveTo(-w * 0.5, 0); ctx.lineTo(-w * 1.7, -h * 3);
+                ctx.lineTo(w * 1.7, -h * 3); ctx.lineTo(w * 0.5, 0);
                 ctx.closePath(); ctx.fill();
                 ctx.restore();
             }
@@ -9572,6 +9964,14 @@ window.mu_syncHtmlBg = function(){
 
                 if (ended) return;
 
+                // Bug fix ("still a little tremor left on the car/road"):
+                // same class of bug as Neon Snake's body — this snapshot
+                // used to be taken once per RENDERED frame in render()
+                // instead of once per TICK here. See the matching, more
+                // detailed comment in Twin Lane Racer Classic's step() for
+                // the full explanation.
+                prevPlayerX = playerX;
+
                 const targetX = laneCenterX(playerLane);
                 const moveP = easeOutQuint(Math.min(1, playerBankT / LANE_MOVE_MS));
                 playerX = playerMoveFromX + (targetX - playerMoveFromX) * moveP;
@@ -9686,7 +10086,9 @@ window.mu_syncHtmlBg = function(){
                 drawHeadlightGlow(renderPlayerX, playerY, carW, carH);
                 drawPlayerCarDR(renderPlayerX, playerY, carW, carH, tilt, sq.sx, sq.sy, nitroT > 0, mu_deadRoadVehicleDef(window.__markhinDeadRoadVehicle));
                 ctx.restore();
-                prevPlayerX = playerX;
+                // prevPlayerX is now snapshotted once per tick, inside
+                // step() above — not here — so it stays correctly one tick
+                // behind regardless of the device's real frame rate.
 
                 ctx.globalAlpha = 1;
                 particles.forEach(p => {
