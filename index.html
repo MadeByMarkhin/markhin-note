@@ -7403,8 +7403,8 @@ window.mu_syncHtmlBg = function(){
             document.getElementById('gameCard').classList.add('theme-racer');
             document.getElementById('gameTitleActive').innerText = fa ? '🏎️ ریسر دوخطه' : '🏎️ Twin Lane Racer';
             document.getElementById('gameDescActive').innerText = fa
-                ? 'نیمه چپ رو بزن برای ماشین چپ، نیمه راست برای ماشین راست. این جاده قانون سرش نمی‌شه: هر از گاهی سرعت یا حتی خودِ صفحه دیوونه می‌شه!'
-                : "Tap left for the left car, right for the right car. This road has no rules — speed, even the screen itself, can go haywire without warning!";
+                ? 'نیمه چپ رو بزن برای ماشین چپ، نیمه راست برای ماشین راست. این جاده قانون سرش نمی‌شه: هر از گاهی سرعت دیوونه می‌شه!'
+                : "Tap left for the left car, right for the right car. This road has no rules — speed can go haywire without warning!";
 
             clearGameEvents();
             const canvas = document.getElementById('cyberCanvas');
@@ -7487,14 +7487,14 @@ window.mu_syncHtmlBg = function(){
 
             // ------------------------- Chaos / "No Rules" physics -------------------------
             // Every so often the road's rules break for a few seconds: speed
-            // spikes or crawls, or the screen renders upside down. Always
-            // telegraphed with a short warning beat first, and only one
-            // event runs at a time, so the chaos is a twist to react to —
-            // never an unfair ambush and never stacked into something
-            // unbeatable.
+            // spikes or crawls. Always telegraphed with a short warning beat
+            // first, and only one event runs at a time, so the chaos is a
+            // twist to react to — never an unfair ambush and never stacked
+            // into something unbeatable. (The screen-flip twist that used to
+            // live here was removed — obstacle motion now stays fully
+            // predictable in Modern too, only speed still varies.)
             let chaosSpeedMult = 1;       // smoothed multiplier actually used for speed
             let chaosSpeedMultTarget = 1; // where chaosSpeedMult is easing toward
-            let screenFlipped = false;    // true: canvas is rendered rotated 180°
             let chaosScoreMult = 1;       // reward bonus while an event is live
             let chaosState = 'idle';      // 'idle' | 'warning' | 'active'
             let chaosPhaseTimer = 0;
@@ -7516,22 +7516,8 @@ window.mu_syncHtmlBg = function(){
                     id: 'slowMo', warnFa: '⚠️ زمان داره کند می‌شه...', warnEn: '⚠️ Time is slowing...',
                     labelFa: '🐌 دنیا آروم شد!', labelEn: '🐌 SLOW-MO ZONE!', duration: 3600, color: '#3fd2ff',
                     start() { chaosSpeedMultTarget = 0.6; }, end() { chaosSpeedMultTarget = 1; }
-                },
-                {
-                    id: 'screenFlip', warnFa: '⚠️ صفحه داره وارونه می‌شه...', warnEn: '⚠️ Screen is flipping...',
-                    labelFa: '🔄 صفحه وارونه شد!', labelEn: '🔄 SCREEN FLIPPED!', duration: 4600, color: '#ffd23f',
-                    start() { screenFlipped = true; }, end() { screenFlipped = false; }
                 }
             ];
-
-            function roadClearForFlip() {
-                // Only safe to flip when nothing is in front of us at all —
-                // any obstacle still on screen must be right at the far
-                // end of the road (just spawned near the top), not
-                // anywhere in the stretch the player actually has to react to.
-                const farLimit = height * 0.2;
-                return obstacles.every(o => o.y < farLimit);
-            }
 
             function updateChaos(rawDt) {
                 if (chaosState === 'idle') {
@@ -7541,12 +7527,6 @@ window.mu_syncHtmlBg = function(){
                         // ran, so the same twist can't fire back-to-back.
                         const pool = CHAOS_EVENTS.filter(e => e !== chaosEvent);
                         const candidate = pool[Math.floor(Math.random() * pool.length)];
-                        // Never flip the screen unless the road ahead is
-                        // clear — that would disorient the player right
-                        // when they need to react cleanly to something
-                        // close. Wait for a clearer moment; re-checked
-                        // every frame.
-                        if (candidate.id === 'screenFlip' && !roadClearForFlip()) return;
                         chaosState = 'warning';
                         chaosPhaseTimer = 0;
                         chaosEvent = candidate;
@@ -8060,12 +8040,8 @@ window.mu_syncHtmlBg = function(){
                 mAiGameHaptic('light');
             }
 
-            // Screen Flip mirrors left/right (the whole canvas is rotated
-            // 180°), so tap mapping stays visually correct: whichever side
-            // the player actually sees a car on is the side that steers it.
             function sideForLeft(isLeftSide) {
-                const wantsLeftCar = screenFlipped ? !isLeftSide : isLeftSide;
-                return wantsLeftCar ? 1 : 2;
+                return isLeftSide ? 1 : 2;
             }
 
             // Bound to the wrapper (whole area under the top bar) like the
@@ -8287,16 +8263,7 @@ window.mu_syncHtmlBg = function(){
                 let roadOffsetDelta = roadOffset - prevRoadOffset;
                 if (Math.abs(roadOffsetDelta) > dashCycle / 2) roadOffsetDelta += (roadOffsetDelta < 0 ? dashCycle : -dashCycle);
                 const renderRoadOffset = prevRoadOffset + roadOffsetDelta * alpha;
-                // Screen Flip renders the entire world rotated 180° around
-                // the canvas center. Purely cosmetic — car columns, obstacle
-                // y-positions and the collision math underneath never move,
-                // so the flip is disorienting without ever being unfair.
                 ctx.save();
-                if (screenFlipped) {
-                    ctx.translate(width / 2, height / 2);
-                    ctx.rotate(Math.PI);
-                    ctx.translate(-width / 2, -height / 2);
-                }
                 // Flat, near-black backdrop — no multi-stop glow gradient.
                 ctx.fillStyle = '#08080b';
                 ctx.fillRect(0, 0, width, height);
@@ -12373,12 +12340,7 @@ window.mu_syncHtmlBg = function(){
 (function(){
 'use strict';
 const M=window.MarkhinFeatures={dragDepth:0, mdMode:{}};
-const baseGetVisible=window.getVisibleCategories;
-const baseRenderButtons=window.renderButtons;
-const baseRenderFolders=window.renderFolders;
 const baseRenderApp=window.renderApp;
-const baseAddNewFolder=window.addNewFolder;
-const baseSearchChange=window.onSearchChange;
 function ensureItem(item){
  if(!item)return;
  item.tags=Array.isArray(item.tags)?item.tags.filter(Boolean).map(String):[];
@@ -12765,7 +12727,6 @@ window.editFake=async function(id){
     saveToLocalStorage();
     renderApp(id);
 };
-const baseHandle=window.handleCategoryClick;
 /* Scroll to a just-unlocked note's text. Only called when the note was closed
    and is now being opened (never on wrong password, never when closing an
    already-open note). Telegram's in-app WebView keeps settling its layout for
@@ -13674,6 +13635,27 @@ window.renderButtons = function(filtered){
     document.addEventListener('touchmove', function(e){
         if(e.touches.length !== 1) return;
         if(document.body.classList.contains('markhin-dragging-active')) return;
+        // Bug fix ("obstacles trembling/jumping, only inside Telegram"):
+        // this handler used to run its DOM-ancestor walk + a
+        // getComputedStyle() call per ancestor on EVERY touchmove
+        // anywhere in the app, unconditionally — including every finger
+        // move during gameplay (a slightly-drifting tap on Racer/Flappy
+        // fires touchmove just like a real drag would). getComputedStyle
+        // forces a synchronous style/layout flush, and doing that
+        // mid-frame is exactly the kind of main-thread stall that reads
+        // as dropped frames — each dropped frame is one the game's own
+        // rAF loop never got to run, so the fixed-timestep accumulator
+        // has to catch up by simulating several ticks at once on the
+        // next real frame, which is the "jump" on top of the smaller
+        // continuous "tremor" from the stalls themselves. This is far
+        // more visible inside Telegram's in-app WebView, which has much
+        // less main-thread headroom than a full browser — matching
+        // exactly where this was reported. None of this walk is needed
+        // while a game is playing anyway: the game screen is a
+        // fixed-position fullscreen overlay, so the page underneath
+        // can't be scrolled/bounced regardless.
+        const gamePlayEl = document.getElementById('gamePlayArea');
+        if(gamePlayEl && gamePlayEl.style.display === 'flex') return;
         let node = e.target;
         while(node && node !== document.body){
             if(node.nodeType === 1){
