@@ -1852,11 +1852,16 @@
             top: 0; left: 0;
             width: 100vw; height: 100vh;
             height: calc(var(--app-1vh, 1vh) * 100);
-            background: rgba(0,0,0,0.82);
+            background:
+                radial-gradient(ellipse 70% 50% at 50% 0%, rgba(255, 0, 200, 0.16), transparent 60%),
+                radial-gradient(ellipse 60% 45% at 15% 100%, rgba(0, 225, 255, 0.16), transparent 65%),
+                radial-gradient(ellipse 60% 45% at 100% 100%, rgba(140, 0, 255, 0.14), transparent 65%),
+                linear-gradient(180deg, #05030e 0%, #0a0620 45%, #04030c 100%);
             z-index: 9999;
             flex-direction: column;
             align-items: center;
             justify-content: center;
+            overflow: hidden;
             /* Smoothness fix: this modal covers the full viewport for the
                ENTIRE time any game is open, sitting directly on top of the
                continuously-animating themed background layers (the same
@@ -1867,11 +1872,10 @@
                long as a game is being played, directly competing with the
                game's own 60fps canvas loop for the same GPU/CPU budget.
                This is exactly the kind of cost noted elsewhere in this file
-               as "worst inside Telegram's in-app browser". The modal's
-               background is already 82% opaque black, so the blur added
-               very little visible effect anyway — dropping the previous
-               "backdrop-filter: blur(7px)" declaration removes a continuous
-               full-screen cost for effectively no visual loss. */
+               as "worst inside Telegram's in-app browser". The modal's own
+               background above is already a solid layered gradient (no
+               backdrop-filter), so it stays a one-off paint instead of a
+               per-frame cost while a game is being played. */
             /* Telegram's in-app WebView otherwise shows a text-selection/
                "save image" callout on long-press over the canvas, and lets a
                stray drag bleed through as a rubber-band scroll of the page
@@ -1881,6 +1885,60 @@
             -webkit-user-select: none;
             user-select: none;
             -webkit-touch-callout: none;
+        }
+
+        /* Perspective grid floor + drifting glow orbs, shown only behind the
+           game-selection menu (not during actual gameplay, where the game's
+           own canvas already fills the screen and this would just be wasted
+           paint underneath it). Pure CSS, no images/network, so it costs
+           nothing to load and nothing at runtime beyond two lightweight
+           transform animations. */
+        #gameModal::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            background-image:
+                linear-gradient(rgba(0, 225, 255, 0.16) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 225, 255, 0.16) 1px, transparent 1px);
+            background-size: 42px 42px;
+            -webkit-mask-image: radial-gradient(ellipse 85% 75% at 50% 100%, #000 55%, transparent 100%);
+            mask-image: radial-gradient(ellipse 85% 75% at 50% 100%, #000 55%, transparent 100%);
+            transform: perspective(300px) rotateX(58deg) scale(2.2);
+            transform-origin: 50% 100%;
+            opacity: 0;
+            transition: opacity 0.5s ease;
+        }
+        #gameModal::after {
+            content: '';
+            position: absolute;
+            inset: -10%;
+            pointer-events: none;
+            background:
+                radial-gradient(circle, rgba(255, 0, 200, 0.5) 0%, transparent 70%) 15% 20% / 38% 38% no-repeat,
+                radial-gradient(circle, rgba(0, 225, 255, 0.45) 0%, transparent 70%) 85% 75% / 32% 32% no-repeat;
+            filter: blur(6px);
+            opacity: 0;
+            animation: gameMenuOrbDrift 14s ease-in-out infinite;
+            transition: opacity 0.5s ease;
+        }
+        /* Both pseudo-elements only turn on while the selection menu (not
+           gameplay) is showing — toggled via this class on #gameModal
+           itself, set in openGameMenu()/backToGameMenu() and cleared the
+           moment a game actually starts. A plain class (rather than :has())
+           keeps this working in the same older/embedded WebViews the rest
+           of this file already works around. */
+        #gameModal.gm-menu-mode::before,
+        #gameModal.gm-menu-mode::after {
+            opacity: 1;
+        }
+        @keyframes gameMenuOrbDrift {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            33% { transform: translate(3%, -4%) scale(1.08); }
+            66% { transform: translate(-3%, 3%) scale(0.95); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            #gameModal::after { animation: none; }
         }
 
         .game-card {
@@ -1912,12 +1970,119 @@
             flex-direction: column;
         }
 
+        /* The game-SELECTION menu (before a game is chosen) also takes over
+           the full screen now, so the person lands on a proper full-page
+           arcade hub — floating on #gameModal's grid/glow background above —
+           instead of a small centered card. */
+        .game-card.gc-menu {
+            width: 100vw;
+            height: 100vh;
+            height: calc(var(--app-1vh, 1vh) * 100);
+            max-width: 100vw;
+            max-height: 100vh;
+            max-height: calc(var(--app-1vh, 1vh) * 100);
+            background: transparent;
+            border: none;
+            box-shadow: none;
+            border-radius: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+            box-sizing: border-box;
+            overflow-y: auto;
+        }
+
         #gamePlayArea {
             width: 100%;
             height: 100%;
             display: flex;
             flex-direction: column;
             box-sizing: border-box;
+        }
+
+        /* ------------------------- Game selection hub ------------------------- */
+        .game-hub {
+            width: 100%;
+            max-width: 620px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative;
+        }
+        .game-hub-close {
+            position: fixed;
+            top: max(14px, env(safe-area-inset-top, 0px));
+            inset-inline-end: 16px;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            border: 1px solid rgba(255,255,255,0.18);
+            background: rgba(255,255,255,0.06);
+            color: #fff;
+            font-size: 16px;
+            line-height: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            backdrop-filter: blur(4px);
+            z-index: 2;
+            transition: var(--transition-smooth, all 0.2s ease);
+        }
+        .game-hub-close:hover { background: rgba(239,68,68,0.75); border-color: rgba(239,68,68,0.8); transform: rotate(90deg); }
+        .game-hub-close:active { transform: rotate(90deg) scale(0.9); }
+
+        .game-hub-heading { text-align: center; margin-bottom: 34px; }
+        .game-hub-title {
+            margin: 0;
+            font-size: clamp(28px, 8vw, 42px);
+            font-weight: 800;
+            letter-spacing: 3px;
+            color: #fff;
+            text-shadow:
+                0 0 8px rgba(0, 225, 255, 0.85),
+                0 0 22px rgba(0, 225, 255, 0.55),
+                0 0 46px rgba(140, 0, 255, 0.45);
+        }
+        .game-hub-desc {
+            margin: 10px 0 0;
+            font-size: 13px;
+            color: rgba(255,255,255,0.55);
+            letter-spacing: 0.3px;
+        }
+
+        .game-hub-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(130px, 1fr));
+            gap: 16px;
+            width: 100%;
+        }
+        .game-tile {
+            padding: 26px 14px !important;
+            font-size: 15px !important;
+            font-weight: 700;
+            border-radius: 16px !important;
+            background: rgba(255,255,255,0.04) !important;
+            border: 1px solid rgba(255,255,255,0.12) !important;
+            box-shadow: 0 8px 28px rgba(0,0,0,0.35);
+            backdrop-filter: blur(3px);
+            transition: transform 0.2s cubic-bezier(0.175,0.885,0.32,1.275), box-shadow 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+        }
+        .game-tile:hover { transform: translateY(-4px) scale(1.03); }
+        .game-tile:active { transform: translateY(-1px) scale(0.98); }
+        .game-tile-snake { --tile-glow: 74, 222, 128; }
+        .game-tile-racer { --tile-glow: 251, 146, 60; }
+        .game-tile-flappy { --tile-glow: 168, 85, 247; }
+        .game-tile-deadroad { --tile-glow: 248, 63, 94; }
+        .game-tile-snake:hover, .game-tile-racer:hover, .game-tile-flappy:hover, .game-tile-deadroad:hover {
+            border-color: rgba(var(--tile-glow), 0.65) !important;
+            background: rgba(var(--tile-glow), 0.1) !important;
+            box-shadow: 0 10px 32px rgba(0,0,0,0.4), 0 0 26px rgba(var(--tile-glow), 0.35);
+        }
+        @media (min-width: 480px) {
+            .game-hub-grid { grid-template-columns: repeat(4, minmax(110px, 1fr)); }
         }
 
         .game-topbar {
@@ -3040,16 +3205,18 @@ window.mu_syncHtmlBg = function(){
 
     <div id="gameModal">
         <div class="game-card" id="gameCard">
-            <div id="gameSelectMenu">
-                <h3 id="gameMenuHeader" style="margin: 0 0 12px 0; font-size: 18px; font-weight: bold; letter-spacing: 0.8px;">GAME ZONE</h3>
-                <p id="gameMenuDesc" style="font-size: 12px; color: rgba(255,255,255,0.5); margin-bottom: 20px;">یک بازی را انتخاب کنید:</p>
-                <div style="display: flex; gap: 12px; justify-content: center; margin-bottom: 20px; flex-wrap: wrap;">
-                    <button class="btn-main" id="btnGameSnake" onclick="startNeonSnake()" style="padding: 10px 20px; font-size: 13px;">🐍 مار نئونی</button>
-                    <button class="btn-main" id="btnGameRacer" onclick="startTwinLaneRacer()" style="padding: 10px 20px; font-size: 13px;">🏎️ ریسر دوخطه</button>
-                    <button class="btn-main" id="btnGameFlappy" onclick="startCyberFlappy()" style="padding: 10px 20px; font-size: 13px;">🚀 عبور از موانع</button>
-                    <button class="btn-main" id="btnGameDeadRoad" onclick="startDeadRoad()" style="padding: 10px 20px; font-size: 13px;">💀 جاده مرگ</button>
+            <div id="gameSelectMenu" class="game-hub">
+                <button class="game-hub-close" id="btnGameClose" onclick="closeGame()" title="بستن">✕</button>
+                <div class="game-hub-heading">
+                    <h3 id="gameMenuHeader" class="game-hub-title">GAME ZONE</h3>
+                    <p id="gameMenuDesc" class="game-hub-desc">یک بازی را انتخاب کنید:</p>
                 </div>
-                <button class="img-btn" id="btnGameClose" style="padding: 8px 25px; background: rgba(239, 68, 68, 0.75); color: #fff; font-size: 13px;" onclick="closeGame()">بستن</button>
+                <div class="game-hub-grid">
+                    <button class="btn-main game-tile game-tile-snake" id="btnGameSnake" onclick="startNeonSnake()">🐍 مار نئونی</button>
+                    <button class="btn-main game-tile game-tile-racer" id="btnGameRacer" onclick="startTwinLaneRacer()">🏎️ ریسر دوخطه</button>
+                    <button class="btn-main game-tile game-tile-flappy" id="btnGameFlappy" onclick="startCyberFlappy()">🚀 عبور از موانع</button>
+                    <button class="btn-main game-tile game-tile-deadroad" id="btnGameDeadRoad" onclick="startDeadRoad()">💀 جاده مرگ</button>
+                </div>
             </div>
 
             <div id="gamePlayArea" style="display: none;">
@@ -3452,7 +3619,7 @@ window.mu_syncHtmlBg = function(){
                 secAdvancedTools: "ابزارهای ویژه",
                 secInput: "ورودی‌ها",
                 secGeneralExport: "خروجی‌های کلی",
-                gameMenuH: "منطقه بازی (Game Zone)",
+                gameMenuH: "منطقه بازی",
                 gameMenuP: "یک بازی را انتخاب کنید:",
                 snakeBtn: "🐍 مار نئونی",
                 flappyBtn: "🚀 عبور از موانع",
@@ -4589,7 +4756,7 @@ window.mu_syncHtmlBg = function(){
             htmlTag.dir = currentLang === 'fa' ? 'rtl' : 'ltr';
             htmlTag.lang = currentLang;
 
-            document.getElementById('langEmoji').innerText = currentLang === 'fa' ? '🌐' : '??';
+            document.getElementById('langEmoji').innerText = '🌐';
             document.getElementById('langLabel').innerText = currentLang === 'fa' ? 'FA' : 'EN';
 
             document.getElementById('uiTitle').innerText = t.title;
@@ -4612,7 +4779,7 @@ window.mu_syncHtmlBg = function(){
             document.getElementById('btnGameFlappy').innerText = t.flappyBtn;
             document.getElementById('btnGameRacer').innerText = t.racerBtn;
             document.getElementById('btnGameDeadRoad').innerText = t.deadroadBtn;
-            document.getElementById('btnGameClose').innerText = t.closeBtn;
+            document.getElementById('btnGameClose').title = t.closeBtn;
             document.getElementById('btnGameMenu').innerText = t.menuBtn;
             document.getElementById('btnGameExit').innerText = t.exitBtn;
 
@@ -5297,9 +5464,11 @@ window.mu_syncHtmlBg = function(){
             removeRacerChooser();
             removeDeadRoadVehicleChooser();
             document.getElementById('gameModal').style.display = 'flex';
+            document.getElementById('gameModal').classList.add('gm-menu-mode');
             document.getElementById('gameSelectMenu').style.display = 'block';
             document.getElementById('gamePlayArea').style.display = 'none';
             document.getElementById('gameCard').classList.remove('gc-playing');
+            document.getElementById('gameCard').classList.add('gc-menu');
             document.getElementById('gameCard').classList.remove('theme-racer');
             document.getElementById('gameCard').classList.remove('theme-flappy');
             document.getElementById('gameCard').classList.remove('theme-deadroad');
@@ -5315,9 +5484,11 @@ window.mu_syncHtmlBg = function(){
             removeRacerChooser();
             removeDeadRoadVehicleChooser();
             clearGameEvents();
+            document.getElementById('gameModal').classList.add('gm-menu-mode');
             document.getElementById('gameSelectMenu').style.display = 'block';
             document.getElementById('gamePlayArea').style.display = 'none';
             document.getElementById('gameCard').classList.remove('gc-playing');
+            document.getElementById('gameCard').classList.add('gc-menu');
             document.getElementById('gameCard').classList.remove('theme-racer');
             document.getElementById('gameCard').classList.remove('theme-flappy');
             document.getElementById('gameCard').classList.remove('theme-deadroad');
@@ -5327,7 +5498,9 @@ window.mu_syncHtmlBg = function(){
             removeRacerChooser();
             removeDeadRoadVehicleChooser();
             document.getElementById('gameModal').style.display = 'none';
+            document.getElementById('gameModal').classList.remove('gm-menu-mode');
             document.getElementById('gameCard').classList.remove('gc-playing');
+            document.getElementById('gameCard').classList.remove('gc-menu');
             document.getElementById('gameCard').classList.remove('theme-racer');
             document.getElementById('gameCard').classList.remove('theme-flappy');
             document.getElementById('gameCard').classList.remove('theme-deadroad');
@@ -5656,7 +5829,9 @@ window.mu_syncHtmlBg = function(){
             // content height and left an empty, untouchable strip at the
             // bottom of the screen — exactly the dead zone being reported.
             document.getElementById('gamePlayArea').style.display = 'flex';
+            document.getElementById('gameCard').classList.remove('gc-menu');
             document.getElementById('gameCard').classList.add('gc-playing');
+            document.getElementById('gameModal').classList.remove('gm-menu-mode');
             hideGameOverlay('gameOverOverlay');
             hideGameOverlay('gamePauseOverlay');
             gamePaused = false;
