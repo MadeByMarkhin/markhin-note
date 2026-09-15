@@ -221,7 +221,8 @@
         body.mu-scrolling .mu-angler::after,
         body.mu-scrolling .mu-spider-web,
         body.mu-scrolling .mu-spider::before,
-        body.mu-scrolling .mu-spider::after {
+        body.mu-scrolling .mu-spider::after,
+        body.mu-scrolling .mu-halloween-symbols span {
             animation-play-state: paused !important;
             filter: none !important;
             /* Keep the fixed layer painted; removing/recompositing it while a
@@ -262,7 +263,8 @@
         body.mu-game-open .mu-angler::after,
         body.mu-game-open .mu-spider-web,
         body.mu-game-open .mu-spider::before,
-        body.mu-game-open .mu-spider::after {
+        body.mu-game-open .mu-spider::after,
+        body.mu-game-open .mu-halloween-symbols span {
             animation-play-state: paused !important;
             filter: none !important;
         }
@@ -281,6 +283,9 @@
                 animation: none !important;
             }
             .mu-spider-web, .mu-spider::before, .mu-spider::after {
+                animation: none !important;
+            }
+            .mu-halloween-symbols span {
                 animation: none !important;
             }
         }
@@ -686,6 +691,51 @@
             --card-bg: rgba(3, 15, 3, 0.85) !important;
             --text-color: #d9ff5c !important;
             text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6) !important;
+        }
+
+        /* Halloween — deep purple-to-black night sky with a warm pumpkin-orange
+           accent, plus a handful of drifting Halloween symbols (🎃👻🦇🕷️🕸️💀)
+           for the "با نماد" request. Built as plain floating text (no blur,
+           no gradients, no filter) rather than the hand-drawn CSS shapes used
+           by .mu-spider/.mu-angler — cheaper than almost every other animated
+           theme here, and sidesteps the fixed-layer scroll-jump bug that
+           .mu-spider-web/-web already had to be hardened against (see the
+           mu-scrolling/mu-game-open/prefers-reduced-motion rules below, which
+           this theme's symbols are hooked into the exact same way for the
+           exact same reasons). */
+        body.theme-halloween {
+            --bg-gradient: radial-gradient(ellipse at bottom, #1c0b2e 0%, #100819 55%, #050208 100%) !important;
+            --panel-bg: rgba(255, 140, 0, 0.05) !important;
+            --panel-border: rgba(168, 85, 247, 0.25) !important;
+            --card-bg: rgba(16, 6, 22, 0.85) !important;
+            --text-color: #ffb347 !important;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.65) !important;
+        }
+        .mu-halloween-symbols { display: none; }
+        body.theme-halloween .mu-halloween-symbols {
+            display: block;
+            position: fixed;
+            inset: 0;
+            overflow: hidden;
+            pointer-events: none;
+            z-index: -1;
+        }
+        body.theme-halloween .mu-halloween-symbols span {
+            position: absolute;
+            display: block;
+            line-height: 1;
+            opacity: 0.55;
+            animation: muHalloweenFloat 15s ease-in-out infinite;
+        }
+        body.theme-halloween .mu-halloween-symbols span:nth-child(1) { left: 8%;  top: 12%; font-size: 34px; animation-duration: 16s; animation-delay: 0s; }
+        body.theme-halloween .mu-halloween-symbols span:nth-child(2) { left: 78%; top: 8%;  font-size: 24px; animation-duration: 13s; animation-delay: -3s; }
+        body.theme-halloween .mu-halloween-symbols span:nth-child(3) { left: 18%; top: 68%; font-size: 30px; animation-duration: 18s; animation-delay: -7s; }
+        body.theme-halloween .mu-halloween-symbols span:nth-child(4) { left: 85%; top: 58%; font-size: 22px; animation-duration: 15s; animation-delay: -5s; }
+        body.theme-halloween .mu-halloween-symbols span:nth-child(5) { left: 50%; top: 85%; font-size: 30px; animation-duration: 20s; animation-delay: -10s; }
+        body.theme-halloween .mu-halloween-symbols span:nth-child(6) { left: 42%; top: 22%; font-size: 20px; animation-duration: 12s; animation-delay: -2s; }
+        @keyframes muHalloweenFloat {
+            0%, 100% { transform: translate3d(0, 0, 0) rotate(-4deg); }
+            50%      { transform: translate3d(0, -18px, 0) rotate(4deg); }
         }
 
         /* Red Horizon — a warm desert-night skyline: a dim rust-red sky, a
@@ -3602,7 +3652,7 @@ window.mu_syncHtmlBg = function(){
         if (saved === null) return;
         var idx = parseInt(saved, 10);
         if (!Number.isFinite(idx) || idx < 0) return;
-        var classes = ['theme-oceanic','theme-phantom','theme-aurora','theme-aurora-phantom','theme-spider','theme-galaxy','theme-cloudy','theme-dreamy','theme-cyberpunk','theme-love','theme-snowy','theme-rainy','theme-autumn','theme-anonymous','theme-terminal','theme-darkweb','theme-acid','theme-redhorizon','theme-midnightblue'];
+        var classes = ['theme-oceanic','theme-phantom','theme-aurora','theme-aurora-phantom','theme-spider','theme-galaxy','theme-cloudy','theme-dreamy','theme-cyberpunk','theme-love','theme-snowy','theme-rainy','theme-autumn','theme-anonymous','theme-terminal','theme-darkweb','theme-acid','theme-redhorizon','theme-midnightblue','theme-halloween'];
         var cls = classes[idx];
         if (cls && cls !== 'theme-oceanic') {
             document.body.classList.remove('theme-oceanic');
@@ -3617,6 +3667,7 @@ window.mu_syncHtmlBg = function(){
     <div class="mu-angler" aria-hidden="true"></div>
     <div class="mu-spider-web" aria-hidden="true"></div>
     <div class="mu-spider" aria-hidden="true"></div>
+    <div class="mu-halloween-symbols" aria-hidden="true"><span>🎃</span><span>👻</span><span>🦇</span><span>🕷️</span><span>🕸️</span><span>💀</span></div>
     <div class="header-nav">
         <div class="brand-container">
             <div class="brand-logo" id="brandLogoText" onclick="baseTriggerLogoTyping()">MARKHIN</div>
@@ -4339,7 +4390,8 @@ window.mu_syncHtmlBg = function(){
             { id: 'anonymous', emoji: '👤', nameFa: 'تم انانیموس', nameEn: 'Anonymous', class: 'theme-anonymous' },
             { id: 'terminal', emoji: '💻', nameFa: 'تم ترمینال', nameEn: 'Terminal', class: 'theme-terminal' },
             { id: 'darkweb', emoji: '??️', nameFa: 'تم دارک وب', nameEn: 'Dark Web', class: 'theme-darkweb' },
-            { id: 'acid', emoji: '🧪', nameFa: 'تم اسید', nameEn: 'Acid', class: 'theme-acid' }
+            { id: 'acid', emoji: '🧪', nameFa: 'تم اسید', nameEn: 'Acid', class: 'theme-acid' },
+            { id: 'halloween', emoji: '🎃', nameFa: 'تم هالووین', nameEn: 'Halloween', class: 'theme-halloween' }
         ];
 
         /* =====================================================================
@@ -6482,7 +6534,9 @@ window.mu_syncHtmlBg = function(){
             // with no stale input ever ahead of it in line.
             let pendingDir = null;
             let food = {x: 0, y: 0};
-            let stepMs = 105;
+            // Slowed down further per feedback that it was still too fast.
+            // Was 105ms originally, then 140ms — now 170ms.
+            let stepMs = 170;
             let ended = false;
             gameScore = 0;
 
@@ -6539,9 +6593,24 @@ window.mu_syncHtmlBg = function(){
             }
 
             function queueDir(ndx, ndy) {
-                const ref = pendingDir || {x: dx, y: dy};
-                if (ndx === -ref.x && ndy === -ref.y) return; // no 180° reversals
-                if (ndx === ref.x && ndy === ref.y) return;
+                // Bug fix ("dies while turning, doesn't look like it touched
+                // its own body"): this used to compare each new swipe against
+                // whatever was already queued (pendingDir), not the snake's
+                // real current heading. During a continuous drag, touchmove
+                // fires many times before the next grid tick, so a quick
+                // chain like "swipe up, then swipe left" could sneak past
+                // this check one hop at a time — up isn't a reversal of the
+                // old heading, and left isn't a reversal of up — while the
+                // two together add up to a full U-turn relative to the
+                // actual direction the snake is still moving in. That U-turn
+                // then gets applied on the next tick, running the head
+                // straight into the neck segment behind it, which reads as
+                // an unfair death since no single swipe looked like a
+                // reversal. Comparing every swipe against the true current
+                // heading (dx, dy) — never against pendingDir — closes this:
+                // no chain of quick swipes can ever add up to a reversal.
+                if (ndx === -dx && ndy === -dy) return; // no 180° reversals of the real heading
+                if (ndx === dx && ndy === dy) return; // already heading that way
                 pendingDir = {x: ndx, y: ndy}; // newest input always overwrites any older pending one
             }
 
@@ -6664,8 +6733,28 @@ window.mu_syncHtmlBg = function(){
                     // Prefer a spot that's also safe to actually EAT (won't
                     // seal the snake in once it's grown by one) — that's
                     // the real fairness guarantee, not just "reachable".
-                    const safeCells = cells.filter(c => safeAfterEatingAt(c.x, c.y));
-                    chosen = safeCells.length ? pickRandom(safeCells) : (cells.length ? pickRandom(cells) : null);
+                    //
+                    // Bug fix ("game freezes for a second right when you eat"):
+                    // this used to call safeAfterEatingAt() — a full board
+                    // flood-fill on its own — against EVERY reachable cell
+                    // just to build the full safeCells list before picking one
+                    // at random. On a decent-sized board that's dozens of BFS
+                    // passes back-to-back, all on the single tick where food
+                    // gets eaten, which is exactly what showed up as a visible
+                    // stutter/pause right after eating. Since we only need ONE
+                    // safe cell (not the full list), shuffle the candidates
+                    // first and stop at the first one that checks out — same
+                    // fairness guarantee, but typically 1 BFS call instead of
+                    // one per reachable cell.
+                    for (let i = cells.length - 1; i > 0; i--) {
+                        const j = Math.floor(Math.random() * (i + 1));
+                        [cells[i], cells[j]] = [cells[j], cells[i]];
+                    }
+                    let safePick = null;
+                    for (const c of cells) {
+                        if (safeAfterEatingAt(c.x, c.y)) { safePick = c; break; }
+                    }
+                    chosen = safePick || (cells.length ? cells[0] : null);
                 }
                 if (!chosen) {
                     // Board's gotten tight enough that no reachable spot
@@ -6729,13 +6818,23 @@ window.mu_syncHtmlBg = function(){
                 const { region, cells } = reachableFreeCells();
                 if (region.size < minRegion) return;
                 const eligible = cells.filter(c => !(food.x === c.x && food.y === c.y));
-                const safeCells = eligible.filter(c => safeAfterEatingAt(c.x, c.y));
+                // Same fix as spawnFood(): shuffle then stop at the first
+                // cell that passes the full-BFS safety check, instead of
+                // running that BFS against every eligible cell just to
+                // build a list to pick one from afterward.
+                for (let i = eligible.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [eligible[i], eligible[j]] = [eligible[j], eligible[i]];
+                }
+                let chosen = null;
+                for (const c of eligible) {
+                    if (safeAfterEatingAt(c.x, c.y)) { chosen = c; break; }
+                }
                 // No fallback here on purpose — gold is a bonus, not
                 // something the player is owed every time, so if nothing on
                 // the board is actually safe to eat, just skip this round
                 // rather than risk a trap.
-                if (!safeCells.length) return;
-                const chosen = pickRandom(safeCells);
+                if (!chosen) return;
                 goldFood = {x: chosen.x, y: chosen.y, ticksLeft: GOLD_LIFE_TICKS, totalTicks: GOLD_LIFE_TICKS};
             }
             // ---------------------------------------------------------------------
@@ -6913,7 +7012,9 @@ window.mu_syncHtmlBg = function(){
 
                             if (ateFood) {
                                 foodEatenCount++;
-                                if (foodEatenCount % 5 === 0) stepMs = Math.max(55, stepMs - 7);
+                                // Ramps up even more gently now, and tops out
+                                // slower too (was floor 55ms, then 80ms, now 100ms).
+                                if (foodEatenCount % 8 === 0) stepMs = Math.max(100, stepMs - 5);
                                 spawnFood();
                                 tryStartGoldFood();
                             }
