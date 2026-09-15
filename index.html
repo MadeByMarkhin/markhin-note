@@ -182,6 +182,11 @@
            whole page "jumping". transform:translateZ(0) plus will-change is
            what forces that dedicated layer. */
         body.theme-oceanic::before, body.theme-oceanic::after,
+        .mu-oceanic-waves::before, .mu-oceanic-waves::after,
+        body.theme-midnightblue::before, body.theme-midnightblue::after,
+        .mu-angler, .mu-angler::after,
+        body.theme-spider::before, body.theme-spider::after,
+        .mu-spider-web, .mu-spider::before, .mu-spider::after,
         body.theme-cloudy::before,
         body.theme-aurora::before, body.theme-aurora::after,
         body.theme-phantom::before, body.theme-phantom::after,
@@ -209,7 +214,14 @@
            and nobody is looking at it while actively scrolling — but it removes the
            exact GPU spike that was causing the flash. */
         body.mu-scrolling[class*="theme-"]::before,
-        body.mu-scrolling[class*="theme-"]::after {
+        body.mu-scrolling[class*="theme-"]::after,
+        body.mu-scrolling .mu-oceanic-waves::before,
+        body.mu-scrolling .mu-oceanic-waves::after,
+        body.mu-scrolling .mu-angler,
+        body.mu-scrolling .mu-angler::after,
+        body.mu-scrolling .mu-spider-web,
+        body.mu-scrolling .mu-spider::before,
+        body.mu-scrolling .mu-spider::after {
             animation-play-state: paused !important;
             filter: none !important;
             /* Keep the fixed layer painted; removing/recompositing it while a
@@ -243,7 +255,14 @@
            #gameModal is open (toggled in openGameMenu()/closeGame() in the
            script below) rather than on a short timer. */
         body.mu-game-open[class*="theme-"]::before,
-        body.mu-game-open[class*="theme-"]::after {
+        body.mu-game-open[class*="theme-"]::after,
+        body.mu-game-open .mu-oceanic-waves::before,
+        body.mu-game-open .mu-oceanic-waves::after,
+        body.mu-game-open .mu-angler,
+        body.mu-game-open .mu-angler::after,
+        body.mu-game-open .mu-spider-web,
+        body.mu-game-open .mu-spider::before,
+        body.mu-game-open .mu-spider::after {
             animation-play-state: paused !important;
             filter: none !important;
         }
@@ -253,6 +272,15 @@
            layers fully static instead of just pausing them during scroll. */
         @media (prefers-reduced-motion: reduce) {
             body[class*="theme-"]::before, body[class*="theme-"]::after {
+                animation: none !important;
+            }
+            .mu-oceanic-waves::before, .mu-oceanic-waves::after {
+                animation: none !important;
+            }
+            .mu-angler, .mu-angler::before, .mu-angler::after {
+                animation: none !important;
+            }
+            .mu-spider-web, .mu-spider::before, .mu-spider::after {
                 animation: none !important;
             }
         }
@@ -336,6 +364,64 @@
             100% { background-position: 10% -15%, 34% -20%, 60% -12%, 84% -18%; }
         }
 
+        /* Sea horizon — the actual wave silhouette equivalent of Red Horizon's
+           mountain ridge (.mu-redhorizon-mountains below): two layered wave
+           lines fixed to the bottom of the viewport, a hazier far swell
+           behind a darker, taller near wave, so the theme reads as an actual
+           ocean instead of just an abstract blue gradient with caustics.
+           Unlike the static mountain ridge this one visibly rolls, since a
+           still wave silhouette doesn't read as water. Each layer is a
+           clip-path polygon traced from a real sine wave (not hand-picked
+           jagged points like the mountains) so the crests look like water,
+           not rock — and each polygon's period was chosen to divide its own
+           box evenly, so the whole shape tiles perfectly onto itself: the
+           element is drawn at 200% width (two back-to-back copies of the
+           identical pattern) and animated with transform:translateX only
+           (compositor-only, same "cheap" approach as every other drift
+           animation in this file) from 0 to -50% of its own width — exactly
+           one copy's worth — so the instant it snaps back to 0% to loop, the
+           pixels are already identical and no seam or jump is visible.
+           Hidden for every other theme; only shown while .theme-oceanic is
+           on body, same convention as .mu-redhorizon-mountains. */
+        .mu-oceanic-waves { display: none; }
+        body.theme-oceanic .mu-oceanic-waves {
+            display: block;
+            position: fixed;
+            left: 0; right: 0; bottom: -2%;
+            height: 24vh;
+            min-height: 150px;
+            overflow: hidden;
+            pointer-events: none;
+            z-index: -1;
+            contain: paint;
+        }
+        body.theme-oceanic .mu-oceanic-waves::before {
+            content: "";
+            position: absolute;
+            top: 0; left: 0;
+            width: 200%; height: 100%;
+            background: linear-gradient(180deg, rgba(1, 78, 121, 0) 0%, rgba(1, 60, 94, .5) 45%, rgba(1, 40, 63, .75) 100%);
+            clip-path: polygon(0% 100%, 0.00% 50.00%, 8.33% 43.07%, 16.67% 43.07%, 25.00% 50.00%, 33.33% 56.93%, 41.67% 56.93%, 50.00% 50.00%, 58.33% 43.07%, 66.67% 43.07%, 75.00% 50.00%, 83.33% 56.93%, 91.67% 56.93%, 100.00% 50.00%, 108.33% 43.07%, 116.67% 43.07%, 125.00% 50.00%, 133.33% 56.93%, 141.67% 56.93%, 150.00% 50.00%, 158.33% 43.07%, 166.67% 43.07%, 175.00% 50.00%, 183.33% 56.93%, 191.67% 56.93%, 200.00% 50.00%, 200% 100%);
+            animation: oceanWaveFarDrift 22s linear infinite;
+        }
+        body.theme-oceanic .mu-oceanic-waves::after {
+            content: "";
+            position: absolute;
+            top: 0; left: 0;
+            width: 200%; height: 100%;
+            background: linear-gradient(180deg, rgba(0, 180, 216, .12) 0%, rgba(1, 45, 71, .88) 55%, rgba(0, 20, 34, .96) 100%);
+            clip-path: polygon(0% 100%, 0.00% 53.61%, 4.17% 53.61%, 8.33% 64.00%, 12.50% 74.39%, 16.67% 74.39%, 20.83% 64.00%, 25.00% 53.61%, 29.17% 53.61%, 33.33% 64.00%, 37.50% 74.39%, 41.67% 74.39%, 45.83% 64.00%, 50.00% 53.61%, 54.17% 53.61%, 58.33% 64.00%, 62.50% 74.39%, 66.67% 74.39%, 70.83% 64.00%, 75.00% 53.61%, 79.17% 53.61%, 83.33% 64.00%, 87.50% 74.39%, 91.67% 74.39%, 95.83% 64.00%, 100.00% 53.61%, 104.17% 53.61%, 108.33% 64.00%, 112.50% 74.39%, 116.67% 74.39%, 120.83% 64.00%, 125.00% 53.61%, 129.17% 53.61%, 133.33% 64.00%, 137.50% 74.39%, 141.67% 74.39%, 145.83% 64.00%, 150.00% 53.61%, 154.17% 53.61%, 158.33% 64.00%, 162.50% 74.39%, 166.67% 74.39%, 170.83% 64.00%, 175.00% 53.61%, 179.17% 53.61%, 183.33% 64.00%, 187.50% 74.39%, 191.67% 74.39%, 195.83% 64.00%, 200.00% 53.61%, 200% 100%);
+            animation: oceanWaveNearDrift 13s linear infinite reverse;
+        }
+        @keyframes oceanWaveFarDrift {
+            from { transform: translate3d(0, 0, 0); }
+            to   { transform: translate3d(-50%, 0, 0); }
+        }
+        @keyframes oceanWaveNearDrift {
+            from { transform: translate3d(0, 0, 0); }
+            to   { transform: translate3d(-50%, 0, 0); }
+        }
+
         body.theme-spider {
             --bg-gradient: radial-gradient(circle, #1a001d 0%, #050008 100%) !important;
             --panel-bg: rgba(186, 85, 211, 0.04) !important;
@@ -343,6 +429,127 @@
             --card-bg: rgba(10, 2, 15, 0.85) !important;
             --text-color: #e9a3ff !important;
             text-shadow: 0 1px 3px rgba(0, 0, 0, 0.65) !important;
+        }
+        /* Faint drifting violet haze + a handful of twinkling "dew on the
+           web" specks — same atmosphere treatment every other enhanced
+           theme already gets, which Spider was missing entirely before. */
+        body.theme-spider::before {
+            content: "";
+            position: fixed;
+            top: -8%; left: -8%; right: -8%; bottom: -8%;
+            background:
+                radial-gradient(ellipse 45% 26% at 25% 15%, rgba(186, 85, 211, 0.14) 0%, transparent 62%),
+                radial-gradient(ellipse 40% 24% at 78% 35%, rgba(147, 51, 199, 0.12) 0%, transparent 62%),
+                radial-gradient(ellipse 50% 28% at 50% 85%, rgba(90, 20, 120, 0.16) 0%, transparent 65%);
+            filter: blur(4px);
+            pointer-events: none;
+            z-index: -1;
+            contain: paint;
+            animation: spiderHazeDrift 24s ease-in-out infinite alternate;
+        }
+        @keyframes spiderHazeDrift {
+            0%   { transform: translate3d(0, 0, 0); }
+            50%  { transform: translate3d(-2%, 1.5%, 0); }
+            100% { transform: translate3d(2%, -1%, 0); }
+        }
+        body.theme-spider::after {
+            content: "";
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: -1;
+            contain: paint;
+            background-image:
+                radial-gradient(circle 1px at 16% 22%, rgba(233, 163, 255, .7), transparent 100%),
+                radial-gradient(circle 1.5px at 42% 60%, rgba(233, 163, 255, .5), transparent 100%),
+                radial-gradient(circle 1px at 68% 25%, rgba(233, 163, 255, .6), transparent 100%),
+                radial-gradient(circle 1.5px at 85% 65%, rgba(233, 163, 255, .45), transparent 100%),
+                radial-gradient(circle 1px at 30% 88%, rgba(233, 163, 255, .4), transparent 100%);
+            animation: spiderTwinkle 6s ease-in-out infinite alternate;
+        }
+        @keyframes spiderTwinkle {
+            0%   { opacity: .35; }
+            50%  { opacity: 1; }
+            100% { opacity: .45; }
+        }
+        /* The cool part: an actual web strung across the top-right corner
+           (built from two conic/radial gradients centered exactly on the
+           box's own corner, so the spokes+rings fan naturally into the
+           visible area — same trick as a real web strung between a wall
+           and ceiling), plus a real spider (yes, the emoji — simplest way
+           to get an actually-recognizable 8-legged silhouette rather than
+           an approximation built from div soup) that periodically drops
+           down on a thread of silk, hangs and sways for a bit like it's
+           sizing something up, then reels itself back up to the web. The
+           thread's length (scaleY) and the spider's drop distance
+           (translateY) share the same keyframe percentages so the silk
+           always visually ends exactly where the spider is. */
+        .mu-spider-web { display: none; }
+        body.theme-spider .mu-spider-web {
+            display: block;
+            position: fixed;
+            top: 0; right: 0;
+            width: 220px;
+            height: 220px;
+            pointer-events: none;
+            z-index: -1;
+            contain: paint;
+            opacity: .6;
+            background:
+                repeating-conic-gradient(from 0deg at 100% 0%, transparent 0deg 14deg, rgba(220, 180, 255, .16) 14.4deg 14.9deg),
+                repeating-radial-gradient(circle at 100% 0%, transparent 0 22px, rgba(220, 180, 255, .14) 22px 23px);
+            animation: spiderWebGlisten 9s ease-in-out infinite alternate;
+        }
+        @keyframes spiderWebGlisten {
+            0%, 100% { opacity: .45; }
+            50%      { opacity: .7; }
+        }
+        .mu-spider { display: none; }
+        body.theme-spider .mu-spider {
+            display: block;
+            position: fixed;
+            top: 0;
+            right: 64px;
+            width: 2px;
+            height: 140px;
+            pointer-events: none;
+            z-index: -1;
+            contain: paint;
+        }
+        body.theme-spider .mu-spider::before {
+            content: "";
+            position: absolute;
+            top: 0; left: 50%;
+            width: 1.5px;
+            height: 130px;
+            background: linear-gradient(rgba(220, 180, 255, .55), rgba(220, 180, 255, .15));
+            transform-origin: top center;
+            animation: spiderThread 18s ease-in-out infinite;
+        }
+        @keyframes spiderThread {
+            0%   { transform: translateX(-50%) scaleY(0); }
+            32%  { transform: translateX(-50%) scaleY(1); }
+            68%  { transform: translateX(-50%) scaleY(1); }
+            100% { transform: translateX(-50%) scaleY(0); }
+        }
+        body.theme-spider .mu-spider::after {
+            content: "🕷️";
+            position: absolute;
+            top: 0; left: 50%;
+            font-size: 22px;
+            line-height: 1;
+            filter: drop-shadow(0 0 6px rgba(220, 140, 255, .55));
+            animation: spiderDangle 18s ease-in-out infinite;
+        }
+        @keyframes spiderDangle {
+            0%   { transform: translateX(-50%) translateY(0) rotate(0deg); }
+            32%  { transform: translateX(-50%) translateY(130px) rotate(0deg); }
+            40%  { transform: translateX(-50%) translateY(130px) rotate(-5deg); }
+            48%  { transform: translateX(-50%) translateY(130px) rotate(5deg); }
+            56%  { transform: translateX(-50%) translateY(130px) rotate(-3deg); }
+            64%  { transform: translateX(-50%) translateY(130px) rotate(0deg); }
+            68%  { transform: translateX(-50%) translateY(130px) rotate(0deg); }
+            100% { transform: translateX(-50%) translateY(0) rotate(0deg); }
         }
 
         body.theme-galaxy {
@@ -576,6 +783,143 @@
                 42% 72%, 55% 40%, 65% 70%, 75% 48%, 85% 68%, 92% 52%,
                 100% 72%, 100% 100%);
         }
+
+        /* Midnight Blue — the deep abyss, hundreds of meters down where
+           sunlight never reaches. Almost nothing to see except two things:
+           a scatter of faint bioluminescent plankton, and — the real point
+           of this theme — an anglerfish's lure drifting past in the dark
+           (.mu-angler below). Real anglerfish are essentially invisible at
+           that depth; the only thing prey (or here, the viewer) ever
+           actually sees is the glowing lure bobbing on its stalk, with the
+           fish itself just an implied shape behind it. That's the whole
+           visual idea: darkness first, one small living light second. */
+        body.theme-midnightblue {
+            --bg-gradient: radial-gradient(ellipse 100% 70% at 55% 8%, #0a1d3a 0%, #071230 30%, #030a1c 60%, #01040c 100%) !important;
+            --panel-bg: rgba(90, 170, 255, 0.05) !important;
+            --panel-border: rgba(110, 190, 255, 0.2) !important;
+            --card-bg: rgba(3, 9, 22, 0.86) !important;
+            --text-color: #b9d6ff !important;
+            text-shadow: 0 1px 3px rgba(0, 4, 12, 0.65) !important;
+        }
+        body.theme-midnightblue::before {
+            /* Distant, faint patches of bioluminescence far off in the
+               dark — never bright, just barely enough to prove the water
+               isn't truly empty. Same cheap translate-only drift as the
+               other themes' equivalent layer. */
+            content: "";
+            position: fixed;
+            top: -8%; left: -8%; right: -8%; bottom: -8%;
+            background:
+                radial-gradient(ellipse 40% 22% at 18% 26%, rgba(70, 150, 255, 0.09) 0%, transparent 65%),
+                radial-gradient(ellipse 35% 20% at 78% 55%, rgba(50, 220, 220, 0.07) 0%, transparent 65%),
+                radial-gradient(ellipse 45% 25% at 45% 88%, rgba(40, 100, 220, 0.09) 0%, transparent 65%);
+            filter: blur(4px);
+            pointer-events: none;
+            z-index: -1;
+            contain: paint;
+            animation: midnightDrift 26s ease-in-out infinite alternate;
+        }
+        @keyframes midnightDrift {
+            0%   { transform: translate3d(0, 0, 0); }
+            50%  { transform: translate3d(-2%, 1.5%, 0); }
+            100% { transform: translate3d(2%, -1%, 0); }
+        }
+        body.theme-midnightblue::after {
+            /* Tiny twinkling plankton specks scattered through the water —
+               background-position keyframes can't hand off to the
+               compositor, so kept to a handful of stops (same tradeoff
+               already made for Oceanic's bubble layer above). */
+            content: "";
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: -1;
+            contain: paint;
+            background-image:
+                radial-gradient(circle 1px at 14% 18%, rgba(160, 225, 255, .75), transparent 100%),
+                radial-gradient(circle 1.5px at 38% 62%, rgba(130, 255, 230, .55), transparent 100%),
+                radial-gradient(circle 1px at 64% 28%, rgba(160, 225, 255, .65), transparent 100%),
+                radial-gradient(circle 1.5px at 83% 68%, rgba(130, 255, 230, .5), transparent 100%),
+                radial-gradient(circle 1px at 27% 85%, rgba(160, 225, 255, .45), transparent 100%),
+                radial-gradient(circle 1.5px at 55% 10%, rgba(130, 255, 230, .6), transparent 100%);
+            animation: midnightTwinkle 5.5s ease-in-out infinite alternate;
+        }
+        @keyframes midnightTwinkle {
+            0%   { opacity: .3; }
+            50%  { opacity: 1; }
+            100% { opacity: .4; }
+        }
+        /* The anglerfish itself. A soft, barely-there dark shape (its
+           actual body — deliberately subtle, since real anglerfish read
+           as almost nothing but a shadow at this depth) trailed by a
+           thin glowing stalk (::before) and, at the tip, the lure
+           (::after): a small pulsing bioluminescent bulb with a
+           breathing glow built from layered box-shadow blur. The whole
+           thing drifts slowly across the bottom third of the screen —
+           just cruising past — and loops by re-entering from offscreen,
+           which is invisible to the viewer since the re-entry point is
+           off the edge of the viewport. Only transform is animated
+           (position + the lure's scale/opacity pulse), same
+           compositor-only approach as every other moving layer in this
+           file. Hidden for every other theme. */
+        .mu-angler { display: none; }
+        body.theme-midnightblue .mu-angler {
+            display: block;
+            position: fixed;
+            top: 60%;
+            left: 0;
+            width: 130px;
+            height: 90px;
+            pointer-events: none;
+            z-index: -1;
+            contain: paint;
+            background: radial-gradient(ellipse 62% 55% at 38% 58%, rgba(2, 6, 15, .72) 0%, rgba(2, 6, 15, .32) 55%, transparent 75%);
+            filter: blur(6px);
+            animation: anglerSwim 48s linear infinite;
+        }
+        @keyframes anglerSwim {
+            0%   { transform: translate3d(112vw, 0, 0); }
+            25%  { transform: translate3d(77vw, -3vh, 0); }
+            50%  { transform: translate3d(42vw, 2vh, 0); }
+            75%  { transform: translate3d(7vw, -2vh, 0); }
+            100% { transform: translate3d(-32vw, 0, 0); }
+        }
+        body.theme-midnightblue .mu-angler::before {
+            /* The illicium — the thin stalk every real anglerfish dangles
+               its lure from, arched out just ahead of where its (mostly
+               invisible) head would be. */
+            content: "";
+            position: absolute;
+            left: 6%;
+            top: 4%;
+            width: 2px;
+            height: 32px;
+            background: linear-gradient(rgba(150, 220, 255, .5), rgba(150, 220, 255, 0));
+            transform: rotate(-16deg);
+            transform-origin: bottom center;
+        }
+        body.theme-midnightblue .mu-angler::after {
+            /* The lure — the one thing actually meant to be seen. */
+            content: "";
+            position: absolute;
+            left: 2%;
+            top: -2%;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: radial-gradient(circle, #eafcff 0%, #7fe6ff 45%, rgba(70, 200, 255, .18) 75%, transparent 100%);
+            box-shadow:
+                0 0 8px 3px rgba(120, 220, 255, .55),
+                0 0 18px 8px rgba(80, 190, 255, .3),
+                0 0 34px 16px rgba(50, 150, 230, .15);
+            animation: anglerPulse 3.6s ease-in-out infinite;
+        }
+        @keyframes anglerPulse {
+            0%, 100% { opacity: .55; transform: scale(.85); }
+            45%      { opacity: 1;   transform: scale(1.15); }
+            60%      { opacity: .88; transform: scale(1.02); }
+        }
+
         /* Aurora — layered ribbons of northern-lights color drifting across a
            starry night sky, with a gentle twinkle for extra depth. */
         body.theme-aurora {
@@ -3258,7 +3602,7 @@ window.mu_syncHtmlBg = function(){
         if (saved === null) return;
         var idx = parseInt(saved, 10);
         if (!Number.isFinite(idx) || idx < 0) return;
-        var classes = ['theme-oceanic','theme-phantom','theme-aurora','theme-aurora-phantom','theme-spider','theme-galaxy','theme-cloudy','theme-dreamy','theme-cyberpunk','theme-love','theme-snowy','theme-rainy','theme-autumn','theme-anonymous','theme-terminal','theme-darkweb','theme-acid','theme-redhorizon'];
+        var classes = ['theme-oceanic','theme-phantom','theme-aurora','theme-aurora-phantom','theme-spider','theme-galaxy','theme-cloudy','theme-dreamy','theme-cyberpunk','theme-love','theme-snowy','theme-rainy','theme-autumn','theme-anonymous','theme-terminal','theme-darkweb','theme-acid','theme-redhorizon','theme-midnightblue'];
         var cls = classes[idx];
         if (cls && cls !== 'theme-oceanic') {
             document.body.classList.remove('theme-oceanic');
@@ -3269,6 +3613,10 @@ window.mu_syncHtmlBg = function(){
 })();
 </script>
     <div class="mu-redhorizon-mountains" aria-hidden="true"></div>
+    <div class="mu-oceanic-waves" aria-hidden="true"></div>
+    <div class="mu-angler" aria-hidden="true"></div>
+    <div class="mu-spider-web" aria-hidden="true"></div>
+    <div class="mu-spider" aria-hidden="true"></div>
     <div class="header-nav">
         <div class="brand-container">
             <div class="brand-logo" id="brandLogoText" onclick="baseTriggerLogoTyping()">MARKHIN</div>
@@ -3978,6 +4326,7 @@ window.mu_syncHtmlBg = function(){
             { id: 'aurora', emoji: '🌈', nameFa: 'تم شفق قطبی', nameEn: 'Aurora', class: 'theme-aurora' },
             { id: 'aurora-phantom', emoji: '🔮', nameFa: 'تم شفق فانتومی', nameEn: 'Aurora Phantom', class: 'theme-aurora-phantom' },
             { id: 'redhorizon', emoji: '🌅', nameFa: 'تم افق سرخ', nameEn: 'Red Horizon', class: 'theme-redhorizon' },
+            { id: 'midnightblue', emoji: '🔦', nameFa: 'میدنایت بلو', nameEn: 'Midnight Blue', class: 'theme-midnightblue' },
             { id: 'spider', emoji: '🕷️', nameFa: 'تم عنکبوتی', nameEn: 'Spider', class: 'theme-spider' },
             { id: 'dreamy', emoji: '✨', nameFa: 'تم رویایی', nameEn: 'Dreamy', class: 'theme-dreamy' },
             { id: 'galaxy', emoji: '🌌', nameFa: 'تم کهکشانی', nameEn: 'Galaxy', class: 'theme-galaxy' },
@@ -5811,9 +6160,32 @@ window.mu_syncHtmlBg = function(){
             canvas.height = Math.round(h * dpr);
             canvas.style.width = w + 'px';
             canvas.style.height = h + 'px';
-            const ctx = canvas.getContext('2d');
+            // { alpha: false } tells the browser this canvas never needs to
+            // show anything through it — every game here clears and
+            // repaints the WHOLE canvas with an opaque background every
+            // single frame (confirmed: each draw() does a full clearRect/
+            // fillRect before drawing anything else), so there's nothing
+            // for alpha compositing to ever actually blend against. Without
+            // this hint the browser still tracks and blends the alpha
+            // channel on every composite, which is wasted GPU/CPU work on
+            // every single frame; marking the canvas opaque up front lets
+            // it skip that entirely — one of the more reliable Canvas2D
+            // wins on the weaker Android WebViews Telegram's in-app browser
+            // runs on. Safe here specifically because this is the first
+            // and only place `#cyberCanvas` ever has getContext('2d')
+            // called on it (context options are locked in on first call;
+            // every game start after this just reuses the same context).
+            // desynchronized:true is a second hint alongside alpha:false —
+            // it tells the browser this canvas can skip some of the normal
+            // synchronization between what's drawn and when it's shown on
+            // screen, which on supporting browsers (most modern Android
+            // WebViews, which is exactly what Telegram's in-app browser
+            // is) cuts the delay between a frame being drawn and actually
+            // appearing. It's a hint, not a requirement — any browser that
+            // doesn't support it just ignores it and behaves exactly as
+            // before, so this is safe with no fallback needed.
+            const ctx = canvas.getContext('2d', { alpha: false, desynchronized: true });
             ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-            // Remembered so mAiGameScheduleRefit (below) can tell a real
             // resize apart from cosmetic viewport jitter and skip needless
             // restarts — see the bug fix there.
             window.__markhinFitW = w;
@@ -6096,13 +6468,21 @@ window.mu_syncHtmlBg = function(){
             for (let x = 0; x <= boardW; x += gridSize) { gctx.beginPath(); gctx.moveTo(x, 0); gctx.lineTo(x, boardH); gctx.stroke(); }
             for (let y = 0; y <= boardH; y += gridSize) { gctx.beginPath(); gctx.moveTo(0, y); gctx.lineTo(boardW, y); gctx.stroke(); }
 
-            // A short input queue (instead of a single "next direction") makes
-            // fast swipes/keys register correctly instead of being silently
-            // dropped or occasionally allowing a same-tick reversal into the
-            // snake's own neck.
-            let inputQueue = [];
+            // Only ever remember the single MOST RECENT valid direction,
+            // not a FIFO of every swipe/keypress since the last tick. The
+            // old array-based queue could hold two different queued turns
+            // at once (e.g. an up-swipe followed a moment later by a
+            // right-swipe, both before the next tick fired) and would
+            // apply them in the order they arrived — so the newer, more
+            // relevant turn only took effect a full tick (one grid cell)
+            // *after* the stale one, which read as "my direction change
+            // doesn't work until a cell later". Collapsing this to a
+            // single pending slot means whatever the player last pointed
+            // right before the tick fires is exactly what gets applied,
+            // with no stale input ever ahead of it in line.
+            let pendingDir = null;
             let food = {x: 0, y: 0};
-            let stepMs = 130;
+            let stepMs = 105;
             let ended = false;
             gameScore = 0;
 
@@ -6159,11 +6539,10 @@ window.mu_syncHtmlBg = function(){
             }
 
             function queueDir(ndx, ndy) {
-                const last = inputQueue.length ? inputQueue[inputQueue.length - 1] : {x: dx, y: dy};
-                if (ndx === -last.x && ndy === -last.y) return; // no 180° reversals
-                if (ndx === last.x && ndy === last.y) return;
-                if (inputQueue.length >= 2) inputQueue.shift();
-                inputQueue.push({x: ndx, y: ndy});
+                const ref = pendingDir || {x: dx, y: dy};
+                if (ndx === -ref.x && ndy === -ref.y) return; // no 180° reversals
+                if (ndx === ref.x && ndy === ref.y) return;
+                pendingDir = {x: ndx, y: ndy}; // newest input always overwrites any older pending one
             }
 
             // Shared "is this cell free" check used by food/obstacle/gold
@@ -6185,16 +6564,16 @@ window.mu_syncHtmlBg = function(){
             //      block movement, same as the real game), so it reflects
             //      the actual walkable floor plan at this instant rather
             //      than guessing from a cell's immediate neighbors. ----
-            function floodRegion(gx, gy, blockedExtra, capSize) {
-                const blocked = new Set();
-                snake.forEach(p => blocked.add(p.x + ',' + p.y));
-                obstacles.forEach(o => blocked.add(o.x + ',' + o.y));
-                if (blockedExtra) blockedExtra.forEach(c => blocked.add(c.x + ',' + c.y));
-                const startKey = gx + ',' + gy;
-                const seen = new Set();
-                if (blocked.has(startKey)) return { size: 0, cells: seen };
-                seen.add(startKey);
-                const queue = [{x: gx, y: gy}];
+
+            // Generic flood-fill: `wallCells` is a Set of "x,y" strings that
+            // block movement. The start cell is always treated as open even
+            // if it happens to be listed in wallCells, since every caller is
+            // asking "how much room is there starting from here", not
+            // "is here itself open" (that's checked separately).
+            function floodFillRegion(startX, startY, wallCells, capSize) {
+                const startKey = startX + ',' + startY;
+                const seen = new Set([startKey]);
+                const queue = [{x: startX, y: startY}];
                 const maxX = cols * gridSize, maxY = rows * gridSize;
                 while (queue.length && seen.size < capSize) {
                     const cur = queue.shift();
@@ -6205,7 +6584,7 @@ window.mu_syncHtmlBg = function(){
                     for (const n of neighbors) {
                         if (n.x < 0 || n.y < 0 || n.x >= maxX || n.y >= maxY) continue;
                         const key = n.x + ',' + n.y;
-                        if (seen.has(key) || blocked.has(key)) continue;
+                        if (seen.has(key) || wallCells.has(key)) continue;
                         seen.add(key);
                         queue.push(n);
                         if (seen.size >= capSize) break;
@@ -6213,90 +6592,151 @@ window.mu_syncHtmlBg = function(){
                 }
                 return { size: seen.size, cells: seen };
             }
+            // Walls as they are RIGHT NOW, for checks that start from the
+            // snake's current head — the head itself is excluded from the
+            // wall set (it's the BFS start point, not an obstacle to it).
+            function currentWalls(extra) {
+                const w = new Set();
+                snake.forEach((p, i) => { if (i > 0) w.add(p.x + ',' + p.y); });
+                obstacles.forEach(o => w.add(o.x + ',' + o.y));
+                if (extra) extra.forEach(c => w.add(c.x + ',' + c.y));
+                return w;
+            }
+            // Walls as they'd be the instant AFTER eating at some other
+            // cell: eating doesn't pop the tail, so the entire current body
+            // — including today's head — is still occupied and blocks
+            // movement, only the eaten cell itself becomes the new head.
+            function wallsAfterEatingAt(extra) {
+                const w = new Set();
+                snake.forEach(p => w.add(p.x + ',' + p.y));
+                obstacles.forEach(o => w.add(o.x + ',' + o.y));
+                if (extra) extra.forEach(c => w.add(c.x + ',' + c.y));
+                return w;
+            }
+            function floodRegion(gx, gy, blockedExtra, capSize) {
+                return floodFillRegion(gx, gy, currentWalls(blockedExtra), capSize);
+            }
             // How much open floor the snake needs left over to still have
             // real room to maneuver — scales with its own length (a longer
             // snake needs more elbow room to turn around), but never asks
             // for more than the board could possibly still have free.
-            function safeMinRegion() {
-                const need = snake.length + 8;
-                const openCells = cols * rows - obstacles.length - snake.length;
+            function safeMinRegionFor(len) {
+                const need = len + 8;
+                const openCells = cols * rows - obstacles.length - len;
                 return Math.max(4, Math.min(need, openCells - 2));
             }
+            function safeMinRegion() { return safeMinRegionFor(snake.length); }
+            // Would eating at (tx,ty) leave the snake — one cell longer —
+            // with enough open floor afterward to still maneuver? This is
+            // the check that specifically stops "grab this, then you're
+            // boxed in against an obstacle/your own tail with no way out".
+            function safeAfterEatingAt(tx, ty, extraWalls) {
+                const afterLen = snake.length + 1;
+                const region = floodFillRegion(tx, ty, wallsAfterEatingAt(extraWalls), cols * rows);
+                return region.size >= safeMinRegionFor(afterLen);
+            }
+            // Every currently free cell the snake's head can actually reach
+            // right now — computed once as an exhaustive set, rather than
+            // hoping a bounded number of random guesses happens to land on
+            // a valid one. That randomized approach was the real source of
+            // "impossible" spawns: once the board got busy enough, a valid
+            // safe spot could easily still exist while simply being rare
+            // enough that every one of the random attempts missed it, so
+            // the code fell back to an unchecked cell instead of doing the
+            // one extra bit of work to actually go find the good spot.
+            function reachableFreeCells() {
+                const region = floodRegion(snake[0].x, snake[0].y, null, cols * rows);
+                const cells = [];
+                region.cells.forEach(key => {
+                    const comma = key.indexOf(',');
+                    const gx = Number(key.slice(0, comma)), gy = Number(key.slice(comma + 1));
+                    if (cellIsFree(gx, gy)) cells.push({x: gx, y: gy});
+                });
+                return { region, cells };
+            }
+            function pickRandom(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
 
             function spawnFood() {
                 const minRegion = safeMinRegion();
-                let attempts = 0, gx = 0, gy = 0, ok = false;
-                while (attempts < 300 && !ok) {
-                    gx = Math.floor(Math.random() * cols) * gridSize;
-                    gy = Math.floor(Math.random() * rows) * gridSize;
-                    attempts++;
-                    if (!cellIsFree(gx, gy)) continue;
-                    // Reject spots only reachable through a cramped pocket —
-                    // eating there could trap the snake with nowhere left
-                    // to turn once its own tail seals the way back in.
-                    const region = floodRegion(snake[0].x, snake[0].y, null, minRegion + 1);
-                    ok = region.cells.has(gx + ',' + gy) && region.size >= minRegion;
+                const { region, cells } = reachableFreeCells();
+                let chosen = null;
+                if (region.size >= minRegion) {
+                    // Prefer a spot that's also safe to actually EAT (won't
+                    // seal the snake in once it's grown by one) — that's
+                    // the real fairness guarantee, not just "reachable".
+                    const safeCells = cells.filter(c => safeAfterEatingAt(c.x, c.y));
+                    chosen = safeCells.length ? pickRandom(safeCells) : (cells.length ? pickRandom(cells) : null);
                 }
-                if (!ok) {
-                    // Board's gotten tight enough that no spacious spot
-                    // exists — fall back to merely reachable rather than
-                    // spinning forever or leaving stale food on the board.
-                    attempts = 0;
-                    do {
-                        gx = Math.floor(Math.random() * cols) * gridSize;
-                        gy = Math.floor(Math.random() * rows) * gridSize;
-                        attempts++;
-                    } while (!cellIsFree(gx, gy) && attempts < 200);
+                if (!chosen) {
+                    // Board's gotten tight enough that no reachable spot
+                    // exists at all — fall back to any free cell rather
+                    // than leaving stale food on the board.
+                    const any = [];
+                    for (let cx = 0; cx < cols; cx++) for (let cy = 0; cy < rows; cy++) {
+                        const gx = cx * gridSize, gy = cy * gridSize;
+                        if (cellIsFree(gx, gy)) any.push({x: gx, y: gy});
+                    }
+                    chosen = any.length ? pickRandom(any) : {x: food.x, y: food.y};
                 }
-                food.x = gx; food.y = gy;
+                food.x = chosen.x; food.y = chosen.y;
             }
             spawnFood();
 
             function spawnObstacle() {
                 if (obstacles.length >= maxObstacles) return;
                 const minRegion = safeMinRegion();
-                let attempts = 0, gx = 0, gy = 0, ok = false;
-                while (attempts < 200 && !ok) {
-                    gx = Math.floor(Math.random() * cols) * gridSize;
-                    gy = Math.floor(Math.random() * rows) * gridSize;
-                    attempts++;
+                // Candidates come from cells reachable *without* the new
+                // obstacle in place yet — a valid placement can only ever
+                // be one of these (blocking a cell that's already
+                // unreachable changes nothing), so this is a safe starting
+                // pool, not an approximation.
+                const { cells } = reachableFreeCells();
+                for (let i = cells.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [cells[i], cells[j]] = [cells[j], cells[i]];
+                }
+                for (const c of cells) {
                     // Keep a small buffer around the current head so a fresh
                     // obstacle can never spawn an instant, unavoidable death.
-                    const nearHead = Math.abs(gx - snake[0].x) <= gridSize * 2 && Math.abs(gy - snake[0].y) <= gridSize * 2;
-                    if (!cellIsFree(gx, gy) || (food.x === gx && food.y === gy) || nearHead) continue;
+                    const nearHead = Math.abs(c.x - snake[0].x) <= gridSize * 2 && Math.abs(c.y - snake[0].y) <= gridSize * 2;
+                    if ((food.x === c.x && food.y === c.y) || nearHead) continue;
                     // The core fairness check: pretend this obstacle is
                     // already placed and re-walk the board from the snake's
                     // head. Reject it outright if that would either choke
-                    // the snake's remaining open floor down too far, or
-                    // wall the current food off into a pocket it can no
-                    // longer be reached from — an obstacle should never be
+                    // the snake's remaining open floor down too far, wall
+                    // the current food/gold off into a pocket they can no
+                    // longer be reached from, or leave them reachable but
+                    // fatal to actually eat — an obstacle should never be
                     // able to turn "go get the food" into "you can't" or
                     // "you'll die trying".
-                    const region = floodRegion(snake[0].x, snake[0].y, [{x: gx, y: gy}], minRegion + 1);
+                    const candidate = [c];
+                    const region = floodRegion(snake[0].x, snake[0].y, candidate, cols * rows);
                     const foodReachable = region.cells.has(food.x + ',' + food.y);
                     const goldReachable = !goldFood || region.cells.has(goldFood.x + ',' + goldFood.y);
-                    ok = region.size >= minRegion && foodReachable && goldReachable;
+                    if (!(region.size >= minRegion && foodReachable && goldReachable)) continue;
+                    const foodSafe = safeAfterEatingAt(food.x, food.y, candidate);
+                    const goldSafe = !goldFood || safeAfterEatingAt(goldFood.x, goldFood.y, candidate);
+                    if (foodSafe && goldSafe) { obstacles.push(c); return; }
                 }
-                if (!ok) return;
-                obstacles.push({x: gx, y: gy});
+                // No placement anywhere on the board satisfies all of the
+                // above — skip adding one this round rather than force an
+                // unfair placement.
             }
 
             function tryStartGoldFood() {
                 if (goldFood || Math.random() >= GOLD_SPAWN_CHANCE) return;
                 const minRegion = safeMinRegion();
-                let attempts = 0, gx = 0, gy = 0, ok = false;
-                while (attempts < 300 && !ok) {
-                    gx = Math.floor(Math.random() * cols) * gridSize;
-                    gy = Math.floor(Math.random() * rows) * gridSize;
-                    attempts++;
-                    if (!cellIsFree(gx, gy) || (food.x === gx && food.y === gy)) continue;
-                    const region = floodRegion(snake[0].x, snake[0].y, null, minRegion + 1);
-                    ok = region.cells.has(gx + ',' + gy) && region.size >= minRegion;
-                }
-                // No safe spot this round — skip it rather than risk a trap;
-                // it's a bonus, not something the player is owed every time.
-                if (!ok) return;
-                goldFood = {x: gx, y: gy, ticksLeft: GOLD_LIFE_TICKS, totalTicks: GOLD_LIFE_TICKS};
+                const { region, cells } = reachableFreeCells();
+                if (region.size < minRegion) return;
+                const eligible = cells.filter(c => !(food.x === c.x && food.y === c.y));
+                const safeCells = eligible.filter(c => safeAfterEatingAt(c.x, c.y));
+                // No fallback here on purpose — gold is a bonus, not
+                // something the player is owed every time, so if nothing on
+                // the board is actually safe to eat, just skip this round
+                // rather than risk a trap.
+                if (!safeCells.length) return;
+                const chosen = pickRandom(safeCells);
+                goldFood = {x: chosen.x, y: chosen.y, ticksLeft: GOLD_LIFE_TICKS, totalTicks: GOLD_LIFE_TICKS};
             }
             // ---------------------------------------------------------------------
 
@@ -6330,9 +6770,13 @@ window.mu_syncHtmlBg = function(){
                 let diffX = e.touches[0].clientX - touchStartX;
                 let diffY = e.touches[0].clientY - touchStartY;
 
-                // Lowered from 20 to 14px so a quick flick registers sooner —
-                // part of making touch control feel more responsive.
-                if (Math.abs(diffX) > 14 || Math.abs(diffY) > 14) {
+                // Lowered from 20 to 14, then to 8px, then to 5px, so a
+                // quick flick registers sooner — part of making touch
+                // control feel more responsive. 5px is still comfortably
+                // above the size of an accidental finger tremor, but every
+                // extra pixel of required travel was extra delay before a
+                // turn actually took effect.
+                if (Math.abs(diffX) > 5 || Math.abs(diffY) > 5) {
                     if (Math.abs(diffX) > Math.abs(diffY)) {
                         queueDir(diffX > 0 ? gridSize : -gridSize, 0);
                     } else {
@@ -6416,9 +6860,9 @@ window.mu_syncHtmlBg = function(){
                         // times, matching the same pattern already used for
                         // the obstacles/pipes in the other games.
                         prevSnake = snake.map(p => ({x: p.x, y: p.y}));
-                        if (inputQueue.length) {
-                            const next = inputQueue.shift();
-                            dx = next.x; dy = next.y;
+                        if (pendingDir) {
+                            dx = pendingDir.x; dy = pendingDir.y;
+                            pendingDir = null;
                         }
                         let head = {x: snake[0].x + dx, y: snake[0].y + dy};
 
@@ -6469,7 +6913,7 @@ window.mu_syncHtmlBg = function(){
 
                             if (ateFood) {
                                 foodEatenCount++;
-                                if (foodEatenCount % 5 === 0) stepMs = Math.max(70, stepMs - 6);
+                                if (foodEatenCount % 5 === 0) stepMs = Math.max(55, stepMs - 7);
                                 spawnFood();
                                 tryStartGoldFood();
                             }
@@ -6577,7 +7021,15 @@ window.mu_syncHtmlBg = function(){
                 // instead of hard-snapping cell to cell — same collision/logic
                 // timing as before, just smoother to look at. Frozen at the
                 // exact final position while dying/no snapshot available.
-                const progress = (dying || !prevSnake) ? 1 : Math.min(1, acc / stepMs);
+                // Eased with a quadratic ease-out (instead of a flat linear
+                // ramp) so each segment covers most of the distance to its
+                // new cell early in the step and only creeps the last bit —
+                // a turn visibly starts happening the instant it's applied
+                // rather than crawling at a constant rate for the whole
+                // step, which is what made direction changes feel sluggish
+                // even once the underlying tick had already turned.
+                const rawT = (dying || !prevSnake) ? 1 : Math.min(1, acc / stepMs);
+                const progress = 1 - (1 - rawT) * (1 - rawT);
                 // Further trim on the fix above: this used to write
                 // ctx.shadowBlur once per segment (14 for the head, 0 for
                 // every body segment) — one canvas state write per segment,
@@ -7249,8 +7701,31 @@ window.mu_syncHtmlBg = function(){
             const vig = ctx.createRadialGradient(width / 2, height * 0.55, height * 0.3, width / 2, height * 0.55, height * 0.75);
             vig.addColorStop(0, 'rgba(0,0,0,0)');
             vig.addColorStop(1, 'rgba(0,0,0,0.38)');
-
-            // Reference shows just the bare number, top-right, no label.
+            // Bug fix ("laggy from the very start, every game except Neon
+            // Snake" — reported after the tremor fixes above): caching the
+            // gradient OBJECT above (so it's not reallocated every frame)
+            // turned out not to be the expensive part. ctx.fillRect(0, 0,
+            // width, height) with a radial gradient as fillStyle still has
+            // to re-evaluate that gradient at every single pixel of the
+            // full canvas, every single frame, regardless of whether the
+            // gradient object itself is reused — a full-screen per-pixel
+            // gradient fill at up to 2x device-pixel density (see dpr in
+            // fitGameCanvas) is one of the heaviest things Canvas 2D can be
+            // asked to do every frame, and Telegram's in-app Android
+            // WebView (weaker/software-ish rasterizer, no real GPU
+            // acceleration on plenty of the phones it runs on) pays for
+            // that on literally every frame from the moment the game
+            // starts — this never depended on the tremor fixes, it was
+            // just as expensive before them. Painting the gradient onto a
+            // small offscreen canvas ONCE here and blitting that cached
+            // bitmap with ctx.drawImage() every frame instead (same as
+            // every other sprite in this game) turns a full-canvas
+            // per-pixel gradient evaluation into a single fast blit.
+            const vigCanvas = document.createElement('canvas');
+            vigCanvas.width = Math.max(1, Math.round(width));
+            vigCanvas.height = Math.max(1, Math.round(height));
+            vigCanvas.getContext('2d').fillStyle = vig;
+            vigCanvas.getContext('2d').fillRect(0, 0, vigCanvas.width, vigCanvas.height);
             function updateScoreLabel() {
                 document.getElementById('gameScore').innerText = gameScore;
             }
@@ -7954,11 +8429,11 @@ window.mu_syncHtmlBg = function(){
                 ctx.globalAlpha = 1;
 
                 // Cinematic vignette — darkens the corners so the glowing
-                // lanes/cars in the middle pop more. Reuses the gradient
-                // built once above instead of allocating a new one here
-                // every frame (see the comment at its definition).
-                ctx.fillStyle = vig;
-                ctx.fillRect(0, 0, width, height);
+                // lanes/cars in the middle pop more. Blits the cached
+                // vigCanvas bitmap (see its definition above) instead of
+                // filling the whole canvas with the gradient every frame —
+                // see the perf bug fix comment there.
+                ctx.drawImage(vigCanvas, 0, 0, width, height);
             }
 
             let raf = null, lastTs = 0, scoreTimer = 0, acc = 0, avgFrameMs = STEP_MS;
@@ -8191,6 +8666,22 @@ window.mu_syncHtmlBg = function(){
             const vig = ctx.createRadialGradient(width / 2, height * 0.55, height * 0.3, width / 2, height * 0.55, height * 0.75);
             vig.addColorStop(0, 'rgba(0,0,0,0)');
             vig.addColorStop(1, 'rgba(0,0,0,0.38)');
+            // Bug fix ("laggy from the very start, every game except Neon
+            // Snake"): see the matching, more detailed comment on Twin Lane
+            // Racer Classic's own `vig` definition. Short version: caching
+            // the gradient OBJECT (done above already) never fixed the
+            // real cost — ctx.fillRect() with a radial gradient as
+            // fillStyle still re-evaluates that gradient at every pixel of
+            // the full canvas, every frame, no matter how many times the
+            // gradient object itself is reused. Pre-painting it onto a
+            // small offscreen bitmap once and blitting that with
+            // ctx.drawImage() every frame instead removes that per-pixel
+            // cost from the hot path entirely.
+            const vigCanvas = document.createElement('canvas');
+            vigCanvas.width = Math.max(1, Math.round(width));
+            vigCanvas.height = Math.max(1, Math.round(height));
+            vigCanvas.getContext('2d').fillStyle = vig;
+            vigCanvas.getContext('2d').fillRect(0, 0, vigCanvas.width, vigCanvas.height);
 
             // Same asymptotic difficulty curve as Cyber Flappy: speed keeps
             // creeping up but always approaches a fixed ceiling instead of
@@ -9034,11 +9525,11 @@ window.mu_syncHtmlBg = function(){
                 ctx.restore(); // end Screen Flip transform — UI below always renders upright
 
                 // Cinematic vignette — darkens the corners so the glowing
-                // lanes/cars in the middle pop more. Reuses the gradient
-                // built once above instead of allocating a new one here
-                // every frame (see the comment at its definition).
-                ctx.fillStyle = vig;
-                ctx.fillRect(0, 0, width, height);
+                // lanes/cars in the middle pop more. Blits the cached
+                // vigCanvas bitmap instead of filling the whole canvas with
+                // the gradient every frame — see the perf bug fix comment
+                // at its definition.
+                ctx.drawImage(vigCanvas, 0, 0, width, height);
 
                 // Brief white flash + a scaling/fading "SPEED UP" banner on
                 // every 10-dodge milestone — turns a silent difficulty bump
@@ -9573,6 +10064,22 @@ window.mu_syncHtmlBg = function(){
             roadGrad.addColorStop(0, '#211725'); roadGrad.addColorStop(1, '#040308');
             const vig = ctx.createRadialGradient(width / 2, height * 0.6, height * 0.24, width / 2, height * 0.6, height * 0.82);
             vig.addColorStop(0, 'rgba(0,0,0,0)'); vig.addColorStop(1, 'rgba(0,0,0,0.42)');
+            // Bug fix ("laggy from the very start, every game except Neon
+            // Snake"): see the matching, more detailed comment on Twin Lane
+            // Racer Classic's own `vig` definition. Short version: caching
+            // the gradient OBJECT (done above already) never fixed the
+            // real cost — ctx.fillRect() with a radial gradient as
+            // fillStyle still re-evaluates that gradient at every pixel of
+            // the full canvas, every frame, no matter how many times the
+            // gradient object itself is reused. Pre-painting it onto a
+            // small offscreen bitmap once and blitting that with
+            // ctx.drawImage() every frame instead removes that per-pixel
+            // cost from the hot path entirely.
+            const vigCanvas = document.createElement('canvas');
+            vigCanvas.width = Math.max(1, Math.round(width));
+            vigCanvas.height = Math.max(1, Math.round(height));
+            vigCanvas.getContext('2d').fillStyle = vig;
+            vigCanvas.getContext('2d').fillRect(0, 0, vigCanvas.width, vigCanvas.height);
             // Environment upgrade: a soft warm haze sitting right on the
             // horizon line, echoing the moon/sky's orange-red tones — cheap
             // extra depth cue (built once, reused every frame like the
@@ -10109,8 +10616,10 @@ window.mu_syncHtmlBg = function(){
 
                 drawSpeedStreaks(ts);
 
-                ctx.fillStyle = vig;
-                ctx.fillRect(0, 0, width, height);
+                // Blits the cached vigCanvas bitmap instead of filling the
+                // whole canvas with the gradient every frame — see the
+                // perf bug fix comment at its definition.
+                ctx.drawImage(vigCanvas, 0, 0, width, height);
                 if (nitroT > 0) {
                     ctx.fillStyle = 'rgba(255,90,20,' + (0.1 * Math.min(1, nitroT / 400)) + ')';
                     ctx.fillRect(0, 0, width, height);
