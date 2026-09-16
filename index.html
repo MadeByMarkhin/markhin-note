@@ -11012,16 +11012,40 @@ window.mu_syncHtmlBg = function(){
             // and only place `#cyberCanvas` ever has getContext('2d')
             // called on it (context options are locked in on first call;
             // every game start after this just reuses the same context).
-            // desynchronized:true is a second hint alongside alpha:false —
-            // it tells the browser this canvas can skip some of the normal
-            // synchronization between what's drawn and when it's shown on
-            // screen, which on supporting browsers (most modern Android
-            // WebViews, which is exactly what Telegram's in-app browser
-            // is) cuts the delay between a frame being drawn and actually
-            // appearing. It's a hint, not a requirement — any browser that
-            // doesn't support it just ignores it and behaves exactly as
-            // before, so this is safe with no fallback needed.
-            const ctx = canvas.getContext('2d', { alpha: false, desynchronized: true });
+            // Bug fix ("obstacles/whole canvas still trembling a little even
+            // after every timing/interpolation fix in this file" — reported
+            // in BOTH Telegram's in-app WebView and plain mobile Chrome,
+            // i.e. not something specific to Telegram's own JS bridge,
+            // which is the tell that pointed here): this context used to
+            // also pass desynchronized:true. That hint tells the browser it
+            // may present this canvas's surface independently of, and
+            // without waiting on, the page's normal compositor/vsync path —
+            // which is exactly what it did, on both engines, since Telegram
+            // Mini Apps and mobile Chrome share the same underlying
+            // Chromium/Blink rendering pipeline. The upside (marginally
+            // lower input latency) is worthless here: nothing in these
+            // games is a twitch-reflex-timing test where a few extra
+            // milliseconds of latency would ever be felt. The downside is
+            // real and is a documented, intentional tradeoff of the API,
+            // not a bug in the browser: a desynchronized canvas can be
+            // shown to the screen out of step with everything else on the
+            // page (the topbar, the score readout, the pause/game-over
+            // overlays — all regular DOM/CSS updating on the normal
+            // synced path) and can even tear against its own previous
+            // frame if a draw is still in flight the instant the display
+            // refreshes. Every game here does a full clearRect + full
+            // repaint every single tick specifically so a frame is always
+            // shown either fully-old or fully-new — never half-drawn — but
+            // that guarantee only holds on the NORMAL synchronized
+            // presentation path; desynchronized is explicitly allowed to
+            // ignore it. That's a plausible independent source of exactly
+            // the "trembling" being reported, on top of (not instead of)
+            // the frame-timing and sub-pixel fixes elsewhere in this file,
+            // and it would explain why it kept showing up across so many
+            // rounds of those fixes. Dropped here; alpha:false alone still
+            // gets the (real, safe) opaque-canvas compositing win explained
+            // below.
+            const ctx = canvas.getContext('2d', { alpha: false });
             ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
             // resize apart from cosmetic viewport jitter and skip needless
             // restarts — see the bug fix there.
@@ -14740,6 +14764,25 @@ window.mu_syncHtmlBg = function(){
 
             const dashLen = height * 0.045, dashGap = height * 0.038, dashCycle = dashLen + dashGap;
             let roadOffset = 0, mountainOffset = 0, exhaustTimer = 0;
+            // Bug fix ("road/mountains trembling, shaking" — Dead Road
+            // specifically): unlike every foreground object in this game
+            // (obstacles/pickups/the player car), which all snapshot a
+            // prevY/prevX each tick and interpolate it with `alpha` in
+            // render() below, these two scroll offsets were being drawn
+            // straight from their raw, once-per-TICK value. render() runs
+            // once per rendered FRAME, and STEP_MS (60 ticks/sec) doesn't
+            // line up with every phone's real display rate (90Hz/120Hz
+            // screens are common, and Telegram's in-app WebView delivers
+            // rAF at uneven intervals even on capable hardware — see the
+            // loop()/acc comment further down) — so the lane dashes,
+            // guardrail studs/posts, and mountain silhouette (everything
+            // driven by roadOffset/mountainOffset) visibly stepped in
+            // discrete per-tick jumps while the car and traffic glided
+            // smoothly right over them — exactly the class of tremor
+            // already fixed for every other moving thing in this file.
+            // prevRoadOffset/prevMountainOffset let render() interpolate
+            // these the same way, closing the last gap.
+            let prevRoadOffset = 0, prevMountainOffset = 0;
             // Bug fix ("obstacles trembling/shaking" — same class of bug
             // already fixed in Twin Lane Racer and Cyber Flappy): trafficDrift()
             // below was being driven by the raw rAF `ts` that loop() hands
@@ -15289,6 +15332,8 @@ window.mu_syncHtmlBg = function(){
             function step(ts) {
                 obstacles.forEach(o => { o.prevY = o.y; });
                 pickups.forEach(p => { p.prevY = p.y; });
+                prevRoadOffset = roadOffset;
+                prevMountainOffset = mountainOffset;
                 if (dying) {
                     if (ts - dyingStart >= DYING_MS) { dying = false; endDeadRoad(); return; }
                 } else if (!ended) {
@@ -15386,6 +15431,21 @@ window.mu_syncHtmlBg = function(){
             function render(ts) {
                 ctx.clearRect(0, 0, width, height);
                 const alpha = Math.min(1, acc / STEP_MS);
+                // Bug fix ("road/mountains trembling, shaking"): interpolate
+                // the scroll offsets the same way every other moving object
+                // in this game already does — see the comment on
+                // prevRoadOffset/prevMountainOffset's declaration above. Both
+                // wrap with %, so a plain (curr - prev) can look like a huge
+                // jump right on the frame a wrap happens; correcting that
+                // back to the small per-tick step before interpolating is
+                // the same fix Cyber Flappy's interpWrapped() and Twin Lane
+                // Racer Modern's renderRoadOffset already use.
+                let roadOffsetDelta = roadOffset - prevRoadOffset;
+                if (Math.abs(roadOffsetDelta) > dashCycle / 2) roadOffsetDelta += (roadOffsetDelta < 0 ? dashCycle : -dashCycle);
+                const renderRoadOffset = prevRoadOffset + roadOffsetDelta * alpha;
+                let mountainOffsetDelta = mountainOffset - prevMountainOffset;
+                if (Math.abs(mountainOffsetDelta) > width / 2) mountainOffsetDelta += (mountainOffsetDelta < 0 ? width : -width);
+                const renderMountainOffset = prevMountainOffset + mountainOffsetDelta * alpha;
 
                 ctx.fillStyle = skyGrad;
                 ctx.fillRect(0, 0, width, horizonY);
@@ -15402,7 +15462,7 @@ window.mu_syncHtmlBg = function(){
                 ctx.save();
                 ctx.beginPath(); ctx.rect(0, 0, width, horizonY); ctx.clip();
                 ctx.fillStyle = 'rgba(18,4,10,0.88)';
-                const mo = mountainOffset % width;
+                const mo = renderMountainOffset % width;
                 drawMountainPath(-mo);
                 drawMountainPath(width - mo);
                 ctx.restore();
@@ -15415,7 +15475,7 @@ window.mu_syncHtmlBg = function(){
                 ctx.strokeStyle = 'rgba(255,255,255,0.22)';
                 ctx.lineWidth = Math.max(1, width * 0.006);
                 ctx.setLineDash([dashLen, dashGap]);
-                ctx.lineDashOffset = -roadOffset;
+                ctx.lineDashOffset = -renderRoadOffset;
                 for (let i = 1; i < LANES; i++) {
                     const x = laneW * i;
                     ctx.beginPath(); ctx.moveTo(x, horizonY); ctx.lineTo(x, height); ctx.stroke();
@@ -15426,7 +15486,7 @@ window.mu_syncHtmlBg = function(){
                 // extra motion cue that the road itself is rushing past.
                 ctx.fillStyle = 'rgba(255,120,70,0.55)';
                 const studCycle = dashLen * 2.2;
-                for (let y = -(roadOffset % studCycle); y < height - horizonY; y += studCycle) {
+                for (let y = -(renderRoadOffset % studCycle); y < height - horizonY; y += studCycle) {
                     const yy = horizonY + y;
                     if (yy < horizonY) continue;
                     ctx.fillRect(laneW * 0.06, yy, width * 0.01, dashLen * 0.5);
@@ -15441,7 +15501,7 @@ window.mu_syncHtmlBg = function(){
                 // per-frame allocation.
                 ctx.fillStyle = 'rgba(200,210,225,0.26)';
                 const postCycle = dashLen * 3.4;
-                for (let y = -(roadOffset % postCycle); y < height - horizonY; y += postCycle) {
+                for (let y = -(renderRoadOffset % postCycle); y < height - horizonY; y += postCycle) {
                     const yy = horizonY + y;
                     if (yy < horizonY) continue;
                     ctx.fillRect(laneW * 0.015, yy, width * 0.008, dashLen * 0.8);
@@ -15454,8 +15514,19 @@ window.mu_syncHtmlBg = function(){
                     // so the row of traffic doesn't bounce in unison — this
                     // is render-only and never feeds back into o.y, so it
                     // can't affect collisions or the wave-spacing guarantee.
-                    const bounce = Math.sin(ts / 130 + o.bounceSeed) * o.h * 0.012;
-                    drawTrafficVehicle(laneCenterX(o.lane), renderY + bounce, o.w, o.h, o.color, o.shape, ts, o.bounceSeed);
+                    // Bug fix ("obstacle cars trembling/jumping"): this used
+                    // to be driven by the raw rAF `ts`, the same class of
+                    // bug already fixed for trafficDrift() above (see its
+                    // comment) — on the affected Telegram in-app WebView
+                    // builds, that raw ts can stall for a frame and then
+                    // jump by roughly double the next, which fed straight
+                    // into this sin() and showed up as a visible shake/leap
+                    // on every obstacle car's position, on top of whichever
+                    // one the player was about to dodge. simMs only ever
+                    // advances by exactly STEP_MS per simulated tick, so it
+                    // can't inherit that staleness — same fix, same reason.
+                    const bounce = Math.sin(simMs / 130 + o.bounceSeed) * o.h * 0.012;
+                    drawTrafficVehicle(laneCenterX(o.lane), renderY + bounce, o.w, o.h, o.color, o.shape, simMs, o.bounceSeed);
                 });
                 pickups.forEach(p => {
                     if (p.taken) return;
