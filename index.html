@@ -182,7 +182,6 @@
            whole page "jumping". transform:translateZ(0) plus will-change is
            what forces that dedicated layer. */
         body.theme-oceanic::before, body.theme-oceanic::after,
-        .mu-oceanic-waves::before, .mu-oceanic-waves::after,
         body.theme-midnightblue::before, body.theme-midnightblue::after,
         .mu-angler, .mu-angler::after,
         body.theme-spider::before, body.theme-spider::after,
@@ -195,6 +194,7 @@
         .mu-phantom-wisp,
         body.theme-aurora-phantom::before, body.theme-aurora-phantom::after,
         body.theme-redhorizon::before, body.theme-redhorizon::after,
+        .mu-redhorizon-stars, .mu-redhorizon-stars::before, .mu-redhorizon-stars::after,
         body.theme-yourname::before, body.theme-yourname::after,
         .mu-yourname-comet, .mu-yourname-comet::after,
         .mu-yourname-ridge::before, .mu-yourname-ridge::after,
@@ -207,7 +207,7 @@
         .mu-darkweb-ping, .mu-darkweb-ping-2, .mu-darkweb-onion, .mu-darkweb-onion::before, .mu-darkweb-onion::after,
         .mu-darkweb-rain-col, .mu-darkweb-scanlines,
         body.theme-vampire::before, body.theme-vampire::after,
-        .mu-vampire-moon, .mu-vampire-moon::before, .mu-vampire-moon::after, .mu-vampire-bat-1, .mu-vampire-bat-1 .mu-vbat-wing, .mu-vampire-bat-2, .mu-vampire-bat-2 .mu-vbat-wing, .mu-vampire-branches,
+        .mu-vampire-moon, .mu-vampire-moon::before, .mu-vampire-moon::after, [class^="mu-vampire-bat-"], [class^="mu-vampire-bat-"] .mu-vbat-wing, .mu-vampire-branches,
         body.theme-halloween::before, body.theme-halloween::after,
         [class^="mu-halloween-bat-"], [class^="mu-halloween-bat-"] .mu-hwbat-wing, .mu-halloween-pumpkin, .mu-halloween-fog, .mu-halloween-branches, .mu-halloween-embers span,
         body.theme-starwars::before, body.theme-starwars::after,
@@ -232,7 +232,10 @@
         body.theme-anime::before, body.theme-anime::after,
         .mu-anime-petal,
         body.theme-anonymous::before, body.theme-anonymous::after,
-        .mu-anon-beam, .mu-anon-node,
+        .mu-anon-beam,
+        body.theme-love::before, body.theme-love::after,
+        body.theme-cyberpunk::before, body.theme-cyberpunk::after,
+        .mu-cyber-scan, .mu-cyber-bit,
         .top-right-controls {
             transform: translateZ(0);
             backface-visibility: hidden;
@@ -256,8 +259,6 @@
            exact GPU spike that was causing the flash. */
         body.mu-scrolling[class*="theme-"]::before,
         body.mu-scrolling[class*="theme-"]::after,
-        body.mu-scrolling .mu-oceanic-waves::before,
-        body.mu-scrolling .mu-oceanic-waves::after,
         body.mu-scrolling .mu-angler::after,
         body.mu-scrolling .mu-spider-web,
         body.mu-scrolling .mu-spider::before,
@@ -280,6 +281,10 @@
         body.mu-scrolling .mu-dreamy-moon::before,
         body.mu-scrolling .mu-dreamy-moon::after,
         body.mu-scrolling .mu-dreamy-orb,
+        body.mu-scrolling.theme-redhorizon::before,
+        body.mu-scrolling.theme-redhorizon::after,
+        body.mu-scrolling .mu-redhorizon-stars::before,
+        body.mu-scrolling .mu-redhorizon-stars::after,
         body.mu-scrolling .mu-phantom-specter,
         body.mu-scrolling .mu-phantom-specter::before,
         body.mu-scrolling .mu-phantom-specter::after,
@@ -288,10 +293,8 @@
         body.mu-scrolling .mu-vampire-moon,
         body.mu-scrolling .mu-vampire-moon::before,
         body.mu-scrolling .mu-vampire-moon::after,
-        body.mu-scrolling .mu-vampire-bat-1,
-        body.mu-scrolling .mu-vampire-bat-1 .mu-vbat-wing,
-        body.mu-scrolling .mu-vampire-bat-2,
-        body.mu-scrolling .mu-vampire-bat-2 .mu-vbat-wing,
+        body.mu-scrolling [class^="mu-vampire-bat-"],
+        body.mu-scrolling [class^="mu-vampire-bat-"] .mu-vbat-wing,
         body.mu-scrolling .mu-vampire-branches,
         body.mu-scrolling [class^="mu-halloween-bat-"],
         body.mu-scrolling [class^="mu-halloween-bat-"] .mu-hwbat-wing,
@@ -342,7 +345,10 @@
         body.mu-scrolling .mu-hugo-steam::after,
         body.mu-scrolling .mu-anime-petal,
         body.mu-scrolling .mu-anon-beam,
-        body.mu-scrolling .mu-anon-node {
+        body.mu-scrolling.theme-cyberpunk::before,
+        body.mu-scrolling.theme-cyberpunk::after,
+        body.mu-scrolling .mu-cyber-scan,
+        body.mu-scrolling .mu-cyber-bit {
             animation-play-state: paused !important;
             filter: none !important;
             /* Keep the fixed layer painted; removing/recompositing it while a
@@ -389,8 +395,6 @@
            script below) rather than on a short timer. */
         body.mu-game-open[class*="theme-"]::before,
         body.mu-game-open[class*="theme-"]::after,
-        body.mu-game-open .mu-oceanic-waves::before,
-        body.mu-game-open .mu-oceanic-waves::after,
         body.mu-game-open .mu-angler::after,
         body.mu-game-open .mu-spider-web,
         body.mu-game-open .mu-spider::before,
@@ -413,6 +417,10 @@
         body.mu-game-open .mu-dreamy-moon::before,
         body.mu-game-open .mu-dreamy-moon::after,
         body.mu-game-open .mu-dreamy-orb,
+        body.mu-game-open.theme-redhorizon::before,
+        body.mu-game-open.theme-redhorizon::after,
+        body.mu-game-open .mu-redhorizon-stars::before,
+        body.mu-game-open .mu-redhorizon-stars::after,
         body.mu-game-open .mu-phantom-specter,
         body.mu-game-open .mu-phantom-specter::before,
         body.mu-game-open .mu-phantom-specter::after,
@@ -421,10 +429,8 @@
         body.mu-game-open .mu-vampire-moon,
         body.mu-game-open .mu-vampire-moon::before,
         body.mu-game-open .mu-vampire-moon::after,
-        body.mu-game-open .mu-vampire-bat-1,
-        body.mu-game-open .mu-vampire-bat-1 .mu-vbat-wing,
-        body.mu-game-open .mu-vampire-bat-2,
-        body.mu-game-open .mu-vampire-bat-2 .mu-vbat-wing,
+        body.mu-game-open [class^="mu-vampire-bat-"],
+        body.mu-game-open [class^="mu-vampire-bat-"] .mu-vbat-wing,
         body.mu-game-open .mu-vampire-branches,
         body.mu-game-open [class^="mu-halloween-bat-"],
         body.mu-game-open [class^="mu-halloween-bat-"] .mu-hwbat-wing,
@@ -475,7 +481,10 @@
         body.mu-game-open .mu-hugo-steam::after,
         body.mu-game-open .mu-anime-petal,
         body.mu-game-open .mu-anon-beam,
-        body.mu-game-open .mu-anon-node {
+        body.mu-game-open.theme-cyberpunk::before,
+        body.mu-game-open.theme-cyberpunk::after,
+        body.mu-game-open .mu-cyber-scan,
+        body.mu-game-open .mu-cyber-bit {
             animation-play-state: paused !important;
             filter: none !important;
         }
@@ -490,9 +499,6 @@
            layers fully static instead of just pausing them during scroll. */
         @media (prefers-reduced-motion: reduce) {
             body[class*="theme-"]::before, body[class*="theme-"]::after {
-                animation: none !important;
-            }
-            .mu-oceanic-waves::before, .mu-oceanic-waves::after {
                 animation: none !important;
             }
             .mu-angler, .mu-angler::before, .mu-angler::after {
@@ -518,6 +524,9 @@
             .mu-dreamy-moon, .mu-dreamy-moon::before, .mu-dreamy-moon::after, .mu-dreamy-orb {
                 animation: none !important;
             }
+            .mu-redhorizon-stars::before, .mu-redhorizon-stars::after {
+                animation: none !important;
+            }
             body.theme-phantom::before, body.theme-phantom::after,
             .mu-phantom-specter, .mu-phantom-wisp {
                 animation: none !important;
@@ -525,7 +534,7 @@
             .mu-vampire-symbols span {
                 animation: none !important;
             }
-            .mu-vampire-moon, .mu-vampire-moon::before, .mu-vampire-moon::after, .mu-vampire-bat-1, .mu-vampire-bat-1 .mu-vbat-wing, .mu-vampire-bat-2, .mu-vampire-bat-2 .mu-vbat-wing, .mu-vampire-branches {
+            .mu-vampire-moon, .mu-vampire-moon::before, .mu-vampire-moon::after, [class^="mu-vampire-bat-"], [class^="mu-vampire-bat-"] .mu-vbat-wing, .mu-vampire-branches {
                 animation: none !important;
             }
             body.theme-halloween::before, body.theme-halloween::after,
@@ -565,7 +574,14 @@
                 animation: none !important;
             }
             body.theme-anonymous::before, body.theme-anonymous::after,
-            .mu-anon-beam, .mu-anon-node {
+            .mu-anon-beam {
+                animation: none !important;
+            }
+            body.theme-love::before, body.theme-love::after {
+                animation: none !important;
+            }
+            body.theme-cyberpunk::before, body.theme-cyberpunk::after,
+            .mu-cyber-scan, .mu-cyber-bit {
                 animation: none !important;
             }
         }
@@ -647,64 +663,6 @@
         @keyframes oceanBubbles {
             0%   { background-position: 12% 108%, 38% 118%, 62% 110%, 86% 116%; }
             100% { background-position: 10% -15%, 34% -20%, 60% -12%, 84% -18%; }
-        }
-
-        /* Sea horizon — the actual wave silhouette equivalent of Red Horizon's
-           mountain ridge (.mu-redhorizon-mountains below): two layered wave
-           lines fixed to the bottom of the viewport, a hazier far swell
-           behind a darker, taller near wave, so the theme reads as an actual
-           ocean instead of just an abstract blue gradient with caustics.
-           Unlike the static mountain ridge this one visibly rolls, since a
-           still wave silhouette doesn't read as water. Each layer is a
-           clip-path polygon traced from a real sine wave (not hand-picked
-           jagged points like the mountains) so the crests look like water,
-           not rock — and each polygon's period was chosen to divide its own
-           box evenly, so the whole shape tiles perfectly onto itself: the
-           element is drawn at 200% width (two back-to-back copies of the
-           identical pattern) and animated with transform:translateX only
-           (compositor-only, same "cheap" approach as every other drift
-           animation in this file) from 0 to -50% of its own width — exactly
-           one copy's worth — so the instant it snaps back to 0% to loop, the
-           pixels are already identical and no seam or jump is visible.
-           Hidden for every other theme; only shown while .theme-oceanic is
-           on body, same convention as .mu-redhorizon-mountains. */
-        .mu-oceanic-waves { display: none; }
-        body.theme-oceanic .mu-oceanic-waves {
-            display: block;
-            position: fixed;
-            left: 0; right: 0; bottom: -2%;
-            height: 24vh;
-            min-height: 150px;
-            overflow: hidden;
-            pointer-events: none;
-            z-index: -1;
-            contain: paint;
-        }
-        body.theme-oceanic .mu-oceanic-waves::before {
-            content: "";
-            position: absolute;
-            top: 0; left: 0;
-            width: 200%; height: 100%;
-            background: linear-gradient(180deg, rgba(1, 78, 121, 0) 0%, rgba(1, 60, 94, .5) 45%, rgba(1, 40, 63, .75) 100%);
-            clip-path: polygon(0% 100%, 0.00% 50.00%, 8.33% 43.07%, 16.67% 43.07%, 25.00% 50.00%, 33.33% 56.93%, 41.67% 56.93%, 50.00% 50.00%, 58.33% 43.07%, 66.67% 43.07%, 75.00% 50.00%, 83.33% 56.93%, 91.67% 56.93%, 100.00% 50.00%, 108.33% 43.07%, 116.67% 43.07%, 125.00% 50.00%, 133.33% 56.93%, 141.67% 56.93%, 150.00% 50.00%, 158.33% 43.07%, 166.67% 43.07%, 175.00% 50.00%, 183.33% 56.93%, 191.67% 56.93%, 200.00% 50.00%, 200% 100%);
-            animation: oceanWaveFarDrift 22s linear infinite;
-        }
-        body.theme-oceanic .mu-oceanic-waves::after {
-            content: "";
-            position: absolute;
-            top: 0; left: 0;
-            width: 200%; height: 100%;
-            background: linear-gradient(180deg, rgba(0, 180, 216, .12) 0%, rgba(1, 45, 71, .88) 55%, rgba(0, 20, 34, .96) 100%);
-            clip-path: polygon(0% 100%, 0.00% 53.61%, 4.17% 53.61%, 8.33% 64.00%, 12.50% 74.39%, 16.67% 74.39%, 20.83% 64.00%, 25.00% 53.61%, 29.17% 53.61%, 33.33% 64.00%, 37.50% 74.39%, 41.67% 74.39%, 45.83% 64.00%, 50.00% 53.61%, 54.17% 53.61%, 58.33% 64.00%, 62.50% 74.39%, 66.67% 74.39%, 70.83% 64.00%, 75.00% 53.61%, 79.17% 53.61%, 83.33% 64.00%, 87.50% 74.39%, 91.67% 74.39%, 95.83% 64.00%, 100.00% 53.61%, 104.17% 53.61%, 108.33% 64.00%, 112.50% 74.39%, 116.67% 74.39%, 120.83% 64.00%, 125.00% 53.61%, 129.17% 53.61%, 133.33% 64.00%, 137.50% 74.39%, 141.67% 74.39%, 145.83% 64.00%, 150.00% 53.61%, 154.17% 53.61%, 158.33% 64.00%, 162.50% 74.39%, 166.67% 74.39%, 170.83% 64.00%, 175.00% 53.61%, 179.17% 53.61%, 183.33% 64.00%, 187.50% 74.39%, 191.67% 74.39%, 195.83% 64.00%, 200.00% 53.61%, 200% 100%);
-            animation: oceanWaveNearDrift 13s linear infinite reverse;
-        }
-        @keyframes oceanWaveFarDrift {
-            from { transform: translate3d(0, 0, 0); }
-            to   { transform: translate3d(-50%, 0, 0); }
-        }
-        @keyframes oceanWaveNearDrift {
-            from { transform: translate3d(0, 0, 0); }
-            to   { transform: translate3d(-50%, 0, 0); }
         }
 
         body.theme-spider {
@@ -1009,31 +967,170 @@
             100% { transform: translate3d(-10px, -100vh, 0); opacity: 0; }
         }
 
+        /* Cyberpunk — a rain-slicked neon city at night: a violet-to-black
+           gradient with a magenta glow low on the horizon, a fine cyan/
+           magenta grid drifting like distant skyline windows, an
+           occasional CRT-style glitch flicker, a bright dual-color scan
+           beam sweeping down the screen, and a slow rise of small glowing
+           data-bits drifting up through the dark like sparks off a neon
+           sign. Same layered ::before/::after recipe as the other
+           animated themes, plus two dedicated moving elements. No emoji
+           anywhere in it. */
         body.theme-cyberpunk {
-            --bg-gradient: linear-gradient(135deg, #0a0015 0%, #15002b 100%) !important;
-            --panel-bg: rgba(0, 240, 255, 0.04) !important;
-            --panel-border: rgba(0, 240, 255, 0.25) !important;
-            --card-bg: rgba(5, 0, 15, 0.85) !important;
+            --bg-gradient: radial-gradient(ellipse 90% 60% at 50% 100%, #3a0a5c 0%, #1c0838 30%, #10041f 55%, #05000d 100%) !important;
+            --panel-bg: rgba(0, 240, 255, 0.045) !important;
+            --panel-border: rgba(255, 0, 200, 0.22) !important;
+            --card-bg: rgba(7, 0, 18, 0.87) !important;
             --text-color: #4ff5ff !important;
-            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.65) !important;
+            text-shadow: 0 0 6px rgba(79, 245, 255, 0.35), 0 1px 3px rgba(0, 0, 0, 0.65) !important;
+        }
+        body.theme-cyberpunk::before {
+            /* Fine skyline grid drifting slowly, with a warm magenta glow
+               pooling near the bottom like neon reflected off wet streets,
+               and a cooler cyan glow high up — a breathing city horizon. */
+            content: "";
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: -1;
+            contain: paint;
+            background:
+                linear-gradient(rgba(0, 240, 255, .05) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255, 0, 200, .05) 1px, transparent 1px),
+                radial-gradient(ellipse 80% 45% at 50% 105%, rgba(255, 0, 200, .22) 0%, transparent 70%),
+                radial-gradient(ellipse 65% 35% at 50% -5%, rgba(0, 240, 255, .12) 0%, transparent 70%);
+            background-size: 38px 38px, 38px 38px, 100% 100%, 100% 100%;
+            animation: cyberGridDrift 7s linear infinite, cyberPulse 5s ease-in-out infinite;
+        }
+        @keyframes cyberGridDrift {
+            0%   { background-position: 0 0,   0 0, 0 0, 0 0; }
+            100% { background-position: 0 38px, 38px 0, 0 0, 0 0; }
+        }
+        @keyframes cyberPulse {
+            0%, 100% { opacity: .82; }
+            50%      { opacity: 1; }
+        }
+        body.theme-cyberpunk::after {
+            /* A subtle CRT/hologram flicker — mostly steady, with a brief,
+               irregular glitch every few seconds where the image seems to
+               judder half a pixel, like a signal losing sync for a beat. */
+            content: "";
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: -1;
+            contain: paint;
+            background: repeating-linear-gradient(0deg, rgba(255, 255, 255, .025) 0px, rgba(255, 255, 255, .025) 1px, transparent 1px, transparent 3px);
+            animation: cyberGlitch 6.5s steps(1) infinite;
+        }
+        @keyframes cyberGlitch {
+            0%, 91%, 100% { opacity: .3; transform: translate3d(0, 0, 0); }
+            92%           { opacity: .55; transform: translate3d(-2px, 0, 0); }
+            93%           { opacity: .2;  transform: translate3d(2px, 0, 0); }
+            94%           { opacity: .5;  transform: translate3d(-1px, 0, 0); }
+            95%, 97%      { opacity: .25; transform: translate3d(0, 0, 0); }
+        }
+        /* The scan beam — a bright cyan-to-magenta band sweeping slowly
+           down the screen, the way a hologram or old display redraws. */
+        .mu-cyber-scan { display: none; }
+        body.theme-cyberpunk .mu-cyber-scan {
+            display: block;
+            position: fixed;
+            left: 0; right: 0; top: 0;
+            height: 3px;
+            pointer-events: none;
+            z-index: -1;
+            contain: paint;
+            background: linear-gradient(90deg, transparent 0%, rgba(0, 240, 255, .9) 22%, rgba(255, 0, 200, .9) 52%, rgba(0, 240, 255, .9) 80%, transparent 100%);
+            box-shadow: 0 0 14px 2px rgba(0, 240, 255, .5);
+            animation: cyberScanMove 5.5s linear infinite;
+        }
+        @keyframes cyberScanMove {
+            0%   { transform: translate3d(0, 0, 0);       opacity: 0; }
+            6%   { opacity: .85; }
+            50%  { opacity: .85; }
+            94%  { opacity: 0; }
+            100% { transform: translate3d(0, 100vh, 0);    opacity: 0; }
+        }
+        /* A slow rise of small glowing data-bits, alternating cyan and
+           magenta, drifting up through the dark like sparks off neon. */
+        .mu-cyber-bits { display: none; }
+        body.theme-cyberpunk .mu-cyber-bits {
+            display: block;
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: -1;
+            contain: paint;
+        }
+        .mu-cyber-bit {
+            position: absolute;
+            bottom: -6%;
+            width: 5px;
+            height: 5px;
+            border-radius: 1px;
+            background: currentColor;
+            box-shadow: 0 0 6px 2px currentColor, 0 0 14px 4px currentColor;
+            opacity: 0;
+            animation: cyberBitRise linear infinite;
+        }
+        body.theme-cyberpunk .mu-cyber-bit:nth-child(1) { left: 8%;  color: #00f0ff; animation-duration: 13s; animation-delay: 0s; }
+        body.theme-cyberpunk .mu-cyber-bit:nth-child(2) { left: 24%; color: #ff2fd0; animation-duration: 16s; animation-delay: 2.5s; }
+        body.theme-cyberpunk .mu-cyber-bit:nth-child(3) { left: 41%; color: #00f0ff; animation-duration: 12s; animation-delay: 5s; }
+        body.theme-cyberpunk .mu-cyber-bit:nth-child(4) { left: 63%; color: #ff2fd0; animation-duration: 15s; animation-delay: 1.5s; }
+        body.theme-cyberpunk .mu-cyber-bit:nth-child(5) { left: 79%; color: #00f0ff; animation-duration: 14s; animation-delay: 6s; }
+        body.theme-cyberpunk .mu-cyber-bit:nth-child(6) { left: 92%; color: #ff2fd0; animation-duration: 17s; animation-delay: 3.5s; }
+        @keyframes cyberBitRise {
+            0%   { transform: translate3d(0, 0, 0) scale(1);        opacity: 0; }
+            10%  { opacity: .9; }
+            50%  { transform: translate3d(8px, -52vh, 0) scale(1.3); opacity: .6; }
+            90%  { opacity: .25; }
+            100% { transform: translate3d(-6px, -100vh, 0) scale(1); opacity: 0; }
         }
 
+        /* Love — a warm, candlelit dusk rather than anything literal: deep
+           wine-rose fading to near-black, a soft golden warmth breathing
+           slowly near the top like candlelight through a curtain (never a
+           sun), a fixed scatter of small warm sparkle-motes that twinkle
+           out of sync with one another, and a slow, quiet drift of soft
+           blurred rose-gold bokeh rising past the screen like warm dust
+           in still air (never a moon). Same two-layer ::before/::after
+           recipe as the other animated themes; no emoji anywhere in it. */
         body.theme-love {
-            --bg-gradient: radial-gradient(circle, #3a0010 0%, #0f0004 100%) !important;
-            --panel-bg: rgba(255, 77, 109, 0.04) !important;
-            --panel-border: rgba(255, 77, 109, 0.22) !important;
-            --card-bg: rgba(20, 2, 7, 0.85) !important;
-            --text-color: #ff92a8 !important;
-            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6) !important;
+            --bg-gradient: radial-gradient(ellipse 85% 65% at 50% 20%, #6b1830 0%, #3a0f1e 45%, #12040a 100%) !important;
+            --panel-bg: rgba(255, 122, 151, 0.05) !important;
+            --panel-border: rgba(255, 158, 181, 0.28) !important;
+            --card-bg: rgba(30, 7, 15, 0.86) !important;
+            --text-color: #ffc9d6 !important;
+            text-shadow: 0 1px 4px rgba(0, 0, 0, 0.65), 0 0 16px rgba(255, 110, 140, 0.16) !important;
         }
-
-        body.theme-autumn {
-            --bg-gradient: radial-gradient(circle, #2b1200 0%, #0d0500 100%) !important;
-            --panel-bg: rgba(234, 88, 12, 0.04) !important;
-            --panel-border: rgba(249, 115, 22, 0.18) !important;
-            --card-bg: rgba(20, 8, 2, 0.85) !important;
-            --text-color: #fdba74 !important;
-            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6) !important;
+        body.theme-love::before {
+            /* Warm ambient wash breathing slowly near the top, plus a fixed
+               scatter of small warm sparkle-motes that twinkle. */
+            content: "";
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: -1;
+            contain: paint;
+            background:
+                radial-gradient(circle 2px at 12% 22%, rgba(255, 205, 217, .9), transparent 100%),
+                radial-gradient(circle 1.5px at 27% 58%, rgba(255, 185, 202, .8), transparent 100%),
+                radial-gradient(circle 2px at 41% 14%, rgba(255, 210, 222, .85), transparent 100%),
+                radial-gradient(circle 1.5px at 58% 45%, rgba(255, 190, 207, .75), transparent 100%),
+                radial-gradient(circle 2px at 72% 26%, rgba(255, 208, 219, .9), transparent 100%),
+                radial-gradient(circle 1.5px at 85% 62%, rgba(255, 188, 204, .8), transparent 100%),
+                radial-gradient(circle 2px at 93% 18%, rgba(255, 203, 216, .85), transparent 100%),
+                radial-gradient(ellipse 85% 55% at 50% 6%, rgba(255, 130, 160, .18) 0%, transparent 70%);
+            animation: loveTwinkle 5.5s ease-in-out infinite, loveBreathe 10s ease-in-out infinite;
+        }
+        @keyframes loveTwinkle {
+            0%, 100% { opacity: .55; }
+            50%      { opacity: 1; }
+        }
+        @keyframes loveBreathe {
+            0%, 100% { filter: brightness(1); }
+            50%      { filter: brightness(1.12); }
         }
 
         /* Anonymous — no face, no name, just the network: a faint circuit
@@ -1073,29 +1170,6 @@
             0%, 100% { opacity: .5; }
             50%      { opacity: .9; }
         }
-        body.theme-anonymous::after {
-            /* A hiss of faint white static — the quiet interference of a
-               signal with no single source. */
-            content: "";
-            position: fixed;
-            inset: 0;
-            pointer-events: none;
-            z-index: -1;
-            contain: paint;
-            background:
-                radial-gradient(circle 1px at 15% 30%, rgba(255, 255, 255, .25), transparent 100%),
-                radial-gradient(circle 1px at 32% 68%, rgba(255, 255, 255, .2), transparent 100%),
-                radial-gradient(circle 1px at 48% 20%, rgba(255, 255, 255, .22), transparent 100%),
-                radial-gradient(circle 1px at 63% 75%, rgba(255, 255, 255, .18), transparent 100%),
-                radial-gradient(circle 1px at 78% 40%, rgba(255, 255, 255, .2), transparent 100%),
-                radial-gradient(circle 1px at 90% 62%, rgba(255, 255, 255, .16), transparent 100%);
-            animation: anonStatic 2.6s steps(2) infinite;
-        }
-        @keyframes anonStatic {
-            0%   { opacity: .5; }
-            50%  { opacity: .85; }
-            100% { opacity: .55; }
-        }
         /* A soft, wide watch-beam drifting slowly across the whole screen —
            always looking, never quite landing. */
         .mu-anon-beam { display: none; }
@@ -1117,36 +1191,6 @@
             0%, 100% { transform: translate(0, 0) rotate(-8deg); }
             50%      { transform: translate(18vw, 48vh) rotate(5deg); }
         }
-        /* Scattered nodes — a distributed crowd of small signals quietly
-           fading in and out, no two on the same rhythm. */
-        .mu-anon-nodes { display: none; }
-        body.theme-anonymous .mu-anon-nodes {
-            display: block;
-            position: fixed;
-            inset: 0;
-            pointer-events: none;
-            z-index: -1;
-            contain: paint;
-        }
-        .mu-anon-node {
-            position: absolute;
-            width: 3px;
-            height: 3px;
-            border-radius: 50%;
-            background: #ffffff;
-            box-shadow: 0 0 6px 1px rgba(255, 255, 255, .5);
-            animation: anonNodePulse ease-in-out infinite;
-        }
-        @keyframes anonNodePulse {
-            0%, 100% { opacity: .12; transform: scale(1); }
-            50%      { opacity: .8;  transform: scale(1.7); }
-        }
-        body.theme-anonymous .mu-anon-node:nth-child(1) { left: 10%; top: 22%; animation-duration: 4.5s; animation-delay: 0s; }
-        body.theme-anonymous .mu-anon-node:nth-child(2) { left: 26%; top: 64%; animation-duration: 5.2s; animation-delay: .8s; }
-        body.theme-anonymous .mu-anon-node:nth-child(3) { left: 45%; top: 14%; animation-duration: 4s;   animation-delay: 1.6s; }
-        body.theme-anonymous .mu-anon-node:nth-child(4) { left: 62%; top: 48%; animation-duration: 5.6s; animation-delay: 2.4s; }
-        body.theme-anonymous .mu-anon-node:nth-child(5) { left: 79%; top: 70%; animation-duration: 4.8s; animation-delay: 1.1s; }
-        body.theme-anonymous .mu-anon-node:nth-child(6) { left: 90%; top: 28%; animation-duration: 5s;   animation-delay: 3.2s; }
         /* UI chrome: title and section headings pick up the same cold
            monospace signal-mono voice as the rest of the theme, and the
            main buttons go flat near-black with a thin, quiet white edge —
@@ -1753,15 +1797,16 @@
         /* A swarm of bats — same real-parts construction (scalloped
            membrane wings, round body, pointed ears, glowing eyes) as the
            Vampire theme's bats, recolored near-black/violet with a
-           sickly yellow-green eye-glow. Ten of them, on four distinct
-           flight-path shapes (different arcs, speeds and scales) and
-           staggered timings/heights/depths (some behind the note cards,
-           some gliding above them), so the sky reads as genuinely full
-           of bats instead of one sprite repeated. The bat-N selectors
-           only set each bat's lane (position/z-index/animation); the
-           shared wing/body/ear rules below apply to all of them via the
-           [class^=] attribute match, so adding more bats never needs
-           new structural CSS. */
+           sickly yellow-green eye-glow. Fifteen of them: ten crossing
+           left-to-right (four distinct arc/speed/scale shapes) and five
+           more crossing right-to-left (mirrored versions of those same
+           shapes), staggered timings/heights/depths (some behind the note
+           cards, some gliding above them), so the sky reads as genuinely
+           full of bats coming from both directions instead of one sprite
+           repeated. The bat-N selectors only set each bat's lane
+           (position/z-index/animation); the shared wing/body/ear rules
+           below apply to all of them via the [class^=] attribute match,
+           so adding more bats never needs new structural CSS. */
         [class^="mu-halloween-bat-"] { display: none; }
         body.theme-halloween [class^="mu-halloween-bat-"] {
             display: block;
@@ -1782,6 +1827,13 @@
         body.theme-halloween .mu-halloween-bat-8  { top: 14vh;  z-index: 40; animation: halloweenBatFly4 29s linear -2s infinite; }
         body.theme-halloween .mu-halloween-bat-9  { top: 52vh;  z-index: -1; animation: halloweenBatFly1 25s linear -19s infinite; }
         body.theme-halloween .mu-halloween-bat-10 { top: 80vh;  z-index: 40; animation: halloweenBatFly3 22s linear -9s infinite; }
+        /* Right-to-left crossings, started from the opposite edge — mirrored
+           versions of the same four flight-path shapes above. */
+        body.theme-halloween .mu-halloween-bat-11 { top: 95px;  right: -34px; left: auto; z-index: -1; animation: halloweenBatFlyRTL1 20s linear -5s infinite; }
+        body.theme-halloween .mu-halloween-bat-12 { top: 90vh;  right: -34px; left: auto; z-index: 40; animation: halloweenBatFlyRTL2 26s linear -12s infinite; }
+        body.theme-halloween .mu-halloween-bat-13 { top: 4vh;   right: -34px; left: auto; z-index: -1; animation: halloweenBatFlyRTL3 23s linear -1s infinite; }
+        body.theme-halloween .mu-halloween-bat-14 { top: 38vh;  right: -34px; left: auto; z-index: 40; animation: halloweenBatFlyRTL4 28s linear -18s infinite; }
+        body.theme-halloween .mu-halloween-bat-15 { top: 66vh;  right: -34px; left: auto; z-index: -1; animation: halloweenBatFlyRTL1 21s linear -9s infinite; }
         body.theme-halloween .mu-hwbat-wing {
             position: absolute;
             top: 15%;
@@ -1811,7 +1863,11 @@
         body.theme-halloween .mu-halloween-bat-8 .mu-hwbat-wing-l,
         body.theme-halloween .mu-halloween-bat-8 .mu-hwbat-wing-r,
         body.theme-halloween .mu-halloween-bat-10 .mu-hwbat-wing-l,
-        body.theme-halloween .mu-halloween-bat-10 .mu-hwbat-wing-r {
+        body.theme-halloween .mu-halloween-bat-10 .mu-hwbat-wing-r,
+        body.theme-halloween .mu-halloween-bat-12 .mu-hwbat-wing-l,
+        body.theme-halloween .mu-halloween-bat-12 .mu-hwbat-wing-r,
+        body.theme-halloween .mu-halloween-bat-14 .mu-hwbat-wing-l,
+        body.theme-halloween .mu-halloween-bat-14 .mu-hwbat-wing-r {
             animation-duration: .52s;
         }
         body.theme-halloween .mu-hwbat-body {
@@ -1886,6 +1942,38 @@
             60%  { transform: translate3d(44vw, 6px, 0) scale(1.1); opacity: .95; }
             72%  { transform: translate3d(60vw, 14px, 0) scale(1.1); opacity: 0; }
             100% { transform: translate3d(60vw, 14px, 0) scale(1.1); opacity: 0; }
+        }
+        /* Mirror images of the four flight paths above, for the bats
+           crossing the other way (right edge to left edge). */
+        @keyframes halloweenBatFlyRTL1 {
+            0%   { transform: translate3d(0, 0, 0) scale(1); opacity: 0; }
+            8%   { opacity: .95; }
+            45%  { transform: translate3d(-58vw, -12px, 0) scale(1); opacity: .95; }
+            55%  { transform: translate3d(-74vw, -6px, 0) scale(1); opacity: 0; }
+            100% { transform: translate3d(-74vw, -6px, 0) scale(1); opacity: 0; }
+        }
+        @keyframes halloweenBatFlyRTL2 {
+            0%   { transform: translate3d(0, 0, 0) scale(.85); opacity: 0; }
+            10%  { opacity: .95; }
+            50%  { transform: translate3d(-50vw, 16px, 0) scale(.85); opacity: .95; }
+            62%  { transform: translate3d(-66vw, 24px, 0) scale(.85); opacity: 0; }
+            100% { transform: translate3d(-66vw, 24px, 0) scale(.85); opacity: 0; }
+        }
+        @keyframes halloweenBatFlyRTL3 {
+            0%   { transform: translate3d(0, 0, 0) scale(.7); opacity: 0; }
+            8%   { opacity: .9; }
+            40%  { transform: translate3d(-40vw, -20px, 0) scale(.7); opacity: .9; }
+            70%  { transform: translate3d(-70vw, 10px, 0) scale(.7); opacity: .9; }
+            82%  { transform: translate3d(-88vw, 4px, 0) scale(.7); opacity: 0; }
+            100% { transform: translate3d(-88vw, 4px, 0) scale(.7); opacity: 0; }
+        }
+        @keyframes halloweenBatFlyRTL4 {
+            0%   { transform: translate3d(0, 0, 0) scale(1.1); opacity: 0; }
+            10%  { opacity: .95; }
+            50%  { transform: translate3d(-30vw, 18px, 0) scale(1.1); opacity: .95; }
+            60%  { transform: translate3d(-44vw, 6px, 0) scale(1.1); opacity: .95; }
+            72%  { transform: translate3d(-60vw, 14px, 0) scale(1.1); opacity: 0; }
+            100% { transform: translate3d(-60vw, 14px, 0) scale(1.1); opacity: 0; }
         }
         /* The jack-o'-lantern — a ribbed pumpkin body (stacked radial
            gradients for lobed shading, not a flat oval), a small stem,
@@ -2201,22 +2289,25 @@
            screen and fades out at the edges, same "appear, cross, go
            quiet" cadence as before.
 
-           The two bats now have distinct, deliberate flight lanes instead
+           The bats now have distinct, deliberate flight lanes instead
            of both drifting through the same general area:
-           - bat-1 flies in the narrow gap directly under the sticky
+           - odd bats (1, 3) fly in the narrow gap directly under the sticky
              top nav bar — the strip of empty page (just margin + the
              page title) that has no card behind it, so the bat is only
              ever visible passing through that specific empty band and
              tucks out of sight behind real cards elsewhere (kept at the
              same z-index: -1 as the rest of the theme's background art).
-           - bat-2 flies much lower, over the notes list itself, and is
-             given a higher z-index (above ordinary note/folder cards,
-             still well under the sticky header and any modal) so it
-             stays clearly visible gliding over the notes instead of
-             disappearing behind their opaque backgrounds. */
-        .mu-vampire-bat-1, .mu-vampire-bat-2 { display: none; }
-        body.theme-vampire .mu-vampire-bat-1,
-        body.theme-vampire .mu-vampire-bat-2 {
+           - even bats (2, 4) fly much lower, over the notes list itself,
+             and are given a higher z-index (above ordinary note/folder
+             cards, still well under the sticky header and any modal) so
+             they stay clearly visible gliding over the notes instead of
+             disappearing behind their opaque backgrounds.
+           Like the Halloween swarm below, the bat-N selectors only set
+           each bat's lane; the shared wing/body/ear rules apply to all of
+           them via the [class^=] attribute match, so adding more bats
+           never needs new structural CSS. */
+        [class^="mu-vampire-bat-"] { display: none; }
+        body.theme-vampire [class^="mu-vampire-bat-"] {
             display: block;
             position: fixed;
             width: 26px;
@@ -2235,6 +2326,18 @@
             left: -40px;
             z-index: 40;
             animation: vampireBatFly2 29s linear -10s infinite;
+        }
+        body.theme-vampire .mu-vampire-bat-3 {
+            top: 90px;
+            left: -34px;
+            z-index: -1;
+            animation: vampireBatFly1 26s linear -14s infinite;
+        }
+        body.theme-vampire .mu-vampire-bat-4 {
+            top: 74vh;
+            left: -40px;
+            z-index: 40;
+            animation: vampireBatFly2 24s linear -4s infinite;
         }
         /* Wings: a scalloped, multi-point clip-path (rather than one clean
            triangle) so the trailing edge reads as a webbed membrane
@@ -2265,7 +2368,9 @@
             animation: vampireBatFlapMirror .45s ease-in-out infinite alternate;
         }
         body.theme-vampire .mu-vampire-bat-2 .mu-vbat-wing-l,
-        body.theme-vampire .mu-vampire-bat-2 .mu-vbat-wing-r {
+        body.theme-vampire .mu-vampire-bat-2 .mu-vbat-wing-r,
+        body.theme-vampire .mu-vampire-bat-4 .mu-vbat-wing-l,
+        body.theme-vampire .mu-vampire-bat-4 .mu-vbat-wing-r {
             animation-duration: .52s;
         }
         /* Body: a small round gradient with two tiny glowing red eyes
@@ -2415,18 +2520,21 @@
             100% { transform: translate3d(0, 112vh, 0) rotate(55deg); opacity: 0; }
         }
 
-        /* Red Horizon — a warm desert-night skyline: a dim rust-red sky, a
-           softly glowing amber moon breathing low over dark dune ridges, and
-           a scatter of faint stars above. Mirrors the "جاده مرگ" (Dead Road)
-           game's own night-road art (see .theme-deadroad) so the app itself
-           can carry that same moody sunset-on-Mars atmosphere. Built from the
-           same two-layer recipe as Aurora/Phantom above (a blurred drifting
-           glow + a static twinkle layer) so it costs no more GPU than those. */
+        /* Red Horizon — a warm desert-night skyline: a deep rust-red sky
+           bleeding into black, dark layered dune ridges along the horizon,
+           and a full scatter of warm-tinted stars above. Mirrors the "جاده
+           مرگ" (Dead Road) game's own night-road art (see .theme-deadroad)
+           so the app itself can carry that same moody sunset-on-Mars
+           atmosphere. Built from the same layered recipe as the other
+           enhanced themes (a blurred drifting glow + a twinkle layer) so it
+           costs no more GPU than those, and is wired into the same
+           scroll/game-open pause rules and reduced-motion opt-out every
+           other theme already gets. */
         body.theme-redhorizon {
-            --bg-gradient: radial-gradient(ellipse 90% 55% at 50% 6%, #4a1508 0%, #2c0f07 32%, #170905 58%, #0a0403 82%, #030201 100%) !important;
-            --panel-bg: rgba(255, 158, 89, 0.04) !important;
-            --panel-border: rgba(255, 158, 89, 0.22) !important;
-            --card-bg: rgba(22, 9, 6, 0.85) !important;
+            --bg-gradient: radial-gradient(ellipse 95% 60% at 50% 10%, #66200e 0%, #4a1508 20%, #2c0f07 40%, #170905 62%, #0a0403 84%, #030201 100%) !important;
+            --panel-bg: rgba(255, 158, 89, 0.05) !important;
+            --panel-border: rgba(255, 166, 99, 0.25) !important;
+            --card-bg: rgba(24, 10, 6, 0.86) !important;
             --text-color: #ffb37a !important;
             text-shadow: 0 1px 3px rgba(20, 6, 2, 0.6) !important;
         }
@@ -2465,7 +2573,14 @@
                 radial-gradient(circle 1.5px at 30% 8%, rgba(255, 240, 224, .6), transparent 100%),
                 radial-gradient(circle 1px at 72% 10%, rgba(255, 240, 224, .55), transparent 100%),
                 radial-gradient(circle 1.5px at 90% 20%, rgba(255, 240, 224, .5), transparent 100%),
-                radial-gradient(circle 1px at 50% 16%, rgba(255, 240, 224, .4), transparent 100%);
+                radial-gradient(circle 1px at 50% 16%, rgba(255, 240, 224, .4), transparent 100%),
+                radial-gradient(circle 1px at 6% 30%, rgba(255, 226, 200, .4), transparent 100%),
+                radial-gradient(circle 2px at 95% 34%, rgba(255, 236, 214, .35), transparent 100%),
+                radial-gradient(circle 1px at 62% 6%, rgba(255, 230, 208, .5), transparent 100%),
+                radial-gradient(circle 1px at 24% 22%, rgba(255, 236, 214, .45), transparent 100%),
+                radial-gradient(circle 1.5px at 44% 38%, rgba(255, 230, 208, .38), transparent 100%),
+                radial-gradient(circle 1px at 82% 44%, rgba(255, 226, 200, .3), transparent 100%),
+                radial-gradient(circle 1px at 4% 46%, rgba(255, 236, 214, .32), transparent 100%);
             animation: redHorizonTwinkle 6.5s ease-in-out infinite alternate;
         }
         @keyframes redHorizonTwinkle {
@@ -2473,13 +2588,81 @@
             50%  { opacity: 1; }
             100% { opacity: .55; }
         }
+        /* Two extra star layers, each its own fixed element rather than
+           squeezed into body's own ::before/::after (already spoken for by
+           the ambient glow and the layer above), so every layer can twinkle
+           on its own independent timing instead of the whole sky fading in
+           and out together. Different duration + negative delay per layer
+           means the three fields drift in and out of phase with each other,
+           so at any moment some stars are dimming while others are
+           brightening — reading as many stars twinkling on their own rather
+           than one synchronized blob. Same lightweight radial-gradient/opacity
+           recipe as the layer above, so the extra stars cost next to nothing. */
+        .mu-redhorizon-stars { display: none; }
+        body.theme-redhorizon .mu-redhorizon-stars {
+            display: block;
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: -1;
+            contain: paint;
+        }
+        body.theme-redhorizon .mu-redhorizon-stars::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background-image:
+                radial-gradient(circle 1px at 14% 4%, rgba(255, 240, 224, .65), transparent 100%),
+                radial-gradient(circle 1.5px at 38% 12%, rgba(255, 234, 210, .55), transparent 100%),
+                radial-gradient(circle 1px at 58% 24%, rgba(255, 230, 208, .4), transparent 100%),
+                radial-gradient(circle 1.5px at 78% 8%, rgba(255, 240, 224, .6), transparent 100%),
+                radial-gradient(circle 1px at 96% 46%, rgba(255, 226, 200, .35), transparent 100%),
+                radial-gradient(circle 1px at 8% 40%, rgba(255, 236, 214, .4), transparent 100%),
+                radial-gradient(circle 1px at 26% 48%, rgba(255, 230, 208, .3), transparent 100%),
+                radial-gradient(circle 1.5px at 66% 40%, rgba(255, 234, 210, .38), transparent 100%),
+                radial-gradient(circle 1px at 46% 6%, rgba(255, 240, 224, .55), transparent 100%),
+                radial-gradient(circle 1px at 88% 28%, rgba(255, 226, 200, .42), transparent 100%);
+            animation: redHorizonTwinkleB 8.2s ease-in-out infinite alternate;
+            animation-delay: -3s;
+        }
+        body.theme-redhorizon .mu-redhorizon-stars::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background-image:
+                radial-gradient(circle 1px at 20% 10%, rgba(255, 236, 214, .5), transparent 100%),
+                radial-gradient(circle 1px at 34% 30%, rgba(255, 230, 208, .35), transparent 100%),
+                radial-gradient(circle 1.5px at 50% 44%, rgba(255, 226, 200, .3), transparent 100%),
+                radial-gradient(circle 1px at 64% 16%, rgba(255, 240, 224, .58), transparent 100%),
+                radial-gradient(circle 1px at 84% 38%, rgba(255, 234, 210, .34), transparent 100%),
+                radial-gradient(circle 1.5px at 4% 20%, rgba(255, 240, 224, .48), transparent 100%),
+                radial-gradient(circle 1px at 12% 36%, rgba(255, 230, 208, .32), transparent 100%),
+                radial-gradient(circle 1px at 92% 12%, rgba(255, 236, 214, .5), transparent 100%),
+                radial-gradient(circle 1px at 42% 20%, rgba(255, 226, 200, .36), transparent 100%),
+                radial-gradient(circle 1px at 70% 48%, rgba(255, 234, 210, .28), transparent 100%);
+            animation: redHorizonTwinkleC 5.4s ease-in-out infinite alternate;
+            animation-delay: -1.7s;
+        }
+        @keyframes redHorizonTwinkleB {
+            0%   { opacity: .35; }
+            50%  { opacity: .95; }
+            100% { opacity: .5; }
+        }
+        @keyframes redHorizonTwinkleC {
+            0%   { opacity: .4; }
+            50%  { opacity: 1; }
+            100% { opacity: .4; }
+        }
         /* Actual mountain silhouette — the soft blurred tint in ::before above
            only reads as atmosphere, not a mountain, so this is a dedicated
            element with a real jagged skyline cut via clip-path: two ridges
            layered for depth (a hazier far ridge behind a darker, taller near
-           ridge), fixed to the bottom of the viewport like a horizon. Hidden
-           for every other theme; only shown while .theme-redhorizon is on
-           body. */
+           ridge), fixed to the bottom of the viewport like a horizon. Each
+           ridge is now a soft vertical gradient rather than a flat fill, so
+           it catches a faint warm cast near its peaks (as if lit by the moon
+           above) and fades to near-black lower down, closer to the ground.
+           Hidden for every other theme; only shown while .theme-redhorizon
+           is on body. */
         .mu-redhorizon-mountains { display: none; }
         body.theme-redhorizon .mu-redhorizon-mountains {
             display: block;
@@ -2495,8 +2678,8 @@
             content: "";
             position: absolute;
             inset: 0;
-            background: #2a0f08;
-            opacity: .65;
+            background: linear-gradient(180deg, #4a2210 0%, #34140a 45%, #200d06 100%);
+            opacity: .68;
             clip-path: polygon(0% 100%, 0% 68%, 6% 60%, 12% 66%, 18% 52%,
                 25% 64%, 32% 48%, 40% 62%, 47% 50%, 55% 64%, 62% 46%,
                 70% 60%, 77% 50%, 85% 63%, 92% 48%, 100% 60%, 100% 100%);
@@ -2505,7 +2688,7 @@
             content: "";
             position: absolute;
             inset: 0;
-            background: #170905;
+            background: linear-gradient(180deg, #26100a 0%, #170905 55%, #0a0402 100%);
             clip-path: polygon(0% 100%, 0% 80%, 10% 58%, 20% 74%, 30% 44%,
                 42% 72%, 55% 40%, 65% 70%, 75% 48%, 85% 68%, 92% 52%,
                 100% 72%, 100% 100%);
@@ -2833,6 +3016,29 @@
             top: 68%; right: -40px; left: auto;
             animation: phantomSpecterDriftRTL 36s ease-in-out infinite 16s;
         }
+        /* More wandering ghosts, same LTR/RTL crossing pattern as the first
+           five above, just at their own heights/timings so the crowd reads
+           as scattered rather than a repeating loop. */
+        body.theme-phantom .mu-phantom-specter:nth-child(7) {
+            top: 40%; left: -40px;
+            animation: phantomSpecterDriftLTR 33s ease-in-out infinite 26s;
+        }
+        body.theme-phantom .mu-phantom-specter:nth-child(9) {
+            top: 76%; left: -40px;
+            animation: phantomSpecterDriftLTR 29s ease-in-out infinite 15s;
+        }
+        body.theme-phantom .mu-phantom-specter:nth-child(6) {
+            top: 12%; right: -40px; left: auto;
+            animation: phantomSpecterDriftRTL 38s ease-in-out infinite 3s;
+        }
+        body.theme-phantom .mu-phantom-specter:nth-child(8) {
+            top: 60%; right: -40px; left: auto;
+            animation: phantomSpecterDriftRTL 42s ease-in-out infinite 30s;
+        }
+        body.theme-phantom .mu-phantom-specter:nth-child(10) {
+            top: 92%; right: -40px; left: auto;
+            animation: phantomSpecterDriftRTL 44s ease-in-out infinite 20s;
+        }
         @keyframes phantomSpecterDriftLTR {
             0%   { transform: translate3d(0, 0, 0); opacity: 0; }
             12%  { opacity: .85; }
@@ -2930,40 +3136,58 @@
             box-shadow: 0 0 0 1px rgba(168, 85, 247, .1) inset, 0 2px 8px rgba(0, 0, 0, .4) !important;
         }
 
-        /* Aurora Phantom — a hybrid of the two: a violet "watching" glow (from
-           Phantom) sitting over a deep aurora night sky, with drifting mist
-           ribbons that blend both themes' color palettes and a faint twinkle
-           of stars (from Aurora). Kept to the same two animated layers as
-           every other theme above — the extra "watching eye" glow is folded
-           into the static --bg-gradient instead of its own animated layer, so
-           this doesn't cost any more GPU than either theme did alone. */
+        /* Aurora Phantom — a hybrid of the two: proper aurora curtains (not
+           just a soft glow) woven from emerald, icy blue and violet bands,
+           hanging over a deep, layered night sky with a faint violet hush
+           low on the horizon standing in for Phantom's mood instead of any
+           literal eye/figure. A denser, warmer-toned starfield (from
+           Aurora) twinkles beneath it. No sun, no moon, no emoji — just
+           sky, light and stars. Still just the two animated layers every
+           theme above uses, so this costs no more GPU than before: the
+           ::before layer got more/richer gradient stops plus a second,
+           slow brightness-pulse animation layered onto its drift (so the
+           curtains breathe in intensity as well as sway), and the ::after
+           starfield got more stops in a wider mix of tints. */
         body.theme-aurora-phantom {
-            --bg-gradient: radial-gradient(circle at 50% 8%, rgba(123, 74, 226, 0.55) 0%, transparent 32%),
-                           radial-gradient(circle at 50% 10%, #24123f 0%, #0d1f2e 40%, #030c14 72%, #000 100%) !important;
+            --bg-gradient: radial-gradient(ellipse 90% 42% at 50% 0%, rgba(123, 74, 226, 0.32) 0%, transparent 62%),
+                           radial-gradient(ellipse 70% 38% at 18% 100%, rgba(30, 80, 90, 0.2) 0%, transparent 65%),
+                           linear-gradient(175deg, #170a2e 0%, #0e1a30 34%, #081722 62%, #04090f 84%, #000 100%) !important;
             --panel-bg: rgba(131, 170, 223, 0.045) !important;
             --panel-border: rgba(156, 193, 233, 0.24) !important;
             --card-bg: rgba(8, 12, 23, 0.88) !important;
-            --text-color: #bad2ef !important;
-            text-shadow: 0 1px 4px rgba(10, 5, 20, 0.6) !important;
+            --text-color: #c3ddef !important;
+            text-shadow: 0 1px 4px rgba(10, 5, 20, 0.6), 0 0 14px rgba(150, 130, 255, 0.14) !important;
         }
         body.theme-aurora-phantom::before {
+            /* Several overlapping ribbon-shaped gradients standing in for
+               aurora curtains, staggered across the upper sky at slightly
+               different heights/widths so they read as folded bands of
+               light rather than one flat wash, plus one low, wide violet
+               ellipse for a grounded hush near the bottom. */
             content: "";
             position: fixed;
-            top: -8%; left: -8%; right: -8%; bottom: -8%;
+            top: -10%; left: -10%; right: -10%; bottom: -10%;
             background:
-                radial-gradient(ellipse 55% 20% at 20% 15%, rgba(125, 255, 208, 0.16) 0%, transparent 62%),
-                radial-gradient(ellipse 50% 26% at 78% 60%, rgba(168, 85, 247, 0.14) 0%, transparent 62%),
-                radial-gradient(ellipse 55% 22% at 50% 90%, rgba(80, 200, 255, 0.1) 0%, transparent 65%);
-            filter: blur(5px);
+                radial-gradient(ellipse 62% 15% at 16% 10%, rgba(125, 255, 208, 0.3) 0%, transparent 65%),
+                radial-gradient(ellipse 50% 12% at 38% 5%, rgba(80, 200, 255, 0.24) 0%, transparent 65%),
+                radial-gradient(ellipse 58% 16% at 62% 14%, rgba(168, 85, 247, 0.28) 0%, transparent 65%),
+                radial-gradient(ellipse 48% 13% at 84% 8%, rgba(125, 255, 208, 0.2) 0%, transparent 65%),
+                radial-gradient(ellipse 44% 12% at 95% 20%, rgba(94, 234, 212, 0.16) 0%, transparent 65%),
+                radial-gradient(ellipse 66% 26% at 50% 96%, rgba(90, 60, 180, 0.16) 0%, transparent 70%);
+            filter: blur(6px);
             pointer-events: none;
             z-index: -1;
             contain: paint;
-            animation: auroraPhantomDrift 20s ease-in-out infinite alternate;
+            animation: auroraPhantomDrift 24s ease-in-out infinite alternate, auroraPhantomGlow 8s ease-in-out infinite;
         }
         @keyframes auroraPhantomDrift {
             0%   { transform: translate3d(0, 0, 0); }
-            50%  { transform: translate3d(-2.5%, -2.5%, 0); }
-            100% { transform: translate3d(2.5%, 2%, 0); }
+            50%  { transform: translate3d(-3%, -2.5%, 0); }
+            100% { transform: translate3d(3%, 2%, 0); }
+        }
+        @keyframes auroraPhantomGlow {
+            0%, 100% { filter: blur(6px) brightness(1); }
+            50%      { filter: blur(6px) brightness(1.18); }
         }
         body.theme-aurora-phantom::after {
             content: "";
@@ -2973,11 +3197,14 @@
             z-index: -1;
             contain: paint;
             background-image:
-                radial-gradient(circle 1px at 18% 20%, rgba(255, 255, 255, .75), transparent 100%),
-                radial-gradient(circle 1.5px at 50% 15%, rgba(216, 180, 254, .7), transparent 100%),
-                radial-gradient(circle 1px at 80% 28%, rgba(255, 255, 255, .6), transparent 100%),
-                radial-gradient(circle 1.5px at 88% 55%, rgba(141, 255, 216, .55), transparent 100%),
-                radial-gradient(circle 1px at 58% 48%, rgba(255, 255, 255, .45), transparent 100%);
+                radial-gradient(circle 1px at 12% 24%, rgba(255, 255, 255, .8), transparent 100%),
+                radial-gradient(circle 1.5px at 30% 12%, rgba(216, 180, 254, .72), transparent 100%),
+                radial-gradient(circle 1px at 50% 30%, rgba(255, 255, 255, .55), transparent 100%),
+                radial-gradient(circle 1.5px at 68% 18%, rgba(147, 197, 253, .65), transparent 100%),
+                radial-gradient(circle 1px at 82% 34%, rgba(255, 255, 255, .6), transparent 100%),
+                radial-gradient(circle 1.5px at 91% 22%, rgba(141, 255, 216, .6), transparent 100%),
+                radial-gradient(circle 1px at 58% 46%, rgba(255, 255, 255, .4), transparent 100%),
+                radial-gradient(circle 1.5px at 22% 52%, rgba(216, 180, 254, .45), transparent 100%);
             animation: auroraTwinkle 6s ease-in-out infinite alternate;
         }
 
@@ -4575,7 +4802,7 @@
             display: block;
             position: fixed;
             left: 12%;
-            top: 20%;
+            top: 15%;
             width: 90px;
             height: 90px;
             border-radius: 50%;
@@ -6452,6 +6679,16 @@
             .mc-title-input { font-size: 14px; }
         }
 
+        /* =====================================================================
+           GAME ZONE — CSS
+           ---------------------------------------------------------------------
+           Every style for the mini-games arcade (#gameModal, .game-card, the
+           selection hub, the shared topbar/canvas/overlay chrome, and each
+           game's own .theme-* skin) lives contiguously in this one block,
+           through the closing .game-card.theme-snake rule further down. Pairs
+           with the MU_Game JS module and #gameModal's HTML block — search
+           "MU_Game" and "GAME ZONE — HTML".
+           ===================================================================== */
         #gameModal {
             display: none;
             position: fixed;
@@ -6997,6 +7234,7 @@
             background: rgba(255,45,110,0.22) !important; border-color: rgba(255,45,110,0.5) !important;
         }
         .game-card.theme-snake #btnGameExit::before { content: "\2715"; font-size: 14px; color: #ffd6e8; }
+        /* ===================================== end GAME ZONE — CSS ===================================== */
 
         .audio-wrapper {
             margin: 10px 0;
@@ -7768,7 +8006,7 @@ window.mu_syncHtmlBg = function(){
         if (saved === null) return;
         var idx = parseInt(saved, 10);
         if (!Number.isFinite(idx) || idx < 0) return;
-        var classes = ['theme-yourname','theme-interstellar','theme-hugo','theme-onepiece','theme-oceanic','theme-phantom','theme-aurora','theme-aurora-phantom','theme-spider','theme-dreamy','theme-cyberpunk','theme-love','theme-autumn','theme-anonymous','theme-terminal','theme-darkweb','theme-redhorizon','theme-midnightblue','theme-halloween','theme-vampire','theme-starwars','theme-hogwarts','theme-strangerthings','theme-homealone','theme-anime'];
+        var classes = ['theme-yourname','theme-interstellar','theme-hugo','theme-onepiece','theme-oceanic','theme-phantom','theme-aurora','theme-aurora-phantom','theme-spider','theme-dreamy','theme-cyberpunk','theme-love','theme-anonymous','theme-terminal','theme-darkweb','theme-redhorizon','theme-midnightblue','theme-halloween','theme-vampire','theme-starwars','theme-hogwarts','theme-strangerthings','theme-homealone','theme-anime'];
         var cls = classes[idx];
         if (cls && cls !== 'theme-yourname') {
             document.body.classList.remove('theme-yourname');
@@ -7779,7 +8017,7 @@ window.mu_syncHtmlBg = function(){
 })();
 </script>
     <div class="mu-redhorizon-mountains" aria-hidden="true"></div>
-    <div class="mu-oceanic-waves" aria-hidden="true"></div>
+    <div class="mu-redhorizon-stars" aria-hidden="true"></div>
     <div class="mu-angler" aria-hidden="true"></div>
     <div class="mu-spider-web" aria-hidden="true"></div>
     <div class="mu-spider" aria-hidden="true"></div>
@@ -7792,6 +8030,20 @@ window.mu_syncHtmlBg = function(){
         <span class="mu-vbat-ear mu-vbat-ear-r"></span>
     </div>
     <div class="mu-vampire-bat-2" aria-hidden="true">
+        <span class="mu-vbat-wing mu-vbat-wing-l"></span>
+        <span class="mu-vbat-wing mu-vbat-wing-r"></span>
+        <span class="mu-vbat-body"></span>
+        <span class="mu-vbat-ear mu-vbat-ear-l"></span>
+        <span class="mu-vbat-ear mu-vbat-ear-r"></span>
+    </div>
+    <div class="mu-vampire-bat-3" aria-hidden="true">
+        <span class="mu-vbat-wing mu-vbat-wing-l"></span>
+        <span class="mu-vbat-wing mu-vbat-wing-r"></span>
+        <span class="mu-vbat-body"></span>
+        <span class="mu-vbat-ear mu-vbat-ear-l"></span>
+        <span class="mu-vbat-ear mu-vbat-ear-r"></span>
+    </div>
+    <div class="mu-vampire-bat-4" aria-hidden="true">
         <span class="mu-vbat-wing mu-vbat-wing-l"></span>
         <span class="mu-vbat-wing mu-vbat-wing-r"></span>
         <span class="mu-vbat-body"></span>
@@ -7864,6 +8116,41 @@ window.mu_syncHtmlBg = function(){
         <span class="mu-hwbat-ear mu-hwbat-ear-r"></span>
     </div>
     <div class="mu-halloween-bat-10" aria-hidden="true">
+        <span class="mu-hwbat-wing mu-hwbat-wing-l"></span>
+        <span class="mu-hwbat-wing mu-hwbat-wing-r"></span>
+        <span class="mu-hwbat-body"></span>
+        <span class="mu-hwbat-ear mu-hwbat-ear-l"></span>
+        <span class="mu-hwbat-ear mu-hwbat-ear-r"></span>
+    </div>
+    <div class="mu-halloween-bat-11" aria-hidden="true">
+        <span class="mu-hwbat-wing mu-hwbat-wing-l"></span>
+        <span class="mu-hwbat-wing mu-hwbat-wing-r"></span>
+        <span class="mu-hwbat-body"></span>
+        <span class="mu-hwbat-ear mu-hwbat-ear-l"></span>
+        <span class="mu-hwbat-ear mu-hwbat-ear-r"></span>
+    </div>
+    <div class="mu-halloween-bat-12" aria-hidden="true">
+        <span class="mu-hwbat-wing mu-hwbat-wing-l"></span>
+        <span class="mu-hwbat-wing mu-hwbat-wing-r"></span>
+        <span class="mu-hwbat-body"></span>
+        <span class="mu-hwbat-ear mu-hwbat-ear-l"></span>
+        <span class="mu-hwbat-ear mu-hwbat-ear-r"></span>
+    </div>
+    <div class="mu-halloween-bat-13" aria-hidden="true">
+        <span class="mu-hwbat-wing mu-hwbat-wing-l"></span>
+        <span class="mu-hwbat-wing mu-hwbat-wing-r"></span>
+        <span class="mu-hwbat-body"></span>
+        <span class="mu-hwbat-ear mu-hwbat-ear-l"></span>
+        <span class="mu-hwbat-ear mu-hwbat-ear-r"></span>
+    </div>
+    <div class="mu-halloween-bat-14" aria-hidden="true">
+        <span class="mu-hwbat-wing mu-hwbat-wing-l"></span>
+        <span class="mu-hwbat-wing mu-hwbat-wing-r"></span>
+        <span class="mu-hwbat-body"></span>
+        <span class="mu-hwbat-ear mu-hwbat-ear-l"></span>
+        <span class="mu-hwbat-ear mu-hwbat-ear-r"></span>
+    </div>
+    <div class="mu-halloween-bat-15" aria-hidden="true">
         <span class="mu-hwbat-wing mu-hwbat-wing-l"></span>
         <span class="mu-hwbat-wing mu-hwbat-wing-r"></span>
         <span class="mu-hwbat-body"></span>
@@ -7979,7 +8266,7 @@ window.mu_syncHtmlBg = function(){
     </div>
     <div class="mu-phantom-graveyard" aria-hidden="true"></div>
     <div class="mu-phantom-specters" aria-hidden="true">
-        <span class="mu-phantom-specter"></span><span class="mu-phantom-specter"></span><span class="mu-phantom-specter"></span><span class="mu-phantom-specter"></span><span class="mu-phantom-specter"></span>
+        <span class="mu-phantom-specter"></span><span class="mu-phantom-specter"></span><span class="mu-phantom-specter"></span><span class="mu-phantom-specter"></span><span class="mu-phantom-specter"></span><span class="mu-phantom-specter"></span><span class="mu-phantom-specter"></span><span class="mu-phantom-specter"></span><span class="mu-phantom-specter"></span><span class="mu-phantom-specter"></span>
     </div>
     <div class="mu-phantom-wisps" aria-hidden="true">
         <span class="mu-phantom-wisp"></span><span class="mu-phantom-wisp"></span><span class="mu-phantom-wisp"></span><span class="mu-phantom-wisp"></span><span class="mu-phantom-wisp"></span>
@@ -7988,8 +8275,9 @@ window.mu_syncHtmlBg = function(){
         <span class="mu-anime-petal"></span><span class="mu-anime-petal"></span><span class="mu-anime-petal"></span><span class="mu-anime-petal"></span><span class="mu-anime-petal"></span><span class="mu-anime-petal"></span>
     </div>
     <div class="mu-anon-beam" aria-hidden="true"></div>
-    <div class="mu-anon-nodes" aria-hidden="true">
-        <span class="mu-anon-node"></span><span class="mu-anon-node"></span><span class="mu-anon-node"></span><span class="mu-anon-node"></span><span class="mu-anon-node"></span><span class="mu-anon-node"></span>
+    <div class="mu-cyber-scan" aria-hidden="true"></div>
+    <div class="mu-cyber-bits" aria-hidden="true">
+        <span class="mu-cyber-bit"></span><span class="mu-cyber-bit"></span><span class="mu-cyber-bit"></span><span class="mu-cyber-bit"></span><span class="mu-cyber-bit"></span><span class="mu-cyber-bit"></span>
     </div>
 
     <div class="header-nav">
@@ -8083,6 +8371,13 @@ window.mu_syncHtmlBg = function(){
     </div>
     <div id="contentsContainer"></div>
 
+    <!-- ===================================================================
+         GAME ZONE — HTML
+         The whole mini-games arcade markup — selection hub, shared
+         topbar/canvas/overlay chrome for whichever game is active — lives in
+         this one #gameModal block. Pairs with the Game Zone CSS block above
+         and the MU_Game JS module below (search "MU_Game").
+         =================================================================== -->
     <div id="gameModal">
         <div class="game-card" id="gameCard">
             <div id="gameSelectMenu" class="game-hub">
@@ -8142,6 +8437,7 @@ window.mu_syncHtmlBg = function(){
             </div>
         </div>
     </div>
+    <!-- ===================================== end GAME ZONE — HTML ===================================== -->
 
     <script>
         // ... (بقیه کد جاوااسکریپت بدون تغییر باقی می‌ماند)
@@ -8695,404 +8991,562 @@ window.mu_syncHtmlBg = function(){
 
         let currentLang = 'fa';
 
-        const themes = [
-            { id: 'yourname', emoji: '', nameFa: 'نام تو', nameEn: 'Your Name', class: 'theme-yourname' },
-            { id: 'interstellar', emoji: '', nameFa: 'میان‌ستاره‌ای', nameEn: 'Interstellar', class: 'theme-interstellar' },
-            { id: 'hugo', emoji: '', nameFa: 'هوگو', nameEn: 'Hugo', class: 'theme-hugo' },
-            { id: 'onepiece', emoji: '', nameFa: 'وان پیس', nameEn: 'One Piece', class: 'theme-onepiece' },
-            { id: 'hogwarts', emoji: '', nameFa: 'هاگوارتز', nameEn: 'Hogwarts', class: 'theme-hogwarts' },
-            { id: 'homealone', emoji: '', nameFa: 'تنها در خانه', nameEn: 'Home Alone', class: 'theme-homealone' },
-            { id: 'strangerthings', emoji: '', nameFa: 'چیزهای عجیب', nameEn: 'Stranger Things', class: 'theme-strangerthings' },
-            { id: 'vampire', emoji: '', nameFa: 'خون‌آشام', nameEn: 'The Vampire', class: 'theme-vampire' },
-            { id: 'starwars', emoji: '', nameFa: 'جنگ ستارگان', nameEn: 'Star Wars', class: 'theme-starwars' },
-            { id: 'anime', emoji: '', nameFa: 'دخترونه', nameEn: 'Girly', class: 'theme-anime' },
-            { id: 'phantom', emoji: '', nameFa: 'فانتوم', nameEn: 'Phantom', class: 'theme-phantom' },
-            { id: 'dreamy', emoji: '', nameFa: 'رویایی', nameEn: 'Dreamy', class: 'theme-dreamy' },
-            { id: 'spider', emoji: '', nameFa: 'عنکبوتی', nameEn: 'Spider', class: 'theme-spider' },
-            { id: 'halloween', emoji: '', nameFa: 'هالووین', nameEn: 'Halloween', class: 'theme-halloween' },
-            { id: 'darkweb', emoji: '', nameFa: 'دارک وب', nameEn: 'Dark Web', class: 'theme-darkweb' },
-            { id: 'terminal', emoji: '', nameFa: 'ترمینال', nameEn: 'Terminal', class: 'theme-terminal' },
-            { id: 'redhorizon', emoji: '', nameFa: 'افق سرخ', nameEn: 'Red Horizon', class: 'theme-redhorizon' },
-            { id: 'midnightblue', emoji: '', nameFa: 'میدنایت بلو', nameEn: 'Midnight Blue', class: 'theme-midnightblue' },
-            { id: 'aurora', emoji: '', nameFa: 'شفق قطبی', nameEn: 'Aurora', class: 'theme-aurora' },
-            { id: 'aurora-phantom', emoji: '', nameFa: 'شفق فانتومی', nameEn: 'Aurora Phantom', class: 'theme-aurora-phantom' },
-            { id: 'oceanic', emoji: '', nameFa: 'اقیانوسی', nameEn: 'Oceanic', class: 'theme-oceanic' },
-            { id: 'autumn', emoji: '', nameFa: 'پاییزی', nameEn: 'Autumn', class: 'theme-autumn' },
-            { id: 'love', emoji: '', nameFa: 'لاو', nameEn: 'Love', class: 'theme-love' },
-            { id: 'cyberpunk', emoji: '', nameFa: 'سایبرپانک', nameEn: 'Cyberpunk', class: 'theme-cyberpunk' },
-            { id: 'anonymous', emoji: '', nameFa: 'انانیموس', nameEn: 'Anonymous', class: 'theme-anonymous' }
-        ];
+        /* =====================================================================
+           THEME MODULE (MU_Theme)
+           ---------------------------------------------------------------------
+           Everything about the app's visual theme system — the theme data,
+           which theme is currently active, and how to switch/apply one —
+           lives in this single namespace now, instead of being spread across
+           a loose `themes` array + `currentThemeIndex` variable + a couple of
+           free-floating functions. Nothing outside this block reads or writes
+           theme state directly anymore; it goes through MU_Theme's methods.
+
+           Two things on purpose stay OUTSIDE this module:
+           - The tiny anti-FOUC script at the very top of <body> (search for
+             "Apply the saved theme class immediately"). It has to run before
+             this <script> block even exists, so it keeps its own small,
+             hardcoded copy of the theme class list just for that first paint.
+           - window.mu_syncHtmlBg, defined in that same early script, since
+             both that early script and MU_Theme.apply() below call it.
+
+           A thin global `cycleTheme()` wrapper is kept right after this
+           module purely because the theme button's `onclick="cycleTheme()"`
+           attribute in the HTML needs a global function name to call.
+           ===================================================================== */
+        const MU_Theme = (function () {
+            const list = [
+                { id: 'yourname', emoji: '', nameFa: 'نام تو', nameEn: 'Your Name', class: 'theme-yourname' },
+                { id: 'anime', emoji: '', nameFa: 'دخترونه', nameEn: 'Girly', class: 'theme-anime' },
+                { id: 'interstellar', emoji: '', nameFa: 'میان‌ستاره‌ای', nameEn: 'Interstellar', class: 'theme-interstellar' },
+                { id: 'hugo', emoji: '', nameFa: 'هوگو', nameEn: 'Hugo', class: 'theme-hugo' },
+                { id: 'onepiece', emoji: '', nameFa: 'وان پیس', nameEn: 'One Piece', class: 'theme-onepiece' },
+                { id: 'hogwarts', emoji: '', nameFa: 'هاگوارتز', nameEn: 'Hogwarts', class: 'theme-hogwarts' },
+                { id: 'homealone', emoji: '', nameFa: 'تنها در خانه', nameEn: 'Home Alone', class: 'theme-homealone' },
+                { id: 'strangerthings', emoji: '', nameFa: 'چیزهای عجیب', nameEn: 'Stranger Things', class: 'theme-strangerthings' },
+                { id: 'vampire', emoji: '', nameFa: 'خون‌آشام', nameEn: 'The Vampire', class: 'theme-vampire' },
+                { id: 'starwars', emoji: '', nameFa: 'جنگ ستارگان', nameEn: 'Star Wars', class: 'theme-starwars' },
+                { id: 'phantom', emoji: '', nameFa: 'فانتوم', nameEn: 'Phantom', class: 'theme-phantom' },
+                { id: 'halloween', emoji: '', nameFa: 'هالووین', nameEn: 'Halloween', class: 'theme-halloween' },
+                { id: 'dreamy', emoji: '', nameFa: 'رویایی', nameEn: 'Dreamy', class: 'theme-dreamy' },
+                { id: 'spider', emoji: '', nameFa: 'عنکبوتی', nameEn: 'Spider', class: 'theme-spider' },
+                { id: 'darkweb', emoji: '', nameFa: 'دارک وب', nameEn: 'Dark Web', class: 'theme-darkweb' },
+                { id: 'terminal', emoji: '', nameFa: 'ترمینال', nameEn: 'Terminal', class: 'theme-terminal' },
+                { id: 'redhorizon', emoji: '', nameFa: 'افق سرخ', nameEn: 'Red Horizon', class: 'theme-redhorizon' },
+                { id: 'midnightblue', emoji: '', nameFa: 'میدنایت بلو', nameEn: 'Midnight Blue', class: 'theme-midnightblue' },
+                { id: 'aurora', emoji: '', nameFa: 'شفق قطبی', nameEn: 'Aurora', class: 'theme-aurora' },
+                { id: 'aurora-phantom', emoji: '', nameFa: 'شفق فانتومی', nameEn: 'Aurora Phantom', class: 'theme-aurora-phantom' },
+                { id: 'oceanic', emoji: '', nameFa: 'اقیانوسی', nameEn: 'Oceanic', class: 'theme-oceanic' },
+                { id: 'love', emoji: '', nameFa: 'لاو', nameEn: 'Love', class: 'theme-love' },
+                { id: 'cyberpunk', emoji: '', nameFa: 'سایبرپانک', nameEn: 'Cyberpunk', class: 'theme-cyberpunk' },
+                { id: 'anonymous', emoji: '', nameFa: 'انانیموس', nameEn: 'Anonymous', class: 'theme-anonymous' }
+            ];
+
+            const STORAGE_KEY = 'app_theme_index_v13';
+            let currentIndex = 0;
+
+            // Applies theme `index`: swaps the body's theme-* class, keeps
+            // <html>'s background in sync, updates the emoji/label spans on
+            // the theme button, and does the flicker-free "pause every
+            // transition for one frame" trick — identical to the original
+            // applyTheme(), just living here now. Does NOT persist to
+            // localStorage by itself (same as the original), since callers
+            // like init() apply an already-saved index and don't need to
+            // write it straight back.
+            function apply(index) {
+                if (!list.length) return;
+                currentIndex = Math.max(0, Math.min(Number(index) || 0, list.length - 1));
+                const activeTheme = list[currentIndex];
+
+                document.body.classList.add('theme-switching');
+                list.forEach(t => document.body.classList.remove(t.class));
+                document.body.classList.add(activeTheme.class);
+                if (window.mu_syncHtmlBg) window.mu_syncHtmlBg();
+
+                const emojiEl = document.getElementById('themeEmoji');
+                if (emojiEl) emojiEl.innerText = activeTheme.emoji;
+                const labelEl = document.getElementById('themeLabel');
+                if (labelEl) labelEl.innerText = currentLang === 'fa' ? activeTheme.nameFa : activeTheme.nameEn;
+
+                requestAnimationFrame(() => {
+                    requestAnimationFrame(() => {
+                        document.body.classList.remove('theme-switching');
+                    });
+                });
+            }
+
+            // Moves to the next theme in the list and persists the choice —
+            // this is what the theme button's cycleTheme() wrapper calls.
+            function cycle() {
+                apply((currentIndex + 1) % list.length);
+                try { localStorage.setItem(STORAGE_KEY, currentIndex); } catch (e) {}
+            }
+
+            // Reads the saved theme index (if any) from localStorage and
+            // applies it. Called once at app startup.
+            function init() {
+                let idx = currentIndex;
+                try {
+                    const saved = localStorage.getItem(STORAGE_KEY);
+                    if (saved !== null) idx = parseInt(saved, 10) || 0;
+                } catch (e) {}
+                apply(idx);
+            }
+
+            // Fuzzy-matches a theme id / Persian name / English name against
+            // `query` (used by the MARKHIN AI set_theme tool). Returns the
+            // matching index, or -1 if nothing matches.
+            function findByQuery(query) {
+                const wanted = normalizeText(String(query || '').trim());
+                if (!wanted) return -1;
+                let idx = list.findIndex(t => normalizeText(t.id) === wanted || normalizeText(t.nameFa) === wanted || normalizeText(t.nameEn) === wanted);
+                if (idx < 0) idx = list.findIndex(t => normalizeText(t.id).includes(wanted) || normalizeText(t.nameFa).includes(wanted) || normalizeText(t.nameEn).includes(wanted) || wanted.includes(normalizeText(t.id)));
+                return idx;
+            }
+
+            function getCurrentIndex() { return currentIndex; }
+            function getActive() { return list[currentIndex]; }
+
+            return { list, apply, cycle, init, findByQuery, getCurrentIndex, getActive };
+        })();
+
+        // Global wrapper kept only because the theme button in the HTML
+        // calls it via onclick="cycleTheme()" — inline event handlers need a
+        // global function name to resolve.
+        function cycleTheme() { MU_Theme.cycle(); }
 
         /* =====================================================================
-           INDEXEDDB STORAGE LAYER
+           MU_IndexedDB — MODULE
            ---------------------------------------------------------------------
-           Notes/categories (below) can include embedded base64 images and grow
-           well past what localStorage comfortably holds — its per-origin quota
-           is normally somewhere around 5-10MB, and every write there is a
-           synchronous, UI-blocking call that re-serializes the *entire* blob.
-           IndexedDB has a much larger quota (commonly tens to hundreds of MB,
-           scaling with free disk space) and every operation is async, so a
-           save never blocks rendering/typing.
+           Everything in this app that touches IndexedDB lives inside this one
+           module now: the low-level DB connection/versioning, the generic
+           key/value store (the primary store for 'app_categories_v13' i.e.
+           notes/categories, and for the AI chat history key further down),
+           and the media Blob store (images/voice notes) together with its
+           hydration, export, one-time migration and garbage-collection
+           helpers. This mirrors the MU_Theme / MU_AI module pattern already
+           used elsewhere in this file: everything private lives inside the
+           IIFE below, and the small set of names the rest of this file
+           actually calls (MU_IDB, MU_MEDIA, mu_mediaPut, mu_hydrateMedia,
+           mu_resolveMediaSrcInHtml, mu_resolveItemsMediaForExport,
+           mu_migrateNoteMediaToBlobs, mu_migrateAllNotesMedia,
+           mu_gcOrphanedMedia, mu_scheduleMediaGc, mu_genMediaId,
+           mu_blobToDataUrl, mu_collectReferencedMediaIds) are re-exported
+           right after it as thin, backward-compatible wrappers around
+           MU_IndexedDB's public API — so no other call site in this ~25k
+           line file had to be touched.
 
-           This is a minimal key/value shim over IndexedDB with the same
-           get/set/remove shape as localStorage (just async), used as the
-           primary store for the two keys that can actually grow large:
-           'app_categories_v13' (notes) and the AI chat history key further
-           down. Everything else (theme, language, small settings) is tiny
-           and stays in plain localStorage — no reason to move it.
+           Notes/categories can include embedded base64 images and grow well
+           past what localStorage comfortably holds — its per-origin quota is
+           normally somewhere around 5-10MB, and every write there is a
+           synchronous, UI-blocking call that re-serializes the *entire*
+           blob. IndexedDB has a much larger quota (commonly tens to hundreds
+           of MB, scaling with free disk space) and every operation is async,
+           so a save never blocks rendering/typing. Everything else (theme,
+           language, small settings) is tiny and stays in plain localStorage
+           — no reason to move it.
 
-           Every method here resolves to a safe fallback value (null/false)
+           Every method here resolves to a safe fallback value (null/false/[])
            instead of throwing, the same defensive spirit as the localStorage
            shim at the very top of this file: some of the same locked-down
            in-app WebViews that occasionally block localStorage also block or
-           simply don't implement IndexedDB, and every caller below is written
-           to keep working (falling back to localStorage alone) when that
+           simply don't implement IndexedDB, and every caller is written to
+           keep working (falling back to localStorage alone, or to embedding
+           media as base64 like before this feature existed) when that
            happens.
            ===================================================================== */
-        const MU_IDB_DB_NAME = 'markhinStorage';
-        const MU_IDB_STORE_NAME = 'kv';
-        // Second object store, same database: holds image/voice Blobs directly
-        // (IndexedDB can store Blobs natively — no base64 round-trip needed).
-        // Notes reference a Blob by a small string id (data-mu-media="...") instead
-        // of embedding it inline, which is what actually keeps note HTML small —
-        // see the MU_MEDIA helpers and mu_hydrateMedia()/mu_resolveMediaSrcInHtml()
-        // just below. Bumping the DB version to 2 triggers onupgradeneeded on
-        // existing installs too, so the new store gets created for people upgrading
-        // from the single-store version without losing their existing 'kv' data.
-        const MU_IDB_MEDIA_STORE = 'media';
-        const MU_IDB_VERSION = 2;
-        let mu_idbOpenPromise = null;
-        function mu_idbOpen() {
-            if (mu_idbOpenPromise) return mu_idbOpenPromise;
-            mu_idbOpenPromise = new Promise(function(resolve){
-                if (typeof indexedDB === 'undefined' || !indexedDB) { resolve(null); return; }
-                try {
-                    const req = indexedDB.open(MU_IDB_DB_NAME, MU_IDB_VERSION);
-                    req.onupgradeneeded = function(){
-                        try { if (!req.result.objectStoreNames.contains(MU_IDB_STORE_NAME)) req.result.createObjectStore(MU_IDB_STORE_NAME); }
-                        catch (_) {}
-                        try { if (!req.result.objectStoreNames.contains(MU_IDB_MEDIA_STORE)) req.result.createObjectStore(MU_IDB_MEDIA_STORE); }
-                        catch (_) {}
-                    };
-                    req.onsuccess = function(){ resolve(req.result); };
-                    req.onerror = function(){ resolve(null); };
-                    req.onblocked = function(){ resolve(null); };
-                } catch (_) { resolve(null); }
-            });
-            return mu_idbOpenPromise;
-        }
-        const MU_IDB = {
-            // Resolves true only once an open+readable database is confirmed —
-            // used at startup to decide whether IndexedDB or localStorage is
-            // this session's primary store for the big keys.
-            available: async function(){ return !!(await mu_idbOpen()); },
-            getItem: async function(key){
-                const db = await mu_idbOpen();
-                if (!db) return null;
-                return new Promise(function(resolve){
+        const MU_IndexedDB = (function(){
+
+            /* ---- connection ---------------------------------------------------
+               Second object store, same database: holds image/voice Blobs
+               directly (IndexedDB can store Blobs natively — no base64
+               round-trip needed). Notes reference a Blob by a small string id
+               (data-mu-media="...") instead of embedding it inline, which is
+               what actually keeps note HTML small — see the media helpers
+               below. Bumping the DB version to 2 triggers onupgradeneeded on
+               existing installs too, so the new store gets created for people
+               upgrading from the single-store version without losing their
+               existing 'kv' data. */
+            const DB_NAME = 'markhinStorage';
+            const KV_STORE = 'kv';
+            const MEDIA_STORE = 'media';
+            const DB_VERSION = 2;
+            let openPromise = null;
+            function openDb() {
+                if (openPromise) return openPromise;
+                openPromise = new Promise(function(resolve){
+                    if (typeof indexedDB === 'undefined' || !indexedDB) { resolve(null); return; }
                     try {
-                        const tx = db.transaction(MU_IDB_STORE_NAME, 'readonly');
-                        const req = tx.objectStore(MU_IDB_STORE_NAME).get(key);
-                        req.onsuccess = function(){ resolve(req.result === undefined ? null : req.result); };
+                        const req = indexedDB.open(DB_NAME, DB_VERSION);
+                        req.onupgradeneeded = function(){
+                            try { if (!req.result.objectStoreNames.contains(KV_STORE)) req.result.createObjectStore(KV_STORE); }
+                            catch (_) {}
+                            try { if (!req.result.objectStoreNames.contains(MEDIA_STORE)) req.result.createObjectStore(MEDIA_STORE); }
+                            catch (_) {}
+                        };
+                        req.onsuccess = function(){ resolve(req.result); };
                         req.onerror = function(){ resolve(null); };
+                        req.onblocked = function(){ resolve(null); };
                     } catch (_) { resolve(null); }
                 });
-            },
-            setItem: async function(key, value){
-                const db = await mu_idbOpen();
-                if (!db) return false;
-                return new Promise(function(resolve){
-                    try {
-                        const tx = db.transaction(MU_IDB_STORE_NAME, 'readwrite');
-                        tx.objectStore(MU_IDB_STORE_NAME).put(value, key);
-                        tx.oncomplete = function(){ resolve(true); };
-                        tx.onerror = function(){ resolve(false); };
-                        tx.onabort = function(){ resolve(false); };
-                    } catch (_) { resolve(false); }
-                });
-            },
-            removeItem: async function(key){
-                const db = await mu_idbOpen();
-                if (!db) return false;
-                return new Promise(function(resolve){
-                    try {
-                        const tx = db.transaction(MU_IDB_STORE_NAME, 'readwrite');
-                        tx.objectStore(MU_IDB_STORE_NAME).delete(key);
-                        tx.oncomplete = function(){ resolve(true); };
-                        tx.onerror = function(){ resolve(false); };
-                    } catch (_) { resolve(false); }
-                });
+                return openPromise;
             }
-        };
-        /* =====================================================================
-           MEDIA BLOB STORE (images/voice notes)
-           ---------------------------------------------------------------------
-           Same shim shape as MU_IDB above, but over the 'media' object store and
-           keyed by a generated id rather than a fixed key: values are the raw
-           Blob objects (IndexedDB structured-clones Blobs natively). A note's
-           saved HTML never contains the image/audio bytes anymore — it just
-           carries a small reference, e.g. <img data-mu-media="m_abc123">, which
-           mu_hydrateMedia() turns into a live blob: URL when the note is
-           actually rendered on screen, and mu_resolveMediaSrcInHtml() turns
-           into an embedded base64 data: URL when the note is exported/shared
-           somewhere the blob: URL (or the IndexedDB record itself) can't follow.
-           ===================================================================== */
-        function mu_genMediaId(){ return 'm_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 9); }
-        const MU_MEDIA = {
-            put: async function(id, blob){
-                const db = await mu_idbOpen();
-                if (!db) return false;
-                return new Promise(function(resolve){
-                    try {
-                        const tx = db.transaction(MU_IDB_MEDIA_STORE, 'readwrite');
-                        tx.objectStore(MU_IDB_MEDIA_STORE).put(blob, id);
-                        tx.oncomplete = function(){ resolve(true); };
-                        tx.onerror = function(){ resolve(false); };
-                        tx.onabort = function(){ resolve(false); };
-                    } catch (_) { resolve(false); }
-                });
-            },
-            get: async function(id){
-                const db = await mu_idbOpen();
-                if (!db) return null;
-                return new Promise(function(resolve){
-                    try {
-                        const tx = db.transaction(MU_IDB_MEDIA_STORE, 'readonly');
-                        const req = tx.objectStore(MU_IDB_MEDIA_STORE).get(id);
-                        req.onsuccess = function(){ resolve(req.result || null); };
-                        req.onerror = function(){ resolve(null); };
-                    } catch (_) { resolve(null); }
-                });
-            },
-            delete: async function(id){
-                const db = await mu_idbOpen();
-                if (!db) return false;
-                return new Promise(function(resolve){
-                    try {
-                        const tx = db.transaction(MU_IDB_MEDIA_STORE, 'readwrite');
-                        tx.objectStore(MU_IDB_MEDIA_STORE).delete(id);
-                        tx.oncomplete = function(){ resolve(true); };
-                        tx.onerror = function(){ resolve(false); };
-                    } catch (_) { resolve(false); }
-                });
-            },
-            keys: async function(){
-                const db = await mu_idbOpen();
-                if (!db) return [];
-                return new Promise(function(resolve){
-                    try {
-                        const tx = db.transaction(MU_IDB_MEDIA_STORE, 'readonly');
-                        const store = tx.objectStore(MU_IDB_MEDIA_STORE);
-                        if (typeof store.getAllKeys === 'function') {
-                            const req = store.getAllKeys();
-                            req.onsuccess = function(){ resolve(req.result || []); };
-                            req.onerror = function(){ resolve([]); };
-                        } else {
-                            // Very old WebView fallback: no getAllKeys(), walk a cursor instead.
-                            const keys = [];
-                            const req = store.openCursor();
-                            req.onsuccess = function(e){
-                                const cursor = e.target.result;
-                                if (cursor) { keys.push(cursor.key); cursor.continue(); } else resolve(keys);
-                            };
-                            req.onerror = function(){ resolve([]); };
-                        }
-                    } catch (_) { resolve([]); }
-                });
-            }
-        };
 
-        // Stores a Blob (an image File, a recorded-audio Blob, a canvas-drawing
-        // Blob, …) and returns its new media id, or null if IndexedDB isn't
-        // available/writable here — callers fall back to embedding the Blob as a
-        // base64 data: URL directly in that case, exactly like before this
-        // feature existed, so nothing breaks on a device without IndexedDB.
-        async function mu_mediaPut(blob){
-            if (!blob) return null;
-            const id = mu_genMediaId();
-            const ok = await MU_MEDIA.put(id, blob);
-            return ok ? id : null;
-        }
-
-        function mu_blobToDataUrl(blob){
-            return new Promise(function(resolve, reject){
-                try {
-                    const reader = new FileReader();
-                    reader.onload = function(){ resolve(reader.result); };
-                    reader.onerror = function(){ reject(reader.error || new Error('FileReader failed')); };
-                    reader.readAsDataURL(blob);
-                } catch (err) { reject(err); }
-            });
-        }
-
-        // Turns every <img data-mu-media>/<audio data-mu-media> inside container
-        // that isn't already showing its current media into a live blob: URL.
-        // Called whenever a note's saved HTML is actually put on screen
-        // (attachWrapperEvents, undo/redo) — never on every render, since closed
-        // notes' markup sits off-screen and doesn't need real image data yet.
-        async function mu_hydrateMedia(container){
-            if (!container || !container.querySelectorAll) return;
-            const els = container.querySelectorAll('img[data-mu-media], audio[data-mu-media]');
-            for (const el of els) {
-                const mediaId = el.getAttribute('data-mu-media');
-                if (!mediaId || el.dataset.muHydratedFor === mediaId) continue;
-                let blob = null;
-                try { blob = await MU_MEDIA.get(mediaId); } catch (_) {}
-                if (!blob) continue; // media missing (device without IndexedDB, or purged) — leave placeholder
-                const oldUrl = el.dataset.muObjectUrl;
-                let url;
-                try { url = URL.createObjectURL(blob); } catch (_) { continue; }
-                el.src = url;
-                el.dataset.muHydratedFor = mediaId;
-                el.dataset.muObjectUrl = url;
-                if (oldUrl && oldUrl !== url) { try { URL.revokeObjectURL(oldUrl); } catch (_) {} }
-            }
-        }
-
-        // Export-time counterpart to mu_hydrateMedia(): produces a copy of `html`
-        // where every data-mu-media reference has been replaced with the actual
-        // media embedded as a base64 data: URL — i.e. exactly the self-contained
-        // shape notes used before this feature existed. Used only for outputs
-        // that need to be portable on their own (a downloaded PDF/DOCX/HTML file,
-        // a JSON backup) — never for the note's regular saved copy, which should
-        // stay small and reference-only.
-        async function mu_resolveMediaSrcInHtml(html){
-            const str = String(html || '');
-            if (!/data-mu-media\s*=/.test(str)) return str;
-            const template = document.createElement('template');
-            template.innerHTML = str;
-            const els = template.content.querySelectorAll('img[data-mu-media], audio[data-mu-media]');
-            for (const el of els) {
-                const mediaId = el.getAttribute('data-mu-media');
-                if (mediaId) {
-                    try {
-                        const blob = await MU_MEDIA.get(mediaId);
-                        if (blob) el.setAttribute('src', await mu_blobToDataUrl(blob));
-                    } catch (_) {}
-                    el.removeAttribute('data-mu-media');
+            /* ---- generic key/value store (localStorage-shaped, just async) --- */
+            const KV = {
+                // Resolves true only once an open+readable database is confirmed —
+                // used at startup to decide whether IndexedDB or localStorage is
+                // this session's primary store for the big keys.
+                available: async function(){ return !!(await openDb()); },
+                getItem: async function(key){
+                    const db = await openDb();
+                    if (!db) return null;
+                    return new Promise(function(resolve){
+                        try {
+                            const tx = db.transaction(KV_STORE, 'readonly');
+                            const req = tx.objectStore(KV_STORE).get(key);
+                            req.onsuccess = function(){ resolve(req.result === undefined ? null : req.result); };
+                            req.onerror = function(){ resolve(null); };
+                        } catch (_) { resolve(null); }
+                    });
+                },
+                setItem: async function(key, value){
+                    const db = await openDb();
+                    if (!db) return false;
+                    return new Promise(function(resolve){
+                        try {
+                            const tx = db.transaction(KV_STORE, 'readwrite');
+                            tx.objectStore(KV_STORE).put(value, key);
+                            tx.oncomplete = function(){ resolve(true); };
+                            tx.onerror = function(){ resolve(false); };
+                            tx.onabort = function(){ resolve(false); };
+                        } catch (_) { resolve(false); }
+                    });
+                },
+                removeItem: async function(key){
+                    const db = await openDb();
+                    if (!db) return false;
+                    return new Promise(function(resolve){
+                        try {
+                            const tx = db.transaction(KV_STORE, 'readwrite');
+                            tx.objectStore(KV_STORE).delete(key);
+                            tx.oncomplete = function(){ resolve(true); };
+                            tx.onerror = function(){ resolve(false); };
+                        } catch (_) { resolve(false); }
+                    });
                 }
-            }
-            return template.innerHTML;
-        }
-
-        // Runs mu_resolveMediaSrcInHtml() over every item's .html in a list,
-        // returning shallow copies — the live `categories` objects (and their
-        // small reference-only .html) are never touched by an export.
-        async function mu_resolveItemsMediaForExport(items){
-            const list = Array.isArray(items) ? items : [];
-            const out = [];
-            for (const item of list) {
-                if (item && typeof item.html === 'string' && /data-mu-media\s*=/.test(item.html)) {
-                    out.push(Object.assign({}, item, { html: await mu_resolveMediaSrcInHtml(item.html) }));
-                } else {
-                    out.push(item);
-                }
-            }
-            return out;
-        }
-
-        // One-time (per note) migration: turns a note's OLD-style embedded
-        // base64 <img>/<audio> into the new Blob-store references. Returns true
-        // if the note's .html actually changed (caller decides whether to save).
-        async function mu_migrateNoteMediaToBlobs(item){
-            if (!item || typeof item.html !== 'string' || !/data:(image|audio)\//i.test(item.html)) return false;
-            const template = document.createElement('template');
-            template.innerHTML = item.html;
-            const els = template.content.querySelectorAll('img[src^="data:image/"], audio[src^="data:audio/"]');
-            let changed = false;
-            for (const el of els) {
-                const src = el.getAttribute('src');
-                try {
-                    const res = await fetch(src);
-                    const blob = await res.blob();
-                    const mediaId = await mu_mediaPut(blob);
-                    if (mediaId) {
-                        el.setAttribute('data-mu-media', mediaId);
-                        el.removeAttribute('src');
-                        changed = true;
-                    }
-                } catch (_) { /* leave this one embedded as-is on failure */ }
-            }
-            if (changed) item.html = template.innerHTML;
-            return changed;
-        }
-
-        // Runs the migration above across every currently-unlocked note, once.
-        // Locked notes can't be scanned without their password — see
-        // unlockNote(), which runs the same per-note migration the moment a
-        // locked note is actually opened instead.
-        async function mu_migrateAllNotesMedia(){
-            if (!mu_idbAvailable) return; // nowhere durable to put the blobs — keep base64 as-is
-            let done = false;
-            try { done = !!(await MU_IDB.getItem('mu_media_migration_v1_done')); } catch (_) {}
-            if (done) return;
-            let anyChanged = false;
-            for (const item of categories) {
-                if (isNoteLocked(item)) continue;
-                try { if (await mu_migrateNoteMediaToBlobs(item)) anyChanged = true; }
-                catch (err) { console.warn('Media migration failed for note', item && item.id, err); }
-            }
-            if (anyChanged) saveToLocalStorage();
-            try { await MU_IDB.setItem('mu_media_migration_v1_done', '1'); } catch (_) {}
-        }
-
-        // Collects every media id any current note's saved HTML still points
-        // to, straight off the raw string (no live DOM needed for this scan).
-        //
-        // Bug fix: deleted notes are archived into the Cemetery (see
-        // archiveToCemetery), which keeps a full copy of the note — including
-        // its html and therefore its data-mu-media references — but does so
-        // in localStorage (markhin_cemetery_v1), separate from `categories`
-        // (IndexedDB). This function used to only scan `categories`, so any
-        // image belonging to a note sitting in the Cemetery looked orphaned
-        // and got deleted by the very next GC pass. Restoring that note out
-        // of the Cemetery afterwards brought the note back with a
-        // missing/broken image. Scanning the cemetery's html too keeps that
-        // media alive for as long as the note could still be restored.
-        function mu_collectReferencedMediaIds(){
-            const ids = new Set();
-            const re = /data-mu-media="([^"]+)"/g;
-            const scanHtml = (html) => {
-                if (typeof html !== 'string') return;
-                re.lastIndex = 0;
-                let m;
-                while ((m = re.exec(html))) ids.add(m[1]);
             };
-            for (const item of categories) scanHtml(item && item.html);
-            const cemetery = safeParseJSON(localStorage.getItem('markhin_cemetery_v1') || '[]', []);
-            if (Array.isArray(cemetery)) for (const entry of cemetery) scanHtml(entry && entry.html);
-            return ids;
-        }
 
-        // Deletes media Blobs no note references anymore (e.g. the pre-crop
-        // original after a photo was cropped, or an image deleted from a note).
-        // Deliberately conservative: skipped entirely whenever any note is
-        // locked, since a locked note's images live inside its ciphertext and
-        // are invisible to this scan without the password — running GC anyway
-        // could delete a locked note's own (still-in-use) media by mistake.
-        // Also throttled to roughly once a day; this is idle cleanup, not
-        // something that needs to run on every launch.
-        const MU_MEDIA_GC_INTERVAL = 24 * 60 * 60 * 1000;
-        async function mu_gcOrphanedMedia(){
-            if (!mu_idbAvailable) return;
-            if (categories.some(isNoteLocked)) return;
-            try {
-                const referenced = mu_collectReferencedMediaIds();
-                const allKeys = await MU_MEDIA.keys();
-                for (const id of allKeys) {
-                    if (!referenced.has(id)) await MU_MEDIA.delete(id);
+            /* ---- media blob store (images/voice notes) -------------------------
+               Same shim shape as KV above, but over the 'media' object store and
+               keyed by a generated id rather than a fixed key: values are the raw
+               Blob objects (IndexedDB structured-clones Blobs natively). A note's
+               saved HTML never contains the image/audio bytes anymore — it just
+               carries a small reference, e.g. <img data-mu-media="m_abc123">,
+               which hydrateMedia() turns into a live blob: URL when the note is
+               actually rendered on screen, and resolveMediaSrcInHtml() turns into
+               an embedded base64 data: URL when the note is exported/shared
+               somewhere the blob: URL (or the IndexedDB record itself) can't
+               follow. */
+            function genMediaId(){ return 'm_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 9); }
+            const Media = {
+                put: async function(id, blob){
+                    const db = await openDb();
+                    if (!db) return false;
+                    return new Promise(function(resolve){
+                        try {
+                            const tx = db.transaction(MEDIA_STORE, 'readwrite');
+                            tx.objectStore(MEDIA_STORE).put(blob, id);
+                            tx.oncomplete = function(){ resolve(true); };
+                            tx.onerror = function(){ resolve(false); };
+                            tx.onabort = function(){ resolve(false); };
+                        } catch (_) { resolve(false); }
+                    });
+                },
+                get: async function(id){
+                    const db = await openDb();
+                    if (!db) return null;
+                    return new Promise(function(resolve){
+                        try {
+                            const tx = db.transaction(MEDIA_STORE, 'readonly');
+                            const req = tx.objectStore(MEDIA_STORE).get(id);
+                            req.onsuccess = function(){ resolve(req.result || null); };
+                            req.onerror = function(){ resolve(null); };
+                        } catch (_) { resolve(null); }
+                    });
+                },
+                delete: async function(id){
+                    const db = await openDb();
+                    if (!db) return false;
+                    return new Promise(function(resolve){
+                        try {
+                            const tx = db.transaction(MEDIA_STORE, 'readwrite');
+                            tx.objectStore(MEDIA_STORE).delete(id);
+                            tx.oncomplete = function(){ resolve(true); };
+                            tx.onerror = function(){ resolve(false); };
+                        } catch (_) { resolve(false); }
+                    });
+                },
+                keys: async function(){
+                    const db = await openDb();
+                    if (!db) return [];
+                    return new Promise(function(resolve){
+                        try {
+                            const tx = db.transaction(MEDIA_STORE, 'readonly');
+                            const store = tx.objectStore(MEDIA_STORE);
+                            if (typeof store.getAllKeys === 'function') {
+                                const req = store.getAllKeys();
+                                req.onsuccess = function(){ resolve(req.result || []); };
+                                req.onerror = function(){ resolve([]); };
+                            } else {
+                                // Very old WebView fallback: no getAllKeys(), walk a cursor instead.
+                                const keys = [];
+                                const req = store.openCursor();
+                                req.onsuccess = function(e){
+                                    const cursor = e.target.result;
+                                    if (cursor) { keys.push(cursor.key); cursor.continue(); } else resolve(keys);
+                                };
+                                req.onerror = function(){ resolve([]); };
+                            }
+                        } catch (_) { resolve([]); }
+                    });
                 }
-            } catch (err) { console.warn('Media GC failed', err); }
-        }
-        function mu_scheduleMediaGc(){
-            if (!mu_idbAvailable) return;
-            let lastRun = 0;
-            try { lastRun = Number(localStorage.getItem('mu_media_gc_last_v1') || 0); } catch (_) {}
-            if (Date.now() - lastRun < MU_MEDIA_GC_INTERVAL) return;
-            mu_gcOrphanedMedia().then(function(){
-                try { localStorage.setItem('mu_media_gc_last_v1', String(Date.now())); } catch (_) {}
-            });
-        }
+            };
+
+            // Stores a Blob (an image File, a recorded-audio Blob, a canvas-drawing
+            // Blob, …) and returns its new media id, or null if IndexedDB isn't
+            // available/writable here — callers fall back to embedding the Blob as a
+            // base64 data: URL directly in that case, exactly like before this
+            // feature existed, so nothing breaks on a device without IndexedDB.
+            async function mediaPut(blob){
+                if (!blob) return null;
+                const id = genMediaId();
+                const ok = await Media.put(id, blob);
+                return ok ? id : null;
+            }
+
+            function blobToDataUrl(blob){
+                return new Promise(function(resolve, reject){
+                    try {
+                        const reader = new FileReader();
+                        reader.onload = function(){ resolve(reader.result); };
+                        reader.onerror = function(){ reject(reader.error || new Error('FileReader failed')); };
+                        reader.readAsDataURL(blob);
+                    } catch (err) { reject(err); }
+                });
+            }
+
+            /* ---- hydration / export -------------------------------------------- */
+            // Turns every <img data-mu-media>/<audio data-mu-media> inside container
+            // that isn't already showing its current media into a live blob: URL.
+            // Called whenever a note's saved HTML is actually put on screen
+            // (attachWrapperEvents, undo/redo) — never on every render, since closed
+            // notes' markup sits off-screen and doesn't need real image data yet.
+            async function hydrateMedia(container){
+                if (!container || !container.querySelectorAll) return;
+                const els = container.querySelectorAll('img[data-mu-media], audio[data-mu-media]');
+                for (const el of els) {
+                    const mediaId = el.getAttribute('data-mu-media');
+                    if (!mediaId || el.dataset.muHydratedFor === mediaId) continue;
+                    let blob = null;
+                    try { blob = await Media.get(mediaId); } catch (_) {}
+                    if (!blob) continue; // media missing (device without IndexedDB, or purged) — leave placeholder
+                    const oldUrl = el.dataset.muObjectUrl;
+                    let url;
+                    try { url = URL.createObjectURL(blob); } catch (_) { continue; }
+                    el.src = url;
+                    el.dataset.muHydratedFor = mediaId;
+                    el.dataset.muObjectUrl = url;
+                    if (oldUrl && oldUrl !== url) { try { URL.revokeObjectURL(oldUrl); } catch (_) {} }
+                }
+            }
+
+            // Export-time counterpart to hydrateMedia(): produces a copy of `html`
+            // where every data-mu-media reference has been replaced with the actual
+            // media embedded as a base64 data: URL — i.e. exactly the self-contained
+            // shape notes used before this feature existed. Used only for outputs
+            // that need to be portable on their own (a downloaded PDF/DOCX/HTML file,
+            // a JSON backup) — never for the note's regular saved copy, which should
+            // stay small and reference-only.
+            async function resolveMediaSrcInHtml(html){
+                const str = String(html || '');
+                if (!/data-mu-media\s*=/.test(str)) return str;
+                const template = document.createElement('template');
+                template.innerHTML = str;
+                const els = template.content.querySelectorAll('img[data-mu-media], audio[data-mu-media]');
+                for (const el of els) {
+                    const mediaId = el.getAttribute('data-mu-media');
+                    if (mediaId) {
+                        try {
+                            const blob = await Media.get(mediaId);
+                            if (blob) el.setAttribute('src', await blobToDataUrl(blob));
+                        } catch (_) {}
+                        el.removeAttribute('data-mu-media');
+                    }
+                }
+                return template.innerHTML;
+            }
+
+            // Runs resolveMediaSrcInHtml() over every item's .html in a list,
+            // returning shallow copies — the live `categories` objects (and their
+            // small reference-only .html) are never touched by an export.
+            async function resolveItemsMediaForExport(items){
+                const list = Array.isArray(items) ? items : [];
+                const out = [];
+                for (const item of list) {
+                    if (item && typeof item.html === 'string' && /data-mu-media\s*=/.test(item.html)) {
+                        out.push(Object.assign({}, item, { html: await resolveMediaSrcInHtml(item.html) }));
+                    } else {
+                        out.push(item);
+                    }
+                }
+                return out;
+            }
+
+            /* ---- migration (old inline base64 -> Blob store) -------------------- */
+            // One-time (per note) migration: turns a note's OLD-style embedded
+            // base64 <img>/<audio> into the new Blob-store references. Returns true
+            // if the note's .html actually changed (caller decides whether to save).
+            async function migrateNoteMediaToBlobs(item){
+                if (!item || typeof item.html !== 'string' || !/data:(image|audio)\//i.test(item.html)) return false;
+                const template = document.createElement('template');
+                template.innerHTML = item.html;
+                const els = template.content.querySelectorAll('img[src^="data:image/"], audio[src^="data:audio/"]');
+                let changed = false;
+                for (const el of els) {
+                    const src = el.getAttribute('src');
+                    try {
+                        const res = await fetch(src);
+                        const blob = await res.blob();
+                        const mediaId = await mediaPut(blob);
+                        if (mediaId) {
+                            el.setAttribute('data-mu-media', mediaId);
+                            el.removeAttribute('src');
+                            changed = true;
+                        }
+                    } catch (_) { /* leave this one embedded as-is on failure */ }
+                }
+                if (changed) item.html = template.innerHTML;
+                return changed;
+            }
+
+            // Runs the migration above across every currently-unlocked note, once.
+            // Locked notes can't be scanned without their password — see
+            // unlockNote(), which runs the same per-note migration the moment a
+            // locked note is actually opened instead.
+            async function migrateAllNotesMedia(){
+                if (!mu_idbAvailable) return; // nowhere durable to put the blobs — keep base64 as-is
+                let done = false;
+                try { done = !!(await KV.getItem('mu_media_migration_v1_done')); } catch (_) {}
+                if (done) return;
+                let anyChanged = false;
+                for (const item of categories) {
+                    if (isNoteLocked(item)) continue;
+                    try { if (await migrateNoteMediaToBlobs(item)) anyChanged = true; }
+                    catch (err) { console.warn('Media migration failed for note', item && item.id, err); }
+                }
+                if (anyChanged) saveToLocalStorage();
+                try { await KV.setItem('mu_media_migration_v1_done', '1'); } catch (_) {}
+            }
+
+            /* ---- garbage collection ---------------------------------------------- */
+            // Collects every media id any current note's saved HTML still points
+            // to, straight off the raw string (no live DOM needed for this scan).
+            //
+            // Bug fix: deleted notes are archived into the Cemetery (see
+            // archiveToCemetery), which keeps a full copy of the note — including
+            // its html and therefore its data-mu-media references — but does so
+            // in localStorage (markhin_cemetery_v1), separate from `categories`
+            // (IndexedDB). This function used to only scan `categories`, so any
+            // image belonging to a note sitting in the Cemetery looked orphaned
+            // and got deleted by the very next GC pass. Restoring that note out
+            // of the Cemetery afterwards brought the note back with a
+            // missing/broken image. Scanning the cemetery's html too keeps that
+            // media alive for as long as the note could still be restored.
+            function collectReferencedMediaIds(){
+                const ids = new Set();
+                const re = /data-mu-media="([^"]+)"/g;
+                const scanHtml = (html) => {
+                    if (typeof html !== 'string') return;
+                    re.lastIndex = 0;
+                    let m;
+                    while ((m = re.exec(html))) ids.add(m[1]);
+                };
+                for (const item of categories) scanHtml(item && item.html);
+                const cemetery = safeParseJSON(localStorage.getItem('markhin_cemetery_v1') || '[]', []);
+                if (Array.isArray(cemetery)) for (const entry of cemetery) scanHtml(entry && entry.html);
+                return ids;
+            }
+
+            // Deletes media Blobs no note references anymore (e.g. the pre-crop
+            // original after a photo was cropped, or an image deleted from a note).
+            // Deliberately conservative: skipped entirely whenever any note is
+            // locked, since a locked note's images live inside its ciphertext and
+            // are invisible to this scan without the password — running GC anyway
+            // could delete a locked note's own (still-in-use) media by mistake.
+            // Also throttled to roughly once a day; this is idle cleanup, not
+            // something that needs to run on every launch.
+            const GC_INTERVAL = 24 * 60 * 60 * 1000;
+            async function gcOrphanedMedia(){
+                if (!mu_idbAvailable) return;
+                if (categories.some(isNoteLocked)) return;
+                try {
+                    const referenced = collectReferencedMediaIds();
+                    const allKeys = await Media.keys();
+                    for (const id of allKeys) {
+                        if (!referenced.has(id)) await Media.delete(id);
+                    }
+                } catch (err) { console.warn('Media GC failed', err); }
+            }
+            function scheduleMediaGc(){
+                if (!mu_idbAvailable) return;
+                let lastRun = 0;
+                try { lastRun = Number(localStorage.getItem('mu_media_gc_last_v1') || 0); } catch (_) {}
+                if (Date.now() - lastRun < GC_INTERVAL) return;
+                gcOrphanedMedia().then(function(){
+                    try { localStorage.setItem('mu_media_gc_last_v1', String(Date.now())); } catch (_) {}
+                });
+            }
+
+            // Public API — the rest of this file talks to this module only
+            // through these members, or through the thin backward-compatible
+            // globals re-exported right after the module closes below.
+            return {
+                KV: KV,
+                Media: Media,
+                genMediaId: genMediaId,
+                mediaPut: mediaPut,
+                blobToDataUrl: blobToDataUrl,
+                hydrateMedia: hydrateMedia,
+                resolveMediaSrcInHtml: resolveMediaSrcInHtml,
+                resolveItemsMediaForExport: resolveItemsMediaForExport,
+                migrateNoteMediaToBlobs: migrateNoteMediaToBlobs,
+                migrateAllNotesMedia: migrateAllNotesMedia,
+                collectReferencedMediaIds: collectReferencedMediaIds,
+                gcOrphanedMedia: gcOrphanedMedia,
+                scheduleMediaGc: scheduleMediaGc
+            };
+        })();
+
+        // Thin backward-compatible globals — kept only because the rest of this
+        // file (categories save/load, the note editor's image/voice/paste/drop
+        // handlers, the exporters, the AI chat history store, ...) already calls
+        // these exact names directly. Same pattern as MU_Theme/cycleTheme() and
+        // MU_AI/openMarkhinAIChat() elsewhere in this file: the module above owns
+        // all the logic, these just forward to it so no other call site in this
+        // file had to change.
+        const MU_IDB = MU_IndexedDB.KV;
+        const MU_MEDIA = MU_IndexedDB.Media;
+        function mu_genMediaId(){ return MU_IndexedDB.genMediaId(); }
+        function mu_mediaPut(blob){ return MU_IndexedDB.mediaPut(blob); }
+        function mu_blobToDataUrl(blob){ return MU_IndexedDB.blobToDataUrl(blob); }
+        function mu_hydrateMedia(container){ return MU_IndexedDB.hydrateMedia(container); }
+        function mu_resolveMediaSrcInHtml(html){ return MU_IndexedDB.resolveMediaSrcInHtml(html); }
+        function mu_resolveItemsMediaForExport(items){ return MU_IndexedDB.resolveItemsMediaForExport(items); }
+        function mu_migrateNoteMediaToBlobs(item){ return MU_IndexedDB.migrateNoteMediaToBlobs(item); }
+        function mu_migrateAllNotesMedia(){ return MU_IndexedDB.migrateAllNotesMedia(); }
+        function mu_collectReferencedMediaIds(){ return MU_IndexedDB.collectReferencedMediaIds(); }
+        function mu_gcOrphanedMedia(){ return MU_IndexedDB.gcOrphanedMedia(); }
+        function mu_scheduleMediaGc(){ return MU_IndexedDB.scheduleMediaGc(); }
 
         // Set once, at startup, by the DOMContentLoaded handler below after it
         // probes IndexedDB — consulted by saveToLocalStorage() so a full
@@ -9121,7 +9575,6 @@ window.mu_syncHtmlBg = function(){
         // animation plays normally) when a note actually transitions from
         // closed to open.
         let mu_reopenNoAnimId = null;
-        let currentThemeIndex = 0;
         let typingTimeout = null;
         let isTyping = false;
         let canvasStates = {};
@@ -9131,13 +9584,11 @@ window.mu_syncHtmlBg = function(){
         let activeRecId = null;
         let unlockedQaIds = [];
         let searchDebounceTimer = null;
-        
-        let currentGameInterval = null;
-        let gameScore = 0;
-        let gameAborter = new AbortController();
-        let gameStopFn = null;     // cleanup for the active game's animation loop
-        let gamePaused = false;    // true while the pause overlay is showing
-        let gameResizeTimer = null;
+        // Game Zone's own runtime state (currentGameInterval, gameScore,
+        // gameAborter, gameStopFn, gamePaused, gameResizeTimer) used to live
+        // here among unrelated app-wide variables. It's now private state
+        // inside the MU_Game module further down (search "MU_Game"), same
+        // pattern as MU_Theme's own internal state.
 
         /* Markhin note encryption: password -> PBKDF2-SHA-256 -> AES-256-GCM.
          * Passwords are never persisted. Locked-note text/html are persisted only as
@@ -9405,7 +9856,6 @@ window.mu_syncHtmlBg = function(){
 
             const savedFolders = localStorage.getItem('app_folders_v13');
             const savedFolderHistory = localStorage.getItem('app_folder_rename_history_v1');
-            const savedThemeIdx = localStorage.getItem('app_theme_index_v13');
             folderRenameHistory = safeParseJSON(savedFolderHistory, {});
             if(!folderRenameHistory || typeof folderRenameHistory !== 'object' || Array.isArray(folderRenameHistory)) folderRenameHistory = {};
 
@@ -9454,10 +9904,6 @@ window.mu_syncHtmlBg = function(){
                 folders = [DEFAULT_FOLDER, ...[...new Set(customF)]];
             }
 
-            if (savedThemeIdx !== null) {
-                currentThemeIndex = parseInt(savedThemeIdx, 10) || 0;
-            }
-
             /* A stale currentFolder (e.g. "Favorites" left over from a
                previous session, or a folder that no longer exists) used to
                only get corrected by a SECOND, separate DOMContentLoaded
@@ -9477,7 +9923,7 @@ window.mu_syncHtmlBg = function(){
             if (currentFolder === '__FAVORITES__' || !folders.includes(currentFolder)) currentFolder = DEFAULT_FOLDER;
 
             applyLanguageUI();
-            applyTheme(currentThemeIndex);
+            MU_Theme.init();
             renderApp();
             /* Dashboard button: this used to only get added inside the
                window 'load' handler further down, which waits for every web
@@ -9633,7 +10079,7 @@ window.mu_syncHtmlBg = function(){
             if (currentFolder === oldDefault || !folders.includes(currentFolder)) currentFolder = DEFAULT_FOLDER;
 
             applyLanguageUI();
-            applyTheme(currentThemeIndex);
+            MU_Theme.apply(MU_Theme.getCurrentIndex());
             if(typeof mu_renderNoteSortLabels === 'function') mu_renderNoteSortLabels();
             renderApp();
         }
@@ -9757,39 +10203,6 @@ window.mu_syncHtmlBg = function(){
                 showToast('ذخیره پوشه‌ها انجام نشد.');
                 return false;
             }
-        }
-
-        function cycleTheme() {
-            currentThemeIndex = (currentThemeIndex + 1) % themes.length;
-            applyTheme(currentThemeIndex);
-            localStorage.setItem('app_theme_index_v13', currentThemeIndex);
-        }
-
-        function applyTheme(index) {
-            if (!themes.length) return;
-            currentThemeIndex = Math.max(0, Math.min(Number(index) || 0, themes.length - 1));
-            const activeTheme = themes[currentThemeIndex];
-
-            // Turn off every transition for one frame so the new theme's
-            // colors apply instantly instead of every button/card/panel
-            // animating its own background/border/text-color separately —
-            // that simultaneous animation across dozens of elements was the
-            // source of the lag/jitter on switch. Re-enabled two frames
-            // later (after the browser has actually painted the new theme),
-            // so normal hover/press transitions keep working right after.
-            document.body.classList.add('theme-switching');
-            themes.forEach(t => document.body.classList.remove(t.class));
-            document.body.classList.add(activeTheme.class);
-            if (window.mu_syncHtmlBg) window.mu_syncHtmlBg();
-
-            document.getElementById('themeEmoji').innerText = activeTheme.emoji;
-            document.getElementById('themeLabel').innerText = currentLang === 'fa' ? activeTheme.nameFa : activeTheme.nameEn;
-
-            requestAnimationFrame(() => {
-                requestAnimationFrame(() => {
-                    document.body.classList.remove('theme-switching');
-                });
-            });
         }
 
         function renderApp(openId = activeOpenId) {
@@ -10091,9 +10504,9 @@ window.mu_syncHtmlBg = function(){
                     <div class="mc-head">
                         <span class="mc-head-label">🗂️ ${t.contentManagement}</span>
                         <div class="mc-head-actions">
-                            <button class="mode-toggle-btn mc-icon-only ${item.pinned ? 'mc-icon-active' : ''}" title="${item.pinned ? (currentLang==='fa'?'برداشتن پین':'Unpin') : (currentLang==='fa'?'پین کردن یادداشت':'Pin note')}" onclick="mcToggleFlag('${item.id}','pinned')">📌</button>
+                            <button class="mode-toggle-btn mc-icon-only ${item.pinned ? 'mc-icon-active' : ''}" data-flag="pinned" title="${item.pinned ? (currentLang==='fa'?'برداشتن پین':'Unpin') : (currentLang==='fa'?'پین کردن یادداشت':'Pin note')}" onclick="mcToggleFlag('${item.id}','pinned')">📌</button>
                             <button class="mode-toggle-btn mc-icon-only" title="${currentLang==='fa'?'کپی یادداشت':'Duplicate'}" onclick="duplicateNote('${item.id}')">⧉</button>
-                            <button class="mode-toggle-btn mc-icon-only ${item.favorite ? 'mc-icon-active' : ''}" title="${item.favorite ? (currentLang==='fa'?'حذف از فیوریت':'Remove from Favorites') : (currentLang==='fa'?'افزودن به فیوریت':'Add to Favorites')}" onclick="mcToggleFlag('${item.id}','favorite')">⭐</button>
+                            <button class="mode-toggle-btn mc-icon-only ${item.favorite ? 'mc-icon-active' : ''}" data-flag="favorite" title="${item.favorite ? (currentLang==='fa'?'حذف از فیوریت':'Remove from Favorites') : (currentLang==='fa'?'افزودن به فیوریت':'Add to Favorites')}" onclick="mcToggleFlag('${item.id}','favorite')">⭐</button>
                             <button class="mode-toggle-btn" onclick="toggleLinkPreview('${item.id}')">${t.previewLink}</button>
                             <button class="mode-toggle-btn" onclick="openNoteDNA('${item.id}')">🧬 DNA</button>
                         </div>
@@ -10302,6 +10715,49 @@ window.mu_syncHtmlBg = function(){
             textBox.appendChild(wrapper);
             saveCategory(id);
         }
+
+        /* =====================================================================
+           MU_Game — GAME ZONE MODULE
+           ---------------------------------------------------------------------
+           Everything about the built-in mini-games arcade — the four games
+           (Neon Snake, Twin-Lane Racer Classic/Modern, Cyber Flappy, Dead
+           Road), the shared menu/play-area chrome (#gameModal, open/close/
+           back-to-menu), shared per-run state (score, pause flag, the active
+           game's cleanup/abort handles), and the small shared helpers every
+           game leans on (canvas fitting, haptics, the game-over card, best-
+           score tracking, Telegram back-button/viewport/deactivate wiring) —
+           now lives in this single namespace, the same way MU_Theme owns all
+           theme state a bit further up in this file. Nothing outside this
+           module reads or writes game state directly anymore; it goes
+           through MU_Game's own functions or the thin global wrappers right
+           after it.
+
+           Two things stay OUTSIDE this module on purpose:
+           - #gameModal's HTML markup and CSS (search "#gameModal" /
+             ".game-card") — this module only ever touches them by id/class,
+             never defines them, so they can move independently.
+           - The roundRect() polyfill immediately below: it patches a shared
+             browser prototype (CanvasRenderingContext2D), which is global by
+             nature, even though today only the game canvases use it.
+
+           A handful of thin global wrappers (openGameMenu(), closeGame(),
+           startNeonSnake(), etc.) are kept right after this module, purely
+           because #gameModal's buttons call them via onclick="..." attributes
+           in the HTML, which need plain global function names to find — and
+           because the AI tool-call handler (search "open_game_zone") calls
+           them the same way MU_Theme's cycleTheme() wrapper is called from
+           the theme button.
+           ===================================================================== */
+        const MU_Game = (function () {
+        // Game Zone's own runtime state — was previously declared among
+        // unrelated app-wide variables near the top of the script; now
+        // private to this module, exactly like MU_Theme's own state.
+        let currentGameInterval = null;
+        let gameScore = 0;
+        let gameAborter = new AbortController();
+        let gameStopFn = null;     // cleanup for the active game's animation loop
+        let gamePaused = false;    // true while the pause overlay is showing
+        let gameResizeTimer = null;
 
         // Polyfill for older WebViews (notably some Telegram in-app browser
         // builds lag behind Chrome) that don't yet support ctx.roundRect(),
@@ -15109,6 +15565,40 @@ window.mu_syncHtmlBg = function(){
             document.getElementById('racerChooserCancel').onclick = function () { overlay.remove(); };
         }
 
+        // Public API — everything outside this module (the HTML's onclick
+        // attributes on #gameModal's buttons, and the AI tool-call handler
+        // for open_game_zone) goes through these, never through the private
+        // functions/state above directly.
+        return {
+            openMenu: openGameMenu,
+            backToMenu: backToGameMenu,
+            close: closeGame,
+            playSnake: startNeonSnake,
+            playFlappy: startCyberFlappy,
+            playRacer: startTwinLaneRacer,
+            playRacerClassic: startTwinLaneRacerClassic,
+            playRacerModern: startTwinLaneRacerModern,
+            playDeadRoad: startDeadRoad,
+            openVehiclePicker: openDeadRoadVehiclePicker
+        };
+        })();
+
+        // Thin global wrappers, kept for exactly the reason cycleTheme() is
+        // kept next to MU_Theme: #gameModal's buttons call these by plain
+        // global name via onclick="..." in the HTML, and the open_game_zone
+        // tool-call handler calls them the same way — neither can reach
+        // inside the MU_Game closure directly.
+        function openGameMenu() { return MU_Game.openMenu(); }
+        function backToGameMenu() { return MU_Game.backToMenu(); }
+        function closeGame() { return MU_Game.close(); }
+        function startNeonSnake() { return MU_Game.playSnake(); }
+        function startCyberFlappy() { return MU_Game.playFlappy(); }
+        function startTwinLaneRacer() { return MU_Game.playRacer(); }
+        function startTwinLaneRacerClassic() { return MU_Game.playRacerClassic(); }
+        function startTwinLaneRacerModern() { return MU_Game.playRacerModern(); }
+        function startDeadRoad() { return MU_Game.playDeadRoad(); }
+        function openDeadRoadVehiclePicker() { return MU_Game.openVehiclePicker(); }
+
         function toggleDrawingBox(id) {
             const drawBox = document.getElementById(`draw-box-${id}`);
             if (drawBox) {
@@ -18470,12 +18960,26 @@ window.mu_syncHtmlBg = function(){
             if(item.ghostUntil){
                 const remain=Number(item.ghostUntil)-Date.now();
                 const label = remain<=0 ? (fa?'در حال محو شدن…':'fading…') : (fa?'محو می‌شود در ':'fades in ')+formatRemaining(remain);
-                html += `<span class="ghost-badge" title="${escapeHtml(new Date(Number(item.ghostUntil)).toLocaleString())}">👻 ${label}</span>`;
+                html += `<span class="ghost-badge" title="${escapeHtml(new Date(Number(item.ghostUntil)).toLocaleString())}">?? ${label}</span>`;
             }
             if(item.decayLevel){
                 html += `<span class="decay-badge">⌛ ${escapeHtml(getDecayLabel(item))}</span>`;
             }
             return html;
+        }
+        // Patches just one note's badge row (Time Capsule/Ghost Note/Decay
+        // countdown chips) in place, instead of the renderApp() full list
+        // rebuild that setTimeCapsule/setGhostNote/setDecayLevel used to
+        // trigger for this. None of these three fields affect sorting,
+        // filtering, or the note's own list-button label, so nothing else on
+        // screen needs to move — same reasoning as mu_updateNoteFlagButton()
+        // for pin/favorite. No-op if the note's box isn't currently in the
+        // DOM (e.g. a different folder/search filter is active); renderContents()
+        // will paint the up-to-date value the next time it runs anyway.
+        function mu_refreshNoteBadgeRow(id){
+            const item = categories.find(c => c.id === id); if(!item) return;
+            const row = document.querySelector(`#container-${id} .markhin-badge-row`);
+            if(row) row.innerHTML = buildBadgesHtml(item);
         }
         function purgeExpiredGhosts(silent){
             const now=Date.now();
@@ -18530,10 +19034,7 @@ window.mu_syncHtmlBg = function(){
         // on page load, so a Ghost Note wouldn't actually vanish, and a capsule
         // countdown wouldn't update, until the page was reloaded.
         function refreshAdvancedBadges(){
-            categories.forEach(item=>{
-                const row = document.querySelector(`#container-${item.id} .markhin-badge-row`);
-                if(row) row.innerHTML = buildBadgesHtml(item);
-            });
+            categories.forEach(item=>{ mu_refreshNoteBadgeRow(item.id); });
         }
         function advancedSystemsTick(){
             // Smoothness fix: this runs globally every 30s regardless of
@@ -18572,7 +19073,7 @@ window.mu_syncHtmlBg = function(){
             });
             if(!raw)return;
             const ts=Date.parse(raw); if(!Number.isFinite(ts)||ts<=Date.now()){showToast(currentLang==='fa'?'زمان باید در آینده باشد.':'Time must be in the future.');return;}
-            item.unlockAt=ts; saveToLocalStorage(); renderApp(id); showToast(currentLang==='fa'?'کپسول زمان فعال شد.':'Time Capsule armed.');
+            item.unlockAt=ts; saveToLocalStorage(); mu_refreshNoteBadgeRow(id); showToast(currentLang==='fa'?'کپسول زمان فعال شد.':'Time Capsule armed.');
         }
 
         async function setGhostNote(id){
@@ -18585,7 +19086,7 @@ window.mu_syncHtmlBg = function(){
                 okText: fa?'👻 فعال کن':'👻 Arm'
             });
             if(raw===null)return; const hours=Number(raw); if(!Number.isFinite(hours)||hours<=0){showToast(currentLang==='fa'?'عدد نامعتبر است.':'Invalid duration.');return;}
-            item.ghostUntil=Date.now()+hours*3600000; saveToLocalStorage(); renderApp(id); showToast(currentLang==='fa'?'Ghost Note فعال شد.':'Ghost Note armed.');
+            item.ghostUntil=Date.now()+hours*3600000; saveToLocalStorage(); mu_refreshNoteBadgeRow(id); showToast(currentLang==='fa'?'Ghost Note فعال شد.':'Ghost Note armed.');
         }
 
         function noteAgeDays(item){return Math.max(0,(Date.now()-(Date.parse(item.lastEdited)||Date.now()))/86400000)}
@@ -18669,7 +19170,17 @@ window.mu_syncHtmlBg = function(){
             });
             if(raw===null)return;
             const v=Math.max(0,Math.min(3,parseInt(raw,10)||0));
-            item.decayLevel=v; item.decayManual=true; saveToLocalStorage(); renderApp(id);
+            item.decayLevel=v; item.decayManual=true; saveToLocalStorage();
+            mu_refreshNoteBadgeRow(id);
+            // The decay visual (opacity/saturation filter) lives as a
+            // decay-N class on the note's own text box — patch that in
+            // place too instead of the renderApp() full list rebuild this
+            // used to trigger.
+            const textBox = document.getElementById('text-' + id);
+            if(textBox){
+                textBox.className = textBox.className.replace(/\bdecay-\d+\b/g, '').replace(/\s+/g, ' ').trim();
+                if(v) textBox.classList.add('decay-' + v);
+            }
         }
         function openCemetery(){
             const cemetery=safeParseJSON(localStorage.getItem('markhin_cemetery_v1')||'[]',[]); let html='<div class="advanced-head"><h3>⚰️ Digital Cemetery</h3><button class="btn-main" onclick="closeAdvancedModal()">✕</button></div><div style="text-align:center;font-size:9px;opacity:.42;letter-spacing:.5px;margin:-4px 0 8px">هیچ چیز همیشگی نیست..</div><p style="opacity:.65;font-size:11px">یادداشت‌های حذف‌شده اینجا به‌صورت آرشیوی نگه داشته می‌شوند.</p>';
@@ -19327,7 +19838,13 @@ function addFeatureTools(item,box){
  const tagHelpFa='با کاما (,) بین تگ‌ها فاصله بذار. مثال: کار, مهم, پروژه X ← این‌جوری ۳ تگ جدا ساخته می‌شه: «کار»، «مهم» و «پروژه X».';
  const tagHelpEn='Separate tags with a comma (,). Example: work, important, project X → this makes 3 separate tags: "work", "important" and "project X".';
  tags.innerHTML='<input class="markhin-tag-input" placeholder="'+(currentLang==='fa'?'تگ‌ها را با کاما جدا کن، مثلا: کار, مهم':'Tags, comma separated e.g. work, important')+'"><button type="button" class="markhin-tag-help" aria-label="'+(currentLang==='fa'?'راهنمای تگ‌ها':'Tag help')+'">ⓘ<span class="markhin-tag-tooltip">'+(currentLang==='fa'?tagHelpFa:tagHelpEn)+'</span></button>';
- const inp=tags.firstElementChild;inp.value=item.tags.join(', ');inp.onchange=()=>{item.tags=inp.value.split(',').map(x=>x.trim()).filter(Boolean).slice(0,30);saveToLocalStorage();renderApp(item.id)};
+ const inp=tags.firstElementChild;inp.value=item.tags.join(', ');
+ // Tags aren't displayed anywhere else in the open note or the main list
+ // (only in the Dashboard/Note-DNA views, which render fresh whenever
+ // they're opened), so saving them never needs the renderApp() full list
+ // rebuild this used to trigger — just persist, then re-sync this same
+ // input to the cleaned-up value (trimmed, empties dropped, capped at 30).
+ inp.onchange=()=>{item.tags=inp.value.split(',').map(x=>x.trim()).filter(Boolean).slice(0,30);saveToLocalStorage();inp.value=item.tags.join(', ')};
  const tagHelpBtn=tags.querySelector('.markhin-tag-help');
  tagHelpBtn.onclick=(e)=>{e.stopPropagation();e.preventDefault();document.querySelectorAll('.markhin-tag-help.show').forEach(b=>{if(b!==tagHelpBtn)b.classList.remove('show')});tagHelpBtn.classList.toggle('show')};
  const count=document.createElement('div');count.className='markhin-stats-bar';count.dataset.wordcount='1';text.parentNode.insertBefore(count,text.nextSibling);
@@ -19389,7 +19906,26 @@ function mcCommitTitle(id){
 // unless explicitly exposed on window here.
 window.mcLiveTitle = mcLiveTitle;
 window.mcCommitTitle = mcCommitTitle;
-function toggleFlag(item,key){ensureItem(item);item[key]=!item[key];saveToLocalStorage();renderApp(item.id);const msg=key==='pinned'?(item[key]?(currentLang==='fa'?'📌 یادداشت پین شد':'📌 Note pinned'):(currentLang==='fa'?'📌 پین یادداشت برداشته شد':'📌 Note unpinned')):(item[key]?(currentLang==='fa'?'⭐ به فیوریت اضافه شد':'⭐ Added to Favorites'):(currentLang==='fa'?'⭐ از فیوریت حذف شد':'⭐ Removed from Favorites'));showToast(msg);}
+// Patches just the one pin/favorite header button in place instead of the
+// full renderApp() rebuild toggleFlag() used to trigger for a single-flag
+// change. getVisibleCategories()/renderButtons() don't sort or label by
+// pinned/favorite at all (only the Dashboard's separate render path does),
+// so nothing else on screen needs to move when this flag flips — same
+// reasoning as the mcLiveTitle()/mcCommitTitle() in-place patches above.
+// No-op if the note's box isn't currently in the DOM (e.g. a different
+// folder/search filter is active), since renderContents() will just paint
+// the up-to-date `item.pinned`/`item.favorite` value whenever it next runs.
+function mu_updateNoteFlagButton(id, key, value){
+    const box = document.getElementById('container-' + id);
+    if (!box) return;
+    const btn = box.querySelector('[data-flag="' + key + '"]');
+    if (!btn) return;
+    btn.classList.toggle('mc-icon-active', !!value);
+    btn.title = key === 'pinned'
+        ? (value ? (currentLang==='fa'?'برداشتن پین':'Unpin') : (currentLang==='fa'?'پین کردن یادداشت':'Pin note'))
+        : (value ? (currentLang==='fa'?'حذف از فیوریت':'Remove from Favorites') : (currentLang==='fa'?'افزودن به فیوریت':'Add to Favorites'));
+}
+function toggleFlag(item,key){ensureItem(item);item[key]=!item[key];saveToLocalStorage();mu_updateNoteFlagButton(item.id,key,item[key]);const msg=key==='pinned'?(item[key]?(currentLang==='fa'?'📌 یادداشت پین شد':'📌 Note pinned'):(currentLang==='fa'?'📌 پین یادداشت برداشته شد':'📌 Note unpinned')):(item[key]?(currentLang==='fa'?'⭐ به فیوریت اضافه شد':'⭐ Added to Favorites'):(currentLang==='fa'?'⭐ از فیوریت حذف شد':'⭐ Removed from Favorites'));showToast(msg);}
 /* Archive: keeps the note itself untouched but hides it from every normal
    list (main view, folders, search, dashboard counts — all already route
    through isArchived()). Toggled from the note's own toolbar, or from the
@@ -19667,6 +20203,21 @@ window.addTopControls = addTopControls;
    state before the "real" one popped in a moment later. That logic now
    lives in the single startup handler earlier in this file, so nothing
    needs to happen here at DOMContentLoaded time anymore.*/
+/* =========================================================================
+   MU_Dashboard — ماژول داشبورد (آمار/میانبرها/فهرست‌های فیلترشده) +
+   پنل بکاپ Cloud تلگرام (که از همان صفحه‌ی داشبورد باز می‌شود و
+   markhinDash_headHtml مشترک را با آن به اشتراک می‌گذارد، برای همین
+   دو تا با هم داخل یک ماژول‌اند، نه دوتا جدا).
+
+   مثل MU_Theme/MU_Game/MU_AIProvider: closure خصوصی خودش را دارد؛ همه‌ی
+   کمکی‌های داخلی (markhinDash_notes/noteRowHtml/bindRows/headHtml/...)
+   کاملاً خصوصی‌اند چون بیرون از این بلوک هیچ‌جای دیگر فایل استفاده
+   نمی‌شوند. فقط همان چند تابعی که از قبل روی window منتشر می‌شدند
+   (برای دکمه‌ی هدر، دکمه‌ی بایگانی در نوار بالا، و آنلاین‌های
+   onclick="..." تولیدشده در HTML) دوباره همان‌جوری منتشر می‌شوند.
+   ========================================================================= */
+const MU_Dashboard = (function(){
+
 /* ================= DASHBOARD 2.0 ================= */
 function markhinDash_wordCount(item){const t=String(item.text||(item.html?item.html.replace(/<[^>]+>/g,' '):'')||'').trim();return t?t.split(/\s+/).length:0;}
 function markhinDash_isGhostActive(item){return !!item.ghostUntil && Date.now()<Number(item.ghostUntil);}
@@ -19928,6 +20479,17 @@ async function markhinDash_cloudRestoreClick(){
     renderApp();
 }
 window.markhinDash_cloudRestoreClick = markhinDash_cloudRestoreClick;
+
+return {
+    showMain: markhinDashboardMain,
+    showList: markhinDash_showList,
+    openNote: markhinDash_openNote,
+    pickNoteToArchive: markhinDash_pickNoteToArchive,
+    showCloudPanel: markhinDash_showCloudPanel,
+    cloudBackupClick: markhinDash_cloudBackupClick,
+    cloudRestoreClick: markhinDash_cloudRestoreClick
+};
+})();
 
 /* favorites virtual folder: handled by the app's native getVisibleCategories above. */
 // Keep the native getVisibleCategories implementation; do not wrap it recursively.
@@ -20651,6 +21213,21 @@ window.mu_jumpToTopMatch = mu_jumpToTopMatch;
         if(e.key === 'Enter'){ e.preventDefault(); mu_jumpToTopMatch(); }
     });
 })();
+
+/* =========================================================================
+   MU_AIProvider — ماژول لایه‌ی اتصال به سرویس‌های هوش مصنوعی
+   (OpenAI / Anthropic / OpenRouter / هر سرویس سازگار دیگر).
+
+   این closure دقیقاً همان الگوی MU_Theme / MU_Game / MU_AI است: ثابت‌های
+   پیش‌فرض ارائه‌دهنده‌ها، استایل‌های لحن، پاکسازی/نرمال‌سازی ورودی،
+   ساخت درخواست (fetch/stream) و مدیریت خطا، و خودِ آبجکت MarkhinAI
+   (تنظیمات + chat/streaming) همه داخل این scope خصوصی‌اند — نه پخش در
+   اسکوپ کلی اسکریپت مثل قبل. چیزهایی که کد دیگر این فایل (تنظیمات AI،
+   ابزارهای AI روی یادداشت، و چت MARKHIN AI در <script> جداگانه‌ی خودش)
+   واقعاً به آن‌ها نیاز دارند، همچنان با همان نامِ قبلی روی window
+   منتشر می‌شوند — یعنی هیچ فراخوانی‌ای در بقیه‌ی فایل نباید بشکند.
+   ========================================================================= */
+const MU_AIProvider = (function(){
 
 /* ================= AI LAYER ================= */
 /* Multi-provider AI layer.
@@ -21689,6 +22266,24 @@ const MarkhinAI = window.MarkhinAI = {
     }
 };
 
+// --- انتشار عمومی (سازگار با قبل) ---------------------------------------
+// این چند خط، رابط بیرونیِ این ماژول‌اند: کدهای دیگرِ همین اسکریپت
+// (مودال تنظیمات AI، ترجمه/خلاصه/برچسب روی یادداشت) و همچنین اسکریپت
+// جداگانه‌ی چت MARKHIN AI (closure دیگری‌ست) فقط از طریق این نام‌های
+// روی window به این ماژول دسترسی دارند — MarkhinAI و MU_AI_STYLES از
+// قبل همین‌جا export می‌شدند؛ MU_AI_BUILTINS و mu_sanitizeApiKeyValue
+// هم چون بیرون از این بلوک هم استفاده می‌شوند، صراحتاً اضافه شدند.
+window.MU_AI_BUILTINS = MU_AI_BUILTINS;
+window.mu_sanitizeApiKeyValue = mu_sanitizeApiKeyValue;
+
+return {
+    builtins: MU_AI_BUILTINS,
+    styles: MU_AI_STYLES,
+    sanitizeApiKey: mu_sanitizeApiKeyValue,
+    client: MarkhinAI
+};
+})();
+
 function mu_allSearchableItems(){
     return categories.filter(c=> (typeof isArchived!=='function' || !isArchived(c)));
 }
@@ -22605,7 +23200,46 @@ window.attachWrapperEvents = function(categoryId){
 </div>
 
 <script>
-(function(){
+/* =========================================================================
+   MU_AI — MARKHIN AI CHAT MODULE
+   -------------------------------------------------------------------------
+   Everything about the built-in MARKHIN AI assistant — the conversation
+   state and its localStorage persistence, rendering the message list/reply
+   bar, composing and sending a turn (including trimming notes/history to
+   fit a provider's rate limit and retrying on transient failures), and
+   every tool the model can call (find/read/create/edit notes, folders,
+   tags, themes, exports, the calculator, date conversion, opening the Game
+   Zone, and so on) — lives in this single namespace, the same way MU_Theme
+   owns theme state and MU_Game owns the mini-games arcade elsewhere in this
+   file. Nothing outside this module reads or writes chat state directly
+   anymore; it goes through MU_AI's own functions or the thin global
+   wrappers right after it.
+
+   Three things stay OUTSIDE this module on purpose, same reasoning as
+   MU_Game's own HTML/CSS split:
+   - The chat overlay's HTML (#markhinAiChatOverlay) and the header launcher
+     button — search "MARKHIN AI — full-screen general-purpose chat page"
+     and ".markhin-ai-header-btn" — since this module only ever touches
+     them by id/class, never defines them.
+   - The AI provider/API-key settings modal (⚙️) and the locked-notes-access
+     modal (🔒, promptUnlockQa) — genuinely separate features (settings,
+     note locking) that this module calls into and reads state from
+     (isNoteLocked, unlockedQaIds), rather than owns.
+   - The actual HTTP call to the AI provider and the model-list fetch
+     (mAiAbortController / fetchAvailableModels-style helpers) defined
+     earlier in the shared script, which this module calls but doesn't
+     define, since other AI-powered features (e.g. per-note rewrite tools)
+     reuse the exact same provider-calling code.
+
+   A handful of thin global wrappers (openMarkhinAIChat(), closeMarkhinAIChat(),
+   markhinAiChat_send(), etc.) are kept right after this module, purely
+   because the chat overlay's buttons/textarea call them via onclick=/
+   oninput=/onkeydown="..." attributes in the HTML — which need plain
+   global function names to find — and because mAiRender()'s own
+   dynamically-generated bubble HTML (reply/timestamp/quote buttons) calls
+   a few of them the same way.
+   ========================================================================= */
+const MU_AI = (function(){
     /* ---------------------------------------------------------------
        State: a single general-purpose conversation that also has read
        access to the user's (unlocked) notes as extra context — this used
@@ -22937,7 +23571,6 @@ window.attachWrapperEvents = function(categoryId){
             el.classList.add('mAi-sub-off');
         }
     }
-    window.markhinAiChat_updateSub = mAiUpdateSub;
 
     /* Shows/hides the small banner under the header that tells the person
        when one or more locked notes are being kept out of MARKHIN AI's
@@ -22959,7 +23592,6 @@ window.attachWrapperEvents = function(categoryId){
             el.style.display = 'none';
         }
     }
-    window.mu_updateAiLockNotice = mAiUpdateLockNotice;
 
     // Short, single-line preview of a message's text, used both in the
     // quote block inside a reply bubble and in the reply bar above the
@@ -22994,24 +23626,24 @@ window.attachWrapperEvents = function(categoryId){
     // Tapping the ↩ on any bubble (own message or MARKHIN AI's) queues
     // it as the reply target; the actual attachment happens when the
     // user sends their next message (see markhinAiChat_send).
-    window.mAi_replyTo = function(id){
+    function mAi_replyTo(id){
         const msg = mAiHistory.find(function(m){ return m.id === id; });
         if(!msg) return;
         mAiReplyTarget = { id: msg.id, role: msg.role, preview: mAiPreviewOf(msg.content) };
         mAiRenderReplyBar();
         const input = document.getElementById('markhinAiChatInput');
         if(input) input.focus();
-    };
+    }
 
-    window.mAi_cancelReply = function(){
+    function mAi_cancelReply(){
         mAiReplyTarget = null;
         mAiRenderReplyBar();
-    };
+    }
 
     // Tapping a quote block inside a message jumps back to (and briefly
     // highlights) the original message it was replying to, in case
     // that message has scrolled out of view.
-    window.mAi_scrollToMsg = function(id){
+    function mAi_scrollToMsg(id){
         const box = document.getElementById('markhinAiChatMessages');
         if(!box) return;
         const el = box.querySelector('[data-mid="' + CSS.escape(id) + '"]');
@@ -23019,7 +23651,7 @@ window.attachWrapperEvents = function(categoryId){
         el.scrollIntoView({ behavior: 'smooth', block: 'center' });
         el.classList.add('mAi-msg-highlight');
         setTimeout(function(){ el.classList.remove('mAi-msg-highlight'); }, 1200);
-    };
+    }
 
     // Tapping a bubble (own message or MARKHIN AI's) reveals the exact
     // moment it was sent, in one bilingual line, right below it. A
@@ -23027,12 +23659,12 @@ window.attachWrapperEvents = function(categoryId){
     // opening/closing it never jumps the scroll position. Bails out on
     // taps that hit a link, a button, or the reply-quote block, so it
     // never steals a click meant for one of those.
-    window.mAi_toggleTimestamp = function(ev, bubbleEl){
+    function mAi_toggleTimestamp(ev, bubbleEl){
         const t = ev && ev.target;
         if(t && t.closest && t.closest('a, button, .mAi-quote')) return;
         const msgEl = bubbleEl && bubbleEl.closest('.mAi-msg');
         if(msgEl) msgEl.classList.toggle('mAi-ts-open');
-    };
+    }
 
     function mAiRender(){
         const box = document.getElementById('markhinAiChatMessages');
@@ -23096,7 +23728,7 @@ window.attachWrapperEvents = function(categoryId){
         box.scrollTop = box.scrollHeight;
     }
 
-    window.openMarkhinAIChat = function(){
+    function openMarkhinAIChat(){
         const ov = document.getElementById('markhinAiChatOverlay');
         if(!ov) return;
         ov.style.display = 'flex';
@@ -23109,7 +23741,7 @@ window.attachWrapperEvents = function(categoryId){
         // Deliberately NOT auto-focusing the input here: focusing it would pop
         // the mobile keyboard open the instant the chat page opens. The keyboard
         // should only appear once the person actually taps the input themselves.
-    };
+    }
 
     /* ---------------------------------------------------------------
        Keep the chat page glued to the real visible area, not the
@@ -23135,7 +23767,7 @@ window.attachWrapperEvents = function(categoryId){
         window.visualViewport.addEventListener('scroll', mAiSyncViewport);
     }
 
-    window.closeMarkhinAIChat = function(){
+    function closeMarkhinAIChat(){
         const ov = document.getElementById('markhinAiChatOverlay');
         if(ov){
             ov.style.display = 'none';
@@ -23145,9 +23777,9 @@ window.attachWrapperEvents = function(categoryId){
             ov.style.top = '';
         }
         document.body.style.overflow = '';
-    };
+    }
 
-    window.markhinAiChat_clear = function(){
+    function markhinAiChat_clear(){
         const fa = currentLang === 'fa';
         if(mAiHistory.length && !confirm(fa ? 'کل گفتگو پاک شود؟' : 'Clear the entire conversation?')) return;
         mAiHistory = [];
@@ -23161,20 +23793,20 @@ window.attachWrapperEvents = function(categoryId){
         mAiSave();
         mAiRender();
         mAiRenderReplyBar();
-    };
+    }
 
-    window.markhinAiChat_autosize = function(el){
+    function markhinAiChat_autosize(el){
         if(!el) return;
         el.style.height = 'auto';
         el.style.height = Math.min(140, el.scrollHeight) + 'px';
-    };
+    }
 
-    window.markhinAiChat_onKeydown = function(e){
+    function markhinAiChat_onKeydown(e){
         if(e.key === 'Enter' && !e.shiftKey){
             e.preventDefault();
             markhinAiChat_send();
         }
-    };
+    }
 
     /* A note's context (every unlocked note's text, plus recent chat
        history) is sent along with every message so the model can actually
@@ -23404,7 +24036,7 @@ window.attachWrapperEvents = function(categoryId){
         { name:'archive_note', description:'Archive or unarchive (restore) a note.', parameters:{ type:'object', properties:{ note:{ type:'string' }, archived:{ type:'boolean' } }, required:['note','archived'] } },
         { name:'merge_notes', description:'Combine two or more existing notes into one brand-new note, each source note under its own heading. Never deletes anything by itself unless delete_originals is explicitly set — and even then it always shows the user a real confirmation dialog first.', parameters:{ type:'object', properties:{ notes:{ type:'array', items:{type:'string'}, description:'Ids or titles of the notes to merge — at least two.' }, new_name:{ type:'string', description:'Title for the merged note. If omitted, one is generated from the source titles.' }, delete_originals:{ type:'boolean', description:'If true, ask the user to confirm deleting the original notes right after merging.' } }, required:['notes'] } },
         { name:'delete_note', description:'Permanently delete an ENTIRE note. This always pops a native confirmation dialog for the user and only actually deletes if they accept it, so it is safe to call as soon as the user has clearly asked to delete a specific note — but never call it just to be helpful when deletion was not requested. CRITICAL — do not confuse this with removing content FROM a note: "delete/remove/take out part of this note", "delete the second stanza of this poem", "پاک کن بخشی از این یادداشت/شعر" all mean editing the note\'s text, not destroying the note — those go to edit_note_content (mode "replace" with the trimmed full text), never here. Only call delete_note when the user wants the note itself, as a whole, gone.', parameters:{ type:'object', properties:{ note:{ type:'string', description:'The id or title of the note to delete.' } }, required:['note'] } },
-        { name:'set_theme', description:'Switch the app\'s visual theme. Available themes: oceanic, phantom, aurora, aurora-phantom, spider, dreamy, cyberpunk, love, autumn, anonymous, terminal, darkweb, interstellar, vampire, onepiece, hugo. Matches loosely against the theme id or its Persian/English display name, so close/misspelled names (e.g. "شفق قطبی", "aurora", "قطبی", "میان ستاره ای") still resolve.', parameters:{ type:'object', properties:{ theme:{ type:'string', description:'Theme id or name the user asked for, e.g. "aurora" or "شفق قطبی".' } }, required:['theme'] } },
+        { name:'set_theme', description:'Switch the app\'s visual theme. Available themes: oceanic, phantom, aurora, aurora-phantom, spider, dreamy, cyberpunk, love, anonymous, terminal, darkweb, interstellar, vampire, onepiece, hugo. Matches loosely against the theme id or its Persian/English display name, so close/misspelled names (e.g. "شفق قطبی", "aurora", "قطبی", "میان ستاره ای") still resolve.', parameters:{ type:'object', properties:{ theme:{ type:'string', description:'Theme id or name the user asked for, e.g. "aurora" or "شفق قطبی".' } }, required:['theme'] } },
         { name:'set_language', description:'Switch the app\'s interface language between Persian (fa) and English (en).', parameters:{ type:'object', properties:{ language:{ type:'string', enum:['fa','en'] } }, required:['language'] } },
         { name:'export_notes', description:'Export note(s) to a real downloadable file — this actually triggers the download, the same as tapping the app\'s own export buttons, with no extra menus for the user to click through. Formats: "json" (full structured backup), "csv", "md" (Markdown), "txt" (plain text), "pdf", "docx" (Word), "png" or "jpg" (an image of one note\'s content). Locked notes are always excluded unless already unlocked this session.', parameters:{ type:'object', properties:{ format:{ type:'string', enum:['json','csv','md','txt','pdf','docx','png','jpg'], description:'Export file format.' }, note:{ type:'string', description:'Id or title of a single note to export. Omit to export every exportable note at once (not available for png/jpg — those are always a single note).' }, filename:{ type:'string', description:'Optional file name, without extension. A sensible default is generated if omitted.' } }, required:['format'] } },
         { name:'open_app_view', description:'Open one of the app\'s special full-screen views for the user, exactly like tapping its button. Recognize this even when the user names it phonetically/in Finglish or with an approximate translation — e.g. "نولدج گراف", "نالج گراف", "knowledge graf", "شبکه دانش", or "گراف" all mean knowledge_graph; "سیمیتری"/"سمتری"/"قبرستان" mean cemetery; "رندوم پرتال"/"پرتال تصادفی" mean random_portal.', parameters:{ type:'object', properties:{ view:{ type:'string', enum:['knowledge_graph','cemetery','random_portal'], description:'knowledge_graph = the graph view of how notes connect to each other. cemetery = the list of deleted notes. random_portal = jumps to a random note.' } }, required:['view'] } },
@@ -23808,19 +24440,18 @@ window.attachWrapperEvents = function(categoryId){
                     return { ok:true, data:{ id:item.id, name:item.name } };
                 }
                 case 'set_theme': {
-                    if(typeof themes === 'undefined' || !themes.length) return { ok:false, error: fa ? 'فهرست تم‌ها در دسترس نیست.' : 'Theme list is unavailable.' };
-                    const wanted = normalizeText(String(input.theme || '').trim());
+                    if(typeof MU_Theme === 'undefined' || !MU_Theme.list.length) return { ok:false, error: fa ? 'فهرست تم‌ها در دسترس نیست.' : 'Theme list is unavailable.' };
+                    const wanted = String(input.theme || '').trim();
                     if(!wanted) return { ok:false, error: fa ? 'نام تم لازم است.' : 'A theme name is required.' };
-                    let idx = themes.findIndex(t => normalizeText(t.id) === wanted || normalizeText(t.nameFa) === wanted || normalizeText(t.nameEn) === wanted);
-                    if(idx < 0) idx = themes.findIndex(t => normalizeText(t.id).includes(wanted) || normalizeText(t.nameFa).includes(wanted) || normalizeText(t.nameEn).includes(wanted) || wanted.includes(normalizeText(t.id)));
+                    const idx = MU_Theme.findByQuery(wanted);
                     if(idx < 0){
                         return { ok:false, error: fa
-                            ? 'تمی با این نام پیدا نشد. تم‌های موجود: ' + themes.map(t => t.nameFa).join('، ')
-                            : 'No matching theme found. Available themes: ' + themes.map(t => t.nameEn).join(', ') };
+                            ? 'تمی با این نام پیدا نشد. تم‌های موجود: ' + MU_Theme.list.map(t => t.nameFa).join('، ')
+                            : 'No matching theme found. Available themes: ' + MU_Theme.list.map(t => t.nameEn).join(', ') };
                     }
-                    applyTheme(idx);
+                    MU_Theme.apply(idx);
                     try{ localStorage.setItem('app_theme_index_v13', idx); }catch(e){}
-                    const applied = themes[idx];
+                    const applied = MU_Theme.list[idx];
                     showToast(fa ? '🎨 تم به «' + applied.nameFa + '» تغییر کرد' : '🎨 Theme switched to "' + applied.nameEn + '"');
                     return { ok:true, data:{ theme: applied.id, nameFa: applied.nameFa, nameEn: applied.nameEn } };
                 }
@@ -24670,7 +25301,7 @@ window.attachWrapperEvents = function(categoryId){
         }
     }
 
-    window.markhinAiChat_send = async function(){
+    async function markhinAiChat_send(){
         const input = document.getElementById('markhinAiChatInput');
         const btn = document.getElementById('markhinAiChatSendBtn');
         const box = document.getElementById('markhinAiChatMessages');
@@ -25270,7 +25901,7 @@ window.attachWrapperEvents = function(categoryId){
             // No re-focus here on purpose — see the blur() above; the keyboard
             // should stay down until the person taps the input themselves.
         }
-    };
+    }
 
     /* Keep the header subtitle in sync whenever the provider/API key is
        changed from the shared AI settings modal (opened from the ⚙️
@@ -25283,7 +25914,46 @@ window.attachWrapperEvents = function(categoryId){
         const mAiBaseClear = window.mu_clearAiSettings;
         window.mu_clearAiSettings = function(){ mAiBaseClear(); mAiUpdateSub(); };
     }
+
+    // Public API — everything outside this module (the chat overlay's own
+    // onclick/oninput/onkeydown attributes, the header launcher button, and
+    // mu_updateAiLockNotice's external caller) goes through these, never
+    // through the private state/functions above directly.
+    return {
+        open: openMarkhinAIChat,
+        close: closeMarkhinAIChat,
+        clear: markhinAiChat_clear,
+        autosize: markhinAiChat_autosize,
+        onKeydown: markhinAiChat_onKeydown,
+        send: markhinAiChat_send,
+        replyTo: mAi_replyTo,
+        cancelReply: mAi_cancelReply,
+        scrollToMsg: mAi_scrollToMsg,
+        toggleTimestamp: mAi_toggleTimestamp,
+        updateSub: mAiUpdateSub,
+        updateLockNotice: mAiUpdateLockNotice
+    };
 })();
+
+// Thin global wrappers, kept for exactly the reason cycleTheme() is kept
+// next to MU_Theme (and the openGameMenu()-style wrappers next to MU_Game):
+// the chat overlay's HTML calls these by plain global name via onclick=/
+// oninput=/onkeydown="..." attributes, the header launcher button does the
+// same, and mAiRender()'s own dynamically-generated bubble HTML (reply/
+// timestamp/quote buttons) calls a few of these too — none of that can
+// reach inside the MU_AI closure directly.
+function openMarkhinAIChat() { return MU_AI.open(); }
+function closeMarkhinAIChat() { return MU_AI.close(); }
+function markhinAiChat_clear() { return MU_AI.clear(); }
+function markhinAiChat_autosize(el) { return MU_AI.autosize(el); }
+function markhinAiChat_onKeydown(e) { return MU_AI.onKeydown(e); }
+function markhinAiChat_send() { return MU_AI.send(); }
+function mAi_replyTo(id) { return MU_AI.replyTo(id); }
+function mAi_cancelReply() { return MU_AI.cancelReply(); }
+function mAi_scrollToMsg(id) { return MU_AI.scrollToMsg(id); }
+function mAi_toggleTimestamp(ev, bubbleEl) { return MU_AI.toggleTimestamp(ev, bubbleEl); }
+function markhinAiChat_updateSub() { return MU_AI.updateSub(); }
+function mu_updateAiLockNotice() { return MU_AI.updateLockNotice(); }
 </script>
 
 </body>
