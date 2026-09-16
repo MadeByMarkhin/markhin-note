@@ -5,6 +5,20 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="theme-color" content="#03101c" id="mAiThemeColorMeta">
     <meta name="color-scheme" content="dark">
+    <!-- Cache-busting: Telegram's in-app WebView (and many mobile browsers)
+         aggressively cache the mini app's index.html/JS. Without this, a
+         person can keep loading an OLD cached copy of this exact file even
+         after it's been updated on the server — which looks identical to
+         "the fix didn't work" from inside Telegram, even though the new
+         code is really there. These headers ask the WebView not to reuse a
+         cached copy. Note: this is a best-effort client hint, not a
+         guarantee — for a mini app served from your own host, also send a
+         real `Cache-Control: no-cache` HTTP response header (or serve this
+         file behind a versioned/hashed filename or ?v= query string) so
+         the server itself never hands out a stale copy either. -->
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <title>مدیریت اطلاعات و حساب‌ها</title>
     <!-- Telegram Mini App load-speed fix: these two web-font stylesheets used
          to be @import'd inside the <style> block below, which forces the
@@ -21264,9 +21278,30 @@ document.addEventListener('click', function(e){
 
 /* ---------- main search bar: just filter/sort the list in place while typing.
    Jumping to and highlighting the top match now happens only on Enter (see
-   mu_jumpToTopMatch below), so the view no longer yanks around mid-word. ---------- */
+   mu_jumpToTopMatch below), so the view no longer yanks around mid-word.
+
+   Perf fix (typing felt laggy/stuttery, worse the more notes you have):
+   every keystroke used to call renderApp() synchronously, which rebuilds
+   the folder bar, the button row AND the full contents list from scratch
+   (renderFolders/renderButtons/renderContents further down all do a fresh
+   innerHTML build over the whole visible set). On a phone-class CPU inside
+   Telegram's WebView, doing that full rebuild on literally every character
+   is the single biggest source of visible input lag in the app — each
+   keystroke blocks the main thread for the whole rebuild before the next
+   character can even show up in the field.
+   Debouncing to a short idle window (90ms) fixes this without changing
+   behavior: react-while-you-pause instead of react-per-character. 90ms is
+   short enough that continuous typing still feels instant (nothing is
+   visibly delayed once you pause, even briefly between words), but it
+   collapses a fast burst of keystrokes into a single rebuild instead of
+   one rebuild per character. clearTimeout on every call means only the
+   last keystroke in a burst actually triggers a render. */
+let mu_searchDebounceTimer = null;
 window.onSearchChange = function(){
-    renderApp(activeOpenId);
+    clearTimeout(mu_searchDebounceTimer);
+    mu_searchDebounceTimer = setTimeout(function(){
+        renderApp(activeOpenId);
+    }, 90);
 };
 
 function mu_jumpToTopMatch(){
