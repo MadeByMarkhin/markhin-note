@@ -12777,7 +12777,7 @@ window.mu_syncHtmlBg = function(){
                 // simulation's own speed. Kept mostly (not entirely)
                 // smoothed so a genuine speed change (tab actually
                 // stalling) still catches up quickly instead of lagging.
-                acc += avgFrameMs * 0.85 + clampedDt * 0.15;
+                acc += clampedDt;
                 lastTs = now;
 
                 while (acc >= STEP_MS) {
@@ -13685,7 +13685,7 @@ window.mu_syncHtmlBg = function(){
                 // it in turns that leftover noise into a near-constant
                 // increment (mostly, not entirely, smoothed — a genuine
                 // stall still catches up quickly).
-                acc += avgFrameMs * 0.85 + clampedDt * 0.15;
+                acc += clampedDt;
                 lastTs = now;
 
                 while (acc >= STEP_MS) {
@@ -14870,7 +14870,7 @@ window.mu_syncHtmlBg = function(){
                 // exactly as-is on purpose — updateChaos's own event timing
                 // is meant to track real elapsed time directly, not the
                 // smoothed value used for the obstacle simulation clock.
-                acc += avgFrameMs * 0.85 + clampedDt * 0.15;
+                acc += clampedDt;
                 lastTs = now;
 
                 if (!dying && !ended) updateChaos(rawDt);
@@ -15949,7 +15949,7 @@ window.mu_syncHtmlBg = function(){
                 // `avgFrameMs`, so ordinary per-frame vsync/compositor noise
                 // kept nudging the tick count (and thus the exact distance
                 // every traffic car moves) around frame to frame.
-                acc += avgFrameMs * 0.85 + clampedDt * 0.15;
+                acc += clampedDt;
                 lastTs = now;
 
                 while (acc >= STEP_MS) {
