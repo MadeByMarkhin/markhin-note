@@ -6284,7 +6284,12 @@
 
         .content-container.show { 
             display: block !important; 
-            animation: popIn 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+            /* Shortened from 0.35s and swapped the overshoot easing for a
+               plain ease-out: same "pop" feel, but the box finishes settling
+               and becomes fully interactive noticeably sooner — this is the
+               animation that was still running right as someone taps into
+               the note to start typing. */
+            animation: popIn 0.18s ease-out forwards;
         }
         /* Used when a note stays open across a re-render (language switch,
            theme change, search, etc.) instead of just now being opened —
@@ -6312,7 +6317,13 @@
             line-height: 1.9;
             letter-spacing: 0.15px;
             box-sizing: border-box;
-            transition: var(--transition-smooth);
+            /* Scoped instead of the shared `transition: all 0.35s` (same fix
+               already applied to .brand-logo elsewhere in this file): "all"
+               makes the browser watch every property for changes, when only
+               background/border/shadow actually change here (on focus).
+               Also shortened, so the box reaches its focused look right as
+               the keyboard comes up instead of visibly catching up after. */
+            transition: background-color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
         }
         
         .text-box:focus { background-color: rgba(0, 0, 0, 0.45); border-color: var(--text-color); box-shadow: 0 0 0 3px rgba(255,255,255,0.05), 0 0 18px -6px var(--text-color); }
@@ -6575,10 +6586,24 @@
            so all the JS wired to them keeps working untouched — only the
            visuals and the grouping/markup around them changed.
            ============================================================ */
+        /* Perf fix (typing lag / slow-to-appear keyboard when opening a note):
+           this box used to carry backdrop-filter:blur(12px) while also
+           running the "popIn" scale+translate+opacity animation (see
+           .content-container.show above) every time a note opens — an
+           animated element with an active backdrop-filter has to
+           re-rasterize the blurred backdrop on every animation frame, and
+           then keeps doing it continuously while the box stays on screen
+           (this is the exact cost already called out in this file's own
+           earlier comment on why backdrop-filter gets dropped during
+           scrolling). Since opening a note is immediately followed by
+           tapping into it to type — which triggers the on-screen keyboard
+           and a viewport resize/repaint of its own — that ongoing blur cost
+           stacked on top made the keyboard noticeably slow to catch up.
+           Dropped the blur and raised the background opacity a bit so the
+           box still reads clearly against busy themes without paying for a
+           live blur. */
         .content-container.show {
-            background: linear-gradient(165deg, rgba(0,180,216,0.07), rgba(0,8,18,0.4));
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
+            background: linear-gradient(165deg, rgba(0,180,216,0.09), rgba(0,8,18,0.62));
             border: 1px solid rgba(72,202,238,0.25);
             border-radius: 20px;
             box-shadow: 0 20px 50px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.05);
@@ -6638,7 +6663,12 @@
             font-weight: 800;
             padding: 12px 14px;
             border-radius: var(--border-radius-sm) var(--border-radius-sm) 0 0;
-            transition: var(--transition-smooth);
+            /* Scoped + shortened, same fix as .text-box below: `all 0.35s`
+               made every keystroke's focus/typing state change animate
+               across every property instead of just the two that actually
+               change here, which is extra work the browser doesn't need to
+               do on every character typed into the title. */
+            transition: background-color 0.15s ease, box-shadow 0.15s ease;
         }
         .mc-title-input::placeholder { color: rgba(255,255,255,0.35); font-weight: 600; }
         .mc-title-input:focus { background: rgba(0,0,0,0.5); box-shadow: inset 0 -2px 0 var(--text-color); }
@@ -7315,7 +7345,19 @@
         body.glitching::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:9998;background:repeating-linear-gradient(0deg,transparent 0 3px,rgba(255,255,255,.035) 4px 5px);animation:glitchScan .38s linear}
         @keyframes glitchFlash{0%{filter:none;transform:none}15%{filter:hue-rotate(65deg) contrast(1.15);transform:translateX(2px)}30%{filter:none;transform:translateX(-2px)}45%{filter:hue-rotate(-55deg);transform:none}70%{filter:none;transform:translateX(1px)}100%{filter:none;transform:none}}
         @keyframes glitchScan{from{opacity:.1;transform:translateY(-10%)}to{opacity:.5;transform:translateY(10%)}}
-        .advanced-modal{display:none;position:fixed;inset:0;z-index:10050;background:rgba(0,0,0,.82);backdrop-filter:blur(7px);align-items:center;justify-content:center;padding:16px;box-sizing:border-box}
+        /* Perf fix (add-note/add-folder field opening with heavy lag, esp. in
+           Telegram's in-app WebView): this overlay used to carry
+           backdrop-filter:blur(7px) on top of its own opacity fade-in
+           (markhinFadeIn below). Animating opacity while a backdrop-filter is
+           active forces the browser to re-rasterize the blurred capture of
+           everything behind the modal (the whole notes list) on every single
+           animation frame, not just once — that's a much heavier, often
+           software-fallback path on mobile WebViews, and it's exactly the
+           "field opens slowly" delay. Same fix already applied elsewhere in
+           this file for the same reason (see the mu-scrolling backdrop-filter
+           removal and #gameModal's own comment) — a plain darker background
+           gives the same visual dimming without the per-frame blur cost. */
+        .advanced-modal{display:none;position:fixed;inset:0;z-index:10050;background:rgba(0,0,0,.9);align-items:center;justify-content:center;padding:16px;box-sizing:border-box}
         
         .image-export-picker-head{margin-bottom:14px}
         .image-export-picker-actions{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px;flex-wrap:wrap}
@@ -7341,9 +7383,9 @@
         .zip-export-picker-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:9px;max-height:55vh;overflow:auto;padding:3px}.zip-export-option{display:flex;align-items:center;gap:10px;padding:12px;border:1px solid var(--panel-border);border-radius:13px;background:rgba(0,0,0,.22);cursor:pointer;transition:transform .16s ease,border-color .16s ease}.zip-export-option:hover{transform:translateY(-2px);border-color:rgba(120,170,255,.55)}.zip-export-option input{width:18px;height:18px;accent-color:currentColor;flex:0 0 auto}.zip-export-option-text{display:flex;flex-direction:column;gap:2px;min-width:0}.zip-export-option-name{font-size:12px;font-weight:800;word-break:break-word}.zip-export-option-desc{font-size:9px;opacity:.5;line-height:1.4}.zip-export-picker-actions{display:flex;gap:8px;justify-content:space-between;align-items:center;flex-wrap:wrap;margin-top:13px}
         @media (max-width:600px){.image-export-choice-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;max-height:58vh}.image-export-choice{min-height:94px;padding:11px}.image-export-choice-name{font-size:12px}.advanced-modal{padding:10px}.advanced-modal .modal-content,.advanced-modal .advanced-card{max-width:100%;width:100%;}}
 
-.advanced-card{width:min(900px,96vw);max-height:88vh;overflow:auto;background:var(--card-bg);border:1px solid var(--panel-border);border-radius:18px;padding:18px;box-shadow:0 25px 70px rgba(0,0,0,.5);text-align:initial;animation:markhinModalPop .32s cubic-bezier(.2,.9,.25,1)}
+.advanced-card{width:min(900px,96vw);max-height:88vh;overflow:auto;background:var(--card-bg);border:1px solid var(--panel-border);border-radius:18px;padding:18px;box-shadow:0 25px 70px rgba(0,0,0,.5);text-align:initial;animation:markhinModalPop .15s ease-out}
 @keyframes markhinModalPop{from{opacity:0;transform:translateY(10px) scale(.97)}to{opacity:1;transform:translateY(0) scale(1)}}
-.advanced-modal{animation:markhinFadeIn .22s ease}
+.advanced-modal{animation:markhinFadeIn .1s ease}
 @keyframes markhinFadeIn{from{opacity:0}to{opacity:1}}
         .advanced-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
         .advanced-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px}
@@ -10358,6 +10400,41 @@ window.mu_syncHtmlBg = function(){
             renderApp(activeOpenId);
         }
 
+        // Tapping into a note's title or content box should always bring that
+        // exact box clearly into view — on a short screen (or once the
+        // on-screen keyboard eats a big chunk of the viewport) the field can
+        // otherwise still be partly hidden right where the person just tapped.
+        // 'center' keeps it comfortably clear of both the top header and the
+        // keyboard rather than just barely scrolled to the edge.
+        // Scrolling isn't done right on focus: the on-screen keyboard's own
+        // opening animation fires several visualViewport 'resize' events in a
+        // row while it slides up, and the browser also does its own native
+        // scroll-into-view for a newly-focused field. Racing either of those
+        // with our own scroll reads as a small extra jump right after the
+        // field appears. Instead, wait for the resize events to stop for a
+        // moment (debounced) — i.e. the keyboard has actually settled — and
+        // scroll exactly once after that. The final setTimeout is only a
+        // fallback for when no resize event ever fires at all (desktop, a
+        // physical keyboard), so tapping in still scrolls the field into view.
+        function mu_scrollFieldIntoView(el) {
+            if (!el) return;
+            const doScroll = () => { try { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (_) {} };
+            if (!window.visualViewport) { doScroll(); return; }
+            const vv = window.visualViewport;
+            let done = false;
+            let debounceTimer = null;
+            const finish = () => {
+                if (done) return;
+                done = true;
+                clearTimeout(debounceTimer);
+                vv.removeEventListener('resize', onVvResize);
+                doScroll();
+            };
+            const onVvResize = () => { clearTimeout(debounceTimer); debounceTimer = setTimeout(finish, 120); };
+            vv.addEventListener('resize', onVvResize);
+            setTimeout(finish, 600);
+        }
+
         function escapeHtml(string) {
             return String(string || '')
                 .replace(/&/g, '&amp;')
@@ -10513,7 +10590,6 @@ window.mu_syncHtmlBg = function(){
 
         function renderButtons(filtered = getVisibleCategories()) {
             const btnContainer = document.getElementById('buttonsContainer');
-            btnContainer.innerHTML = '';
             const t = i18n[currentLang];
 
             if (filtered.length === 0) {
@@ -10521,15 +10597,49 @@ window.mu_syncHtmlBg = function(){
                 return;
             }
 
+            // Perf fix (note list jank on every open/close): this used to wipe
+            // and recreate every single note button — new element, new
+            // onclick closure, the works — on every renderApp() call, even
+            // though the single most common action in the app (opening or
+            // closing one note) only ever changes which one or two buttons
+            // carry the active-btn class. With many notes that made every
+            // tap pay an O(n) full-list-rebuild + full style/layout recalc
+            // cost just to flip one class. renderContents() right below was
+            // already fixed for exactly this (see its own comment — it even
+            // lists "opening/closing a note" as a trigger) by reconciling
+            // instead of rebuilding; this brings renderButtons() to the same
+            // approach. Existing buttons are looked up once into a Map (O(n)
+            // total, not a per-item DOM query) and patched in place; only
+            // notes that actually appeared/disappeared from the filtered set
+            // touch the DOM node count.
+            const wantIds = new Set(filtered.map(item => item.id));
+            const existingById = new Map();
+            Array.from(btnContainer.children).forEach(child => {
+                const cid = child.dataset ? child.dataset.noteId : null;
+                if (cid && wantIds.has(cid)) {
+                    existingById.set(cid, child);
+                } else if (child.parentNode === btnContainer) {
+                    btnContainer.removeChild(child);
+                }
+            });
+
+            let prevBtn = null;
             filtered.forEach(item => {
-                const btn = document.createElement('button');
-                btn.className = `custom-btn ${activeOpenId === item.id ? 'active-btn' : ''}`;
-                btn.setAttribute('aria-expanded', activeOpenId === item.id ? 'true' : 'false');
-                btn.dataset.noteId = item.id;
+                let btn = existingById.get(item.id);
+                if (!btn) {
+                    btn = document.createElement('button');
+                    btn.dataset.noteId = item.id;
+                    btn.onclick = () => handleCategoryClick(item.id);
+                }
+                const isActive = activeOpenId === item.id;
+                btn.className = `custom-btn ${isActive ? 'active-btn' : ''}`;
+                btn.setAttribute('aria-expanded', isActive ? 'true' : 'false');
                 const lockIcon = isNoteLocked(item) ? '🔒 ' : '';
-                btn.innerHTML = `${lockIcon}${escapeHtml(item.name)}`;
-                btn.onclick = () => handleCategoryClick(item.id);
-                btnContainer.appendChild(btn);
+                const label = `${lockIcon}${escapeHtml(item.name)}`;
+                if (btn.innerHTML !== label) btn.innerHTML = label;
+                const wantNext = prevBtn ? prevBtn.nextSibling : btnContainer.firstChild;
+                if (wantNext !== btn) btnContainer.insertBefore(btn, wantNext);
+                prevBtn = btn;
             });
         }
 
@@ -10644,12 +10754,14 @@ window.mu_syncHtmlBg = function(){
                            ${item.isDecoy ? 'disabled' : ''}
                            oninput="mcLiveTitle('${item.id}', this.value)"
                            onchange="mcCommitTitle('${item.id}')"
+                           onfocus="mu_scrollFieldIntoView(this)"
                            onkeydown="if(event.key==='Enter'){event.preventDefault(); this.blur();}">
 
                     <div id="text-${item.id}" 
                          class="text-box ${isHidden ? 'masked' : ''} ${item.decayLevel ? 'decay-' + item.decayLevel : ''}" 
                          contenteditable="${!isHidden && !item.isDecoy}"
                          data-placeholder="${escapeHtml(t.defaultContent)}"
+                         onfocus="mu_scrollFieldIntoView(this)"
                          ondragover="allowDrop(event)"
                          ondrop="dropImage(event, '${item.id}')">${isHidden ? generateMask() : contentHtml}</div>
 
@@ -14902,7 +15014,7 @@ window.mu_syncHtmlBg = function(){
             // staleness — using it in place of ts for trafficDrift removes
             // the tremor at the source, the same way the other two games'
             // fixes did for their own obstacles.
-            let simMs = 0;
+            let simMs = 0, prevSimMs = 0;
 
             // Bug fix ("some spots are completely impossible to get through"):
             // spawnWave() below always leaves >=1 lane open WITHIN a single
@@ -15435,6 +15547,7 @@ window.mu_syncHtmlBg = function(){
                 pickups.forEach(p => { p.prevY = p.y; });
                 prevRoadOffset = roadOffset;
                 prevMountainOffset = mountainOffset;
+                prevSimMs = simMs;
                 if (dying) {
                     if (ts - dyingStart >= DYING_MS) { dying = false; endDeadRoad(); return; }
                 } else if (!ended) {
@@ -15547,6 +15660,27 @@ window.mu_syncHtmlBg = function(){
                 let mountainOffsetDelta = mountainOffset - prevMountainOffset;
                 if (Math.abs(mountainOffsetDelta) > width / 2) mountainOffsetDelta += (mountainOffsetDelta < 0 ? width : -width);
                 const renderMountainOffset = prevMountainOffset + mountainOffsetDelta * alpha;
+                // Bug fix ("obstacles still trembling a little, only
+                // vertically, almost like they double up"): simMs itself
+                // was already correctly fixed to advance in exact STEP_MS
+                // ticks (see its declaration above) so it can't inherit the
+                // raw rAF timestamp's staleness — but the per-car bounce
+                // below reads simMs directly at render time, and render()
+                // runs every rAF frame while simMs only changes once per
+                // simulated tick. On any screen whose refresh rate doesn't
+                // divide evenly into 60 ticks/sec (90Hz/120Hz phones are
+                // common), several frames in a row render with the exact
+                // same simMs — the bounce freezes — and then it jumps to
+                // the next tick's value all at once, right as renderY
+                // (which IS interpolated with alpha) keeps gliding smoothly
+                // underneath it. That mismatch — one part of the car's
+                // position smooth, the other stair-stepping — is what reads
+                // as a small vertical-only shake, and at the instant simMs
+                // jumps it can briefly look like the car flashes at two
+                // slightly different heights. Interpolating simMs the same
+                // way prevY/y and prevRoadOffset/roadOffset already are
+                // removes that last stair-step.
+                const renderSimMs = prevSimMs + (simMs - prevSimMs) * alpha;
 
                 ctx.fillStyle = skyGrad;
                 ctx.fillRect(0, 0, width, horizonY);
@@ -15626,8 +15760,8 @@ window.mu_syncHtmlBg = function(){
                     // one the player was about to dodge. simMs only ever
                     // advances by exactly STEP_MS per simulated tick, so it
                     // can't inherit that staleness — same fix, same reason.
-                    const bounce = Math.sin(simMs / 130 + o.bounceSeed) * o.h * 0.012;
-                    drawTrafficVehicle(laneCenterX(o.lane), renderY + bounce, o.w, o.h, o.color, o.shape, simMs, o.bounceSeed);
+                    const bounce = Math.sin(renderSimMs / 130 + o.bounceSeed) * o.h * 0.012;
+                    drawTrafficVehicle(laneCenterX(o.lane), renderY + bounce, o.w, o.h, o.color, o.shape, renderSimMs, o.bounceSeed);
                 });
                 pickups.forEach(p => {
                     if (p.taken) return;
@@ -16328,7 +16462,7 @@ window.mu_syncHtmlBg = function(){
                         <button class="btn-main image-export-all-btn" type="button" id="${uid}_ok">${fa ? '🔓 باز کردن' : '🔓 Unlock'}</button>
                     </div>
                 `);
-                setTimeout(() => {
+                (() => {
                     const input = document.getElementById(uid + '_input');
                     const ok = document.getElementById(uid + '_ok');
                     const cancel = document.getElementById(uid + '_cancel');
@@ -16351,7 +16485,7 @@ window.mu_syncHtmlBg = function(){
                     if (ok) ok.onclick = submit;
                     if (cancel) cancel.onclick = () => finish(null);
                     if (x) x.onclick = () => finish(null);
-                }, 0);
+                })();
             });
         }
 
@@ -16401,7 +16535,7 @@ window.mu_syncHtmlBg = function(){
                         <button class="btn-main image-export-all-btn" type="button" id="${uid}_ok">${escapeHtml(opts.okText || (fa ? '✔️ تایید' : '✔️ OK'))}</button>
                     </div>
                 `);
-                setTimeout(() => {
+                (() => {
                     const input = document.getElementById(uid + '_input');
                     const ok = document.getElementById(uid + '_ok');
                     const cancel = document.getElementById(uid + '_cancel');
@@ -16424,7 +16558,7 @@ window.mu_syncHtmlBg = function(){
                     if (ok) ok.onclick = submit;
                     if (cancel) cancel.onclick = () => finish(null);
                     if (x) x.onclick = () => finish(null);
-                }, 0);
+                })();
             });
         }
 
@@ -16479,7 +16613,7 @@ window.mu_syncHtmlBg = function(){
                         <button class="btn-main image-export-all-btn" type="button" id="${uid}_ok">${escapeHtml(opts.okText || (fa ? '✔️ تایید' : '✔️ OK'))}</button>
                     </div>
                 `);
-                setTimeout(() => {
+                (() => {
                     const inputs = fields.map((f, i) => document.getElementById(`${uid}_f${i}`));
                     const ok = document.getElementById(uid + '_ok');
                     const cancel = document.getElementById(uid + '_cancel');
@@ -16502,7 +16636,7 @@ window.mu_syncHtmlBg = function(){
                     if (cancel) cancel.onclick = () => finish(null);
                     if (x) x.onclick = () => finish(null);
                     if (extra) extra.onclick = () => finish({ action: 'extra' });
-                }, 0);
+                })();
             });
         }
 
@@ -17140,7 +17274,7 @@ window.mu_syncHtmlBg = function(){
                     </div>
                 `);
 
-                setTimeout(() => {
+                (() => {
                     const input = document.getElementById(`${uid}_input`);
                     const okBtn = document.getElementById(`${uid}_ok`);
                     const cancelBtn = document.getElementById(`${uid}_cancel`);
@@ -17154,7 +17288,7 @@ window.mu_syncHtmlBg = function(){
                     if (okBtn) okBtn.onclick = confirmChoice;
                     if (cancelBtn) cancelBtn.onclick = () => finish(null);
                     if (xBtn) xBtn.onclick = () => finish(null);
-                }, 0);
+                })();
             });
         }
 
@@ -18555,9 +18689,14 @@ window.mu_syncHtmlBg = function(){
             }
         }
 
-        function addNewFolder() {
+        async function addNewFolder() {
             const t = i18n[currentLang];
-            const name = prompt(t.promptNewFolder);
+            const fa = currentLang === 'fa';
+            const name = await promptStyledText({
+                title: fa ? '📁 پوشه جدید' : '📁 New folder',
+                placeholder: t.promptNewFolder,
+                okText: fa ? '➕ افزودن' : '➕ Add'
+            });
             if (name && name.trim() !== '') {
                 const cleanName = name.trim();
                 if (folders.some(f => normalizeText(f) === normalizeText(cleanName))) {
@@ -20139,6 +20278,7 @@ function addFeatureTools(item,box){
  const tagHelpEn='Separate tags with a comma (,). Example: work, important, project X → this makes 3 separate tags: "work", "important" and "project X".';
  tags.innerHTML='<input class="markhin-tag-input" placeholder="'+(currentLang==='fa'?'تگ‌ها را با کاما جدا کن، مثلا: کار, مهم':'Tags, comma separated e.g. work, important')+'"><button type="button" class="markhin-tag-help" aria-label="'+(currentLang==='fa'?'راهنمای تگ‌ها':'Tag help')+'">ⓘ<span class="markhin-tag-tooltip">'+(currentLang==='fa'?tagHelpFa:tagHelpEn)+'</span></button>';
  const inp=tags.firstElementChild;inp.value=item.tags.join(', ');
+ inp.onfocus=()=>mu_scrollFieldIntoView(inp);
  // Tags aren't displayed anywhere else in the open note or the main list
  // (only in the Dashboard/Note-DNA views, which render fresh whenever
  // they're opened), so saving them never needs the renderApp() full list
@@ -20305,7 +20445,7 @@ window.editFake=async function(id){
                 <button class="btn-main image-export-all-btn" type="button" id="${uid}_ok">✔️ ${fa?'ذخیره':'Save'}</button>
             </div>
         `);
-        setTimeout(()=>{
+        (()=>{
             const input=document.getElementById(uid+'_input');
             const ok=document.getElementById(uid+'_ok');
             const cancel=document.getElementById(uid+'_cancel');
@@ -20317,7 +20457,7 @@ window.editFake=async function(id){
             if(cancel)cancel.onclick=()=>finish(null);
             if(x)x.onclick=()=>finish(null);
             if(disable)disable.onclick=()=>finish({action:'disable'});
-        },0);
+        })();
     });
     // Canceling (✕ / Cancel / Escape / tap outside) resolves null and
     // nothing below ever runs, so nothing gets touched.
@@ -20384,8 +20524,8 @@ function mkScrollToUnlockedNoteText(id){
     },80)));
 }
 window.handleCategoryClick=async function(id){const item=categories.find(c=>c.id===id);if(!item)return;const wasOpen=(activeOpenId===id);if(isNoteLocked(item)){const pass=await promptNotePassword(item);if(pass===null)return;if(!await unlockNote(item,pass.trim())){item.isDecoy=true;activeOpenId=(activeOpenId===id)?null:id;renderApp(activeOpenId);alert(i18n[currentLang].wrongPass);return;}item.isDecoy=false;activeOpenId=(activeOpenId===id)?null:id;renderApp(activeOpenId);if(!wasOpen)mkScrollToUnlockedNoteText(id);return;}else item.isDecoy=false;activeOpenId=(activeOpenId===id)?null:id;renderApp(activeOpenId);if(!wasOpen&&activeOpenId===id)mkScrollToUnlockedNoteText(id);};
-const oldRender=window.renderContents;window.renderContents=function(filtered){oldRender(filtered);const open=categories.find(x=>x.id===activeOpenId);if(open&&!open.isDecoy){const box=document.getElementById('container-'+open.id);if(box)setTimeout(()=>addFeatureTools(open,box),0)}};
-window.renderApp=function(openId=activeOpenId){baseRenderApp(openId);const open=categories.find(x=>x.id===activeOpenId);if(open&&!open.isDecoy){const box=document.getElementById('container-'+open.id);if(box)setTimeout(()=>addFeatureTools(open,box),0)}};
+const oldRender=window.renderContents;window.renderContents=function(filtered){oldRender(filtered);const open=categories.find(x=>x.id===activeOpenId);if(open&&!open.isDecoy){const box=document.getElementById('container-'+open.id);if(box)addFeatureTools(open,box)}};
+window.renderApp=function(openId=activeOpenId){baseRenderApp(openId);const open=categories.find(x=>x.id===activeOpenId);if(open&&!open.isDecoy){const box=document.getElementById('container-'+open.id);if(box)addFeatureTools(open,box)}};
 
 window.toggleMarkdownEditor=function(id){const text=document.getElementById('text-'+id),item=categories.find(x=>x.id===id);if(!text||!item)return;if(M.mdMode[id]){const ta=text.parentNode.querySelector('.markhin-md-source');item.html=mdToHtml(ta?.value||'');item.text=(ta?.value||'');delete M.mdMode[id];saveToLocalStorage();renderApp(id);return;}const ta=document.createElement('textarea');ta.className='markhin-md-source';ta.value=htmlToMd(item.html||text.innerHTML);text.style.display='none';text.parentNode.insertBefore(ta,text);M.mdMode[id]=true;showToast(currentLang==='fa'?'حالت Markdown فعال شد؛ دوباره MD را بزن تا ذخیره شود.':'Markdown mode enabled; press MD again to save.');};
 window.exportSingleHTML=async function(id){
@@ -20881,7 +21021,18 @@ return {
 // Keep the native getVisibleCategories implementation; do not wrap it recursively.
 window.getVisibleCategories = getVisibleCategories;
 /* Link notes with [[Note Name]] syntax. */
-const oldToggle=window.toggleCategory;window.toggleCategory=function(id){const item=categories.find(x=>x.id===id);if(item){const textEl=document.getElementById('text-'+id);if(textEl){textEl.querySelectorAll('a[data-markhin-link]').forEach(a=>a.removeEventListener('click',a.__mh));textEl.innerHTML=sanitizeHtml(textEl.innerHTML).replace(/\[\[([^\]]+)\]\]/g,(m,name)=>{const target=categories.find(x=>normalizeText(x.name)===normalizeText(name));return target?'<a href="#" data-markhin-link="'+escapeHtml(target.id)+'">'+escapeHtml(name)+'</a>':escapeHtml(m)});textEl.querySelectorAll('a[data-markhin-link]').forEach(a=>{const fn=e=>{e.preventDefault();handleCategoryClick(a.dataset.markhinLink)};a.__mh=fn;a.addEventListener('click',fn)});}}oldToggle(id)};
+const oldToggle=window.toggleCategory;window.toggleCategory=function(id){const item=categories.find(x=>x.id===id);if(item){const textEl=document.getElementById('text-'+id);
+// Perf fix (note open/close felt laggy, worse with images/audio in the note):
+// this used to run a full sanitizeHtml() (creates a <template>, walks every
+// node) + regex replace + innerHTML rewrite + listener rebind on EVERY single
+// open/close of EVERY note, even though almost no notes actually use the
+// [[Note Name]] link syntax, and a note that was already linkified on a prior
+// open has no literal "[[" left to find anyway. That's exactly the kind of
+// synchronous main-thread work that delays the title/content box showing up
+// and the keyboard opening right after a tap. A cheap substring check first
+// skips all of that entirely for the common case; the expensive path only
+// still runs the first time a note containing real [[links]] is opened.
+if(textEl && textEl.innerHTML.indexOf('[[')!==-1){textEl.querySelectorAll('a[data-markhin-link]').forEach(a=>a.removeEventListener('click',a.__mh));textEl.innerHTML=sanitizeHtml(textEl.innerHTML).replace(/\[\[([^\]]+)\]\]/g,(m,name)=>{const target=categories.find(x=>normalizeText(x.name)===normalizeText(name));return target?'<a href="#" data-markhin-link="'+escapeHtml(target.id)+'">'+escapeHtml(name)+'</a>':escapeHtml(m)});textEl.querySelectorAll('a[data-markhin-link]').forEach(a=>{const fn=e=>{e.preventDefault();handleCategoryClick(a.dataset.markhinLink)};a.__mh=fn;a.addEventListener('click',fn)});}}oldToggle(id)};
 })();
 </script>
 
@@ -21261,7 +21412,6 @@ mu_renderNotePreviewToggle();
 window.MarkhinNoteDeleteMode = false;
 window.renderButtons = function(filtered){
     const c = document.getElementById('buttonsContainer'); if(!c) return;
-    c.innerHTML = '';
     c.classList.toggle('note-delete-mode', !!window.MarkhinNoteDeleteMode);
     const list = filtered || getVisibleCategories();
     const t = i18n[currentLang];
@@ -21272,38 +21422,68 @@ window.renderButtons = function(filtered){
     const sortCmp = mu_noteSortComparator(mu_getNoteSortMode());
     const ordered = searching ? list.slice() : [...list].sort((a,b)=>(Number(b.pinned)-Number(a.pinned))||(Number(b.favorite)-Number(a.favorite))||sortCmp(a,b));
 
-    ordered.forEach((item, idx)=>{
+    // Perf fix (tapping a note feeling slow to "come up"): this used to wipe
+    // the whole list (c.innerHTML='') and recreate every row — new wrap div,
+    // new button, new onclick closure, the works — on every single call,
+    // even though the most common trigger (opening/closing one note,
+    // pinning, favoriting, typing into search) only ever changes a class or
+    // a label on one or two rows. With more than a handful of notes that
+    // O(n) full-list rebuild ran synchronously right before the tapped
+    // note's own box could appear — that rebuild, not the box itself, was
+    // the delay. Existing row nodes are now looked up by note id and reused
+    // in place (classes/labels patched only where they actually changed);
+    // only rows that actually leave or enter the visible/sorted set touch
+    // the DOM node count.
+    const wantIds = new Set(ordered.map(item => String(item.id)));
+    const existingByCid = new Map();
+    Array.from(c.children).forEach(child => {
+        const cid = child.dataset ? child.dataset.id : null;
+        if (cid && wantIds.has(cid)) existingByCid.set(cid, child);
+        else if (child.parentNode === c) c.removeChild(child);
+    });
+
+    let prevNode = null;
+    ordered.forEach((item)=>{
         if(!Array.isArray(item.tags)) item.tags=[];
-        const wrap = document.createElement('div'); wrap.className='note-btn-wrap'; wrap.dataset.id=item.id;
-        const b = document.createElement('button');
-        b.className = 'custom-btn note-item '+(activeOpenId===item.id?'active-btn ':'')+(item.pinned?'note-pinned ':'')+(item.favorite?'note-favorite ':'');
+        const cid = String(item.id);
+        let wrap = existingByCid.get(cid);
+        let b;
+        if(!wrap){
+            wrap = document.createElement('div'); wrap.className='note-btn-wrap'; wrap.dataset.id=cid;
+            b = document.createElement('button');
+            b.dataset.noteId = item.id;
+            wrap.appendChild(b);
+        } else {
+            b = wrap.querySelector('.custom-btn');
+        }
+        const wantClass = 'custom-btn note-item '+(activeOpenId===item.id?'active-btn ':'')+(item.pinned?'note-pinned ':'')+(item.favorite?'note-favorite ':'');
+        if(b.className !== wantClass) b.className = wantClass;
         b.setAttribute('aria-expanded', activeOpenId===item.id ? 'true':'false');
-        // Bug fix: mcLiveTitle()/mcCommitTitle() (in the open note editor,
-        // fired on every keystroke of the title field) look this button up
-        // by data-note-id to live-patch its label as you type — but this
-        // attribute was never actually set here, so that lookup always
-        // came back empty and silently did nothing. The list row's title
-        // only ever caught up on the next full renderButtons() call (e.g.
-        // closing the note), not while you were still typing it.
-        b.dataset.noteId = item.id;
-        if(window.MarkhinNoteDeleteMode) b.style.animationDelay = '0s';
+        b.style.animationDelay = window.MarkhinNoteDeleteMode ? '0s' : '';
         const titleHtml = escapeHtml((isNoteLocked(item)?'🔒 ':'')+(item.pinned?'📌 ':'')+(item.favorite?'⭐ ':'')+(item.fakeContent?'🎭 ':'')+String(item.name||''));
         const metaText = mu_noteMetaLine(item);
-        b.innerHTML = '<span class="note-item-title">'+titleHtml+'</span>'
+        const wantHtml = '<span class="note-item-title">'+titleHtml+'</span>'
             + (metaText ? '<span class="note-item-meta">'+escapeHtml(metaText)+'</span>' : '');
+        if(b.innerHTML !== wantHtml) b.innerHTML = wantHtml;
         b.onclick = ()=>{
             if(searching){ mu_openAndHighlight(item.id, mu_queryTerms(rawQuery)); }
             else { handleCategoryClick(item.id); }
         };
-        wrap.appendChild(b);
+        let x = wrap.querySelector('.note-del-x');
         if(window.MarkhinNoteDeleteMode){
-            const x = document.createElement('button');
-            x.type='button'; x.className='close-folder-btn note-del-x'; x.textContent='✖';
+            if(!x){
+                x = document.createElement('button');
+                x.type='button'; x.className='close-folder-btn note-del-x'; x.textContent='✖';
+                wrap.appendChild(x);
+            }
             x.title = currentLang==='fa' ? 'حذف این یادداشت' : 'Delete this note';
             x.onclick = (e)=>{ e.stopPropagation(); deleteCategory(item.id); };
-            wrap.appendChild(x);
+        } else if(x){
+            wrap.removeChild(x);
         }
-        c.appendChild(wrap);
+        const wantNext = prevNode ? prevNode.nextSibling : c.firstChild;
+        if(wantNext !== wrap) c.insertBefore(wrap, wantNext);
+        prevNode = wrap;
     });
 };
 
@@ -21359,9 +21539,33 @@ window.renderButtons = function(filtered){
    --------------------------------------------------------------- */
 (function(){
     let startY = 0;
+    // Perf fix (scroll feels sluggish/stuttery app-wide, not just in games):
+    // the touchmove handler below used to redo this same DOM-ancestor walk +
+    // getComputedStyle() call on EVERY touchmove event, for every ordinary
+    // scroll gesture anywhere in the app (list scrolling, an open note,
+    // modals — not just gameplay, which already got its own bypass here).
+    // getComputedStyle forces a synchronous style/layout flush, and a single
+    // scroll drag fires touchmove many times, so that was a real per-frame
+    // main-thread cost on every scroll, not a one-off. The touched element
+    // (and therefore its scrollable-ancestor chain) doesn't change mid-drag,
+    // so the walk now runs once per gesture, here at touchstart, and
+    // touchmove just reuses the cached answer instead of redoing it dozens
+    // of times over the course of one drag.
+    let cachedBlockScroll = false;
     document.addEventListener('touchstart', function(e){
         if(e.touches.length !== 1) return;
         startY = e.touches[0].clientY;
+        cachedBlockScroll = false;
+        let node = e.target;
+        while(node && node !== document.body){
+            if(node.nodeType === 1){
+                const cs = getComputedStyle(node);
+                const canScrollY = (cs.overflowY === 'auto' || cs.overflowY === 'scroll') && node.scrollHeight > node.clientHeight;
+                const canScrollX = (cs.overflowX === 'auto' || cs.overflowX === 'scroll') && node.scrollWidth > node.clientWidth;
+                if(canScrollY || canScrollX){ cachedBlockScroll = true; break; }
+            }
+            node = node.parentNode;
+        }
     }, {passive:true});
     document.addEventListener('touchmove', function(e){
         if(e.touches.length !== 1) return;
@@ -21384,19 +21588,11 @@ window.renderButtons = function(filtered){
         // exactly where this was reported. None of this walk is needed
         // while a game is playing anyway: the game screen is a
         // fixed-position fullscreen overlay, so the page underneath
-        // can't be scrolled/bounced regardless.
+        // can't be scrolled/bounced regardless. (The walk itself now only
+        // ever runs at touchstart, above — see the perf-fix comment there.)
         const gamePlayEl = document.getElementById('gamePlayArea');
         if(gamePlayEl && gamePlayEl.style.display === 'flex') return;
-        let node = e.target;
-        while(node && node !== document.body){
-            if(node.nodeType === 1){
-                const cs = getComputedStyle(node);
-                const canScrollY = (cs.overflowY === 'auto' || cs.overflowY === 'scroll') && node.scrollHeight > node.clientHeight;
-                const canScrollX = (cs.overflowX === 'auto' || cs.overflowX === 'scroll') && node.scrollWidth > node.clientWidth;
-                if(canScrollY || canScrollX) return;
-            }
-            node = node.parentNode;
-        }
+        if(cachedBlockScroll) return;
         const dy = e.touches[0].clientY - startY;
         const doc = document.documentElement;
         const atTop = window.scrollY <= 0;
@@ -21617,7 +21813,16 @@ document.addEventListener('click', function(e){
     }
 }, true);
 
-/* Tapping anywhere empty on the page closes the currently open note.
+let mu_focusedBeforeTap = null;
+document.addEventListener('pointerdown', function(){
+    mu_focusedBeforeTap = document.activeElement;
+}, true);
+
+/* Tapping anywhere empty on the page closes the currently open note —
+   unless the keyboard is currently up because the title/content/tag field
+   of that note is focused, in which case the tap just dismisses the
+   keyboard first (see mu_focusedBeforeTap above) and leaves the note open;
+   a second tap on empty space then closes it, same as before.
    Excluded: the open note's own content area (so interacting with the
    note doesn't close it), its note button (which already toggles it
    itself), any open modal overlay (so using a modal doesn't yank
@@ -21635,6 +21840,12 @@ document.addEventListener('click', function(e){
     if(e.target.closest('.header-nav')) return;
     if(e.target.closest('#gameModal')) return;
     if(e.target.closest('[data-mu-download-anchor]')) return; // programmatic file-download click, not a real outside tap
+    const activeBox = document.getElementById('container-'+activeOpenId);
+    const focused = mu_focusedBeforeTap;
+    if (focused && focused !== document.body && activeBox && activeBox.contains(focused)) {
+        if (typeof focused.blur === 'function') focused.blur();
+        return;
+    }
     activeOpenId = null;
     renderApp(null);
 }, true);
