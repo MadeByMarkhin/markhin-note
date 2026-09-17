@@ -11290,44 +11290,7 @@ window.mu_syncHtmlBg = function(){
             // rounds of those fixes. Dropped here; alpha:false alone still
             // gets the (real, safe) opaque-canvas compositing win explained
             // below.
-            //
-            // Bug fix (real, persistent-from-frame-one cause of "obstacles
-            // constantly trembling/shaking, almost like they double up" —
-            // reported as CONSTANT, not occasional, and specifically inside
-            // Telegram's in-app Android WebView): everything above already
-            // makes the simulation's own timing rock-solid and snaps every
-            // draw position to a whole device pixel — but that snapping can
-            // only ever be as good as what `dpr` (window.devicePixelRatio)
-            // reports. A number of Android WebViews, Telegram's embedded one
-            // very much included, run their OWN display-scaling layer on top
-            // of the page (accessibility font/display-size scaling, or the
-            // host app's own view zoom) that is NOT reflected in
-            // devicePixelRatio at all — so the position this file carefully
-            // rounds to "a whole device pixel" can still land on a
-            // fractional pixel of the REAL screen the WebView actually
-            // paints to. When that happens, the browser's GPU-accelerated
-            // canvas compositor bilinear-resamples every sprite blit against
-            // that real (unreported) fractional offset, every single frame,
-            // which is exactly what a persistent, constant shimmer on a
-            // moving sprite's edges looks like — including the "looks like
-            // it doubles" report, since resampling a hard edge at a
-            // fractional offset literally paints a partial second edge next
-            // to the real one. No amount of more-precise JS timing/position
-            // math can fix a mismatch that's happening one level below it,
-            // in the browser's own compositor. Two independent, safe
-            // mitigations, neither of which changes anything else about how
-            // the games look or play: `willReadFrequently: true` is a
-            // standard hint that steers the browser toward this canvas's
-            // plain CPU/software raster path instead of a GPU-composited
-            // layer, which sidesteps GPU-compositor resampling entirely;
-            // and forcing imageSmoothingEnabled off means that even a sprite
-            // blit that does land on a fractional pixel is drawn with crisp
-            // nearest-neighbor sampling instead of blended/blurred — so a
-            // residual fractional-pixel offset (from either cause) can no
-            // longer paint as a soft double edge, only as a sharp one-pixel
-            // shift too small to read as "trembling".
-            const ctx = canvas.getContext('2d', { alpha: false, willReadFrequently: true });
-            ctx.imageSmoothingEnabled = false;
+            const ctx = canvas.getContext('2d', { alpha: false });
             ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
             // resize apart from cosmetic viewport jitter and skip needless
             // restarts — see the bug fix there.
