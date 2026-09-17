@@ -6987,8 +6987,40 @@
             flex: 1 1 auto;
             min-height: 0;
             display: flex;
-            align-items: center;
-            justify-content: center;
+            /* Bug fix ("obstacles trembling/jittering, vertical only, worst in
+               Telegram's Mini App"): this used to be align-items:center /
+               justify-content:center. fitGameCanvas() sizes the <canvas> in
+               pixels to exactly match this wrapper's rect at the moment a
+               game starts (or gets a real re-fit) — so in normal steady
+               state the canvas already fills the wrapper exactly and
+               centering is a no-op either way. The bug only shows up in the
+               brief windows where they're mismatched: Telegram's in-app
+               WebView fires 'viewportChanged' fairly often with just a few
+               px of safe-area/rounding noise (see mu_setAppVh's own 4px
+               debounce comment), and each time that noise is big enough to
+               nudge --app-1vh, this wrapper's CSS height changes slightly —
+               *before* the canvas itself gets resized (that only happens on
+               a real re-fit, gated by mAiGameScheduleRefit's much larger
+               30px threshold so the game doesn't keep restarting). With
+               align-items:center, that transient few-px height delta was
+               split above/below the still-fixed-size canvas, so the canvas
+               (and every obstacle drawn inside it) visibly shifted up/down
+               by half that delta — a real per-frame position change no
+               amount of the in-canvas interpolation/sub-pixel-snapping
+               fixes elsewhere in this file could ever catch, since it's
+               happening one layer up, in CSS, not in the canvas's own
+               drawing coordinates. --app-1vh only ever affects this
+               wrapper's *height* (width is a stable 100vw — Telegram
+               doesn't fluctuate viewport width the way it does height),
+               which is exactly why the trembling was reported as vertical
+               only and never horizontal. Anchoring to the top-left instead
+               means that transient extra/missing space only ever appears
+               as a sliver below/right of the canvas (invisible against the
+               matching background) instead of shifting the canvas — and
+               therefore every obstacle in it — on every noisy
+               viewportChanged event.  */
+            align-items: flex-start;
+            justify-content: flex-start;
             overflow: hidden;
             /* Touch/mouse input for both games is now bound to this wrapper
                (not just the canvas) so the whole play area below the top bar
