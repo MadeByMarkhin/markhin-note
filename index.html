@@ -11290,7 +11290,65 @@ window.mu_syncHtmlBg = function(){
             // rounds of those fixes. Dropped here; alpha:false alone still
             // gets the (real, safe) opaque-canvas compositing win explained
             // below.
+            //
+            // Bug fix (real, persistent-from-frame-one cause of "obstacles
+            // constantly trembling/shaking, almost like they double up" —
+            // reported as CONSTANT, not occasional, and specifically inside
+            // Telegram's in-app Android WebView): everything above already
+            // makes the simulation's own timing rock-solid and snaps every
+            // draw position to a whole device pixel — but that snapping can
+            // only ever be as good as what `dpr` (window.devicePixelRatio)
+            // reports. A number of Android WebViews, Telegram's embedded one
+            // very much included, run their OWN display-scaling layer on top
+            // of the page (accessibility font/display-size scaling, or the
+            // host app's own view zoom) that is NOT reflected in
+            // devicePixelRatio at all — so the position this file carefully
+            // rounds to "a whole device pixel" can still land on a
+            // fractional pixel of the REAL screen the WebView actually
+            // paints to. When that happens, the browser's GPU-accelerated
+            // canvas compositor bilinear-resamples every sprite blit against
+            // that real (unreported) fractional offset, every single frame,
+            // which is exactly what a persistent, constant shimmer on a
+            // moving sprite's edges looks like — including the "looks like
+            // it doubles" report, since resampling a hard edge at a
+            // fractional offset literally paints a partial second edge next
+            // to the real one. No amount of more-precise JS timing/position
+            // math can fix a mismatch that's happening one level below it,
+            // in the browser's own compositor. Two independent, safe
+            // mitigations, neither of which changes anything else about how
+            // the games look or play: `willReadFrequently: true` is a
+            // standard hint that steers the browser toward this canvas's
+            // plain CPU/software raster path instead of a GPU-composited
+            // layer, which sidesteps GPU-compositor resampling entirely;
+            // and forcing imageSmoothingEnabled off means that even a sprite
+            // blit that does land on a fractional pixel is drawn with crisp
+            // nearest-neighbor sampling instead of blended/blurred — so a
+            // residual fractional-pixel offset (from either cause) can no
+            // longer paint as a soft double edge, only as a sharp one-pixel
+            // shift too small to read as "trembling".
+            // PERF FIX (root cause of "game got very slow, in Telegram and
+            // everywhere"): willReadFrequently:true used to be passed here.
+            // That hint tells the browser this canvas will call
+            // getImageData() a lot, so it should permanently switch the
+            // canvas to the CPU/software rasterizer instead of the normal
+            // GPU-composited path — which is exactly what happened, on
+            // every device, for every game sharing this canvas (Flappy,
+            // Racer, Dead Road, Snake), every single frame. None of these
+            // games ever call getImageData on this canvas (that call only
+            // exists on the separate note-drawing canvases elsewhere in
+            // this file), so this canvas was paying the full cost of
+            // software rendering — much heavier per pixel than GPU
+            // compositing, and worst of all on exactly the weaker Android
+            // phones/Telegram in-app WebViews this app targets — for
+            // nothing in return. It was added earlier to chase a rare,
+            // speculative tremor theory; the tremor is already fully
+            // handled by the fixed-timestep simulation and the
+            // device-pixel snapPx() rounding below, which don't depend on
+            // software vs. GPU rendering at all. Removing it lets the
+            // browser use GPU compositing again, which is the single
+            // biggest lever on canvas frame rate on mobile.
             const ctx = canvas.getContext('2d', { alpha: false });
+            ctx.imageSmoothingEnabled = false;
             ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
             // resize apart from cosmetic viewport jitter and skip needless
             // restarts — see the bug fix there.
@@ -14986,6 +15044,15 @@ window.mu_syncHtmlBg = function(){
             // uses so the "always a way through" guarantee still holds for
             // the biggest vehicle on the road, not just the average one.
             const truckW = carW * 1.26, truckH = carH * 1.18;
+            // Two extra traffic silhouettes besides the plain sedan/truck —
+            // a boxier, slightly larger SUV and a lower/narrower sport
+            // coupe — both still comfortably smaller than a truck in every
+            // dimension, so obsHMax (the largest anything can ever be,
+            // which every spacing/gap guarantee below is sized against)
+            // stays exactly the truck's size and none of that math needs
+            // to change.
+            const suvW = carW * 1.12, suvH = carH * 1.06;
+            const sportW = carW * 0.86, sportH = carH * 1.12;
             const obsHMax = truckH;
 
             let playerLane = 1;
@@ -15072,24 +15139,16 @@ window.mu_syncHtmlBg = function(){
             // prevRoadOffset/prevMountainOffset let render() interpolate
             // these the same way, closing the last gap.
             let prevRoadOffset = 0, prevMountainOffset = 0;
-            // Bug fix ("obstacles trembling/shaking" — same class of bug
-            // already fixed in Twin Lane Racer and Cyber Flappy): trafficDrift()
-            // below was being driven by the raw rAF `ts` that loop() hands
-            // step(), and on the affected Telegram in-app WebView builds that
-            // `ts` can repeat the exact same value one frame and then jump by
-            // roughly double the next (see the performance.now()/acc fix
-            // further down for the full explanation). That staleness is
-            // already isolated away from the tick accumulator, but trafficDrift
-            // used the raw ts directly to nudge each car's real, collision-
-            // relevant o.y position — so the same stall-then-jump pattern
-            // leaked straight into the traffic's on-screen position as a
-            // visible tremor, even though the fixed-step simulation itself
-            // was running smoothly underneath. simMs is a clock that only
-            // ever advances by exactly STEP_MS once per simulated tick (see
-            // step() below), so it can't inherit the raw rAF timestamp's
-            // staleness — using it in place of ts for trafficDrift removes
-            // the tremor at the source, the same way the other two games'
-            // fixes did for their own obstacles.
+            // simMs is a clock that only ever advances by exactly STEP_MS
+            // once per simulated tick (see step() below), never from the raw
+            // rAF timestamp — used anywhere a car's actual position/motion
+            // needs a time input, so it can't inherit rAF's frame-to-frame
+            // staleness. (This game used to also drive a per-lane sine-wave
+            // "drift" speed wobble and a cosmetic sine "bob" from a time
+            // value, both real, continuous causes of the reported vertical
+            // trembling — both have been removed; obstacles now move at a
+            // constant, un-wobbled speed. See spawnWave()/step()/render()
+            // below.)
             let simMs = 0, prevSimMs = 0;
 
             // Bug fix ("some spots are completely impossible to get through"):
@@ -15123,7 +15182,19 @@ window.mu_syncHtmlBg = function(){
             // pixel gap against the fastest speed the run can ever reach
             // guarantees at least REACTION_MS of real time between waves no
             // matter how far into a run the player already is.
-            const maxPossibleSpeed = (baseSpeed + maxSpeedGain + timeRampStep * timeRampMaxSteps) * 1.18 * 1.2;
+            // Traffic no longer all moves at one identical shared speed —
+            // each vehicle gets its own small speed multiplier (see
+            // TRAFFIC_SPD_MIN/MAX + spawnWave() below) so cars visibly pull
+            // ahead of / fall behind one another, giving a real sense of
+            // overtaking on the highway instead of the whole road moving
+            // as one rigid block. TRAFFIC_SPD_MAX is folded into the same
+            // worst-case speed used to size the safety gap between waves,
+            // so a fast individual vehicle can never close the gap on the
+            // player any quicker than the fairness math already accounts
+            // for — "some cars are quicker" never becomes "some spots are
+            // impossible".
+            const TRAFFIC_SPD_MIN = 0.86, TRAFFIC_SPD_MAX = 1.16;
+            const maxPossibleSpeed = (baseSpeed + maxSpeedGain + timeRampStep * timeRampMaxSteps) * 1.18 * 1.2 * TRAFFIC_SPD_MAX;
             const REACTION_MS = 650;
             const reactionPixelGap = maxPossibleSpeed * (REACTION_MS / (1000 / 60));
             const basePixelGap = Math.max(120, height * 0.42, (collisionBand * 1.6) / 0.78, reactionPixelGap);
@@ -15131,27 +15202,19 @@ window.mu_syncHtmlBg = function(){
             let nextGap = basePixelGap;
             function jitteredGap() { return basePixelGap * (0.85 + Math.random() * 0.45); }
 
-            // Traffic drift ("smooth overtaking"): cars in different lanes
-            // gently gain and lose ground on each other while still far up
-            // the road — a soft sine wobble on top of the shared base
-            // speed, so lanes visibly overtake one another instead of
-            // scrolling down in perfect lockstep rows. Stretched further up
-            // the road (0.62 -> 0.74) and given a stronger wobble (driftAmp
-            // below) than before, so the overtaking actually reads clearly
-            // instead of being a subtle wiggle. It still fades out
-            // completely by the time a car is within ~26% of the trip to
-            // the player, so every obstacle moves at the exact same
-            // uniform speed through the whole collision-critical stretch
-            // near the player — that's what keeps the "always a way
-            // through" guarantee below intact: the gap-spacing math only
-            // ever has to reason about one shared speed for anything close
-            // enough to matter.
-            const driftSyncY = horizonY + (playerY - horizonY) * 0.74;
-            function trafficDrift(o, ts) {
-                if (o.y >= driftSyncY) return 1;
-                const fade = 1 - Math.max(0, Math.min(1, (o.y - horizonY) / (driftSyncY - horizonY)));
-                return 1 + Math.sin(ts / 640 + o.bounceSeed) * o.driftAmp * fade;
-            }
+            // Bug fix ("obstacles trembling/shaking up and down" — still
+            // happening after every earlier timing/interpolation fix in
+            // this file): this per-lane "smooth overtaking" wobble used to
+            // multiply each obstacle's forward speed by a sine wave every
+            // tick, which means the ACTUAL simulated y position (not just
+            // its on-screen rendering) sped up and slowed down over and
+            // over as a car approached — a real, continuous vertical wobble
+            // baked into the simulation itself, not a rendering artifact any
+            // amount of interpolation/timing fix could ever smooth out.
+            // Removed entirely: every obstacle now advances by the exact
+            // same `speed` every tick, with zero per-frame variation, so its
+            // motion is perfectly linear no matter the device, frame rate,
+            // or how long the run has gone on.
 
             // Nitro pacing ("later, and once every 13 real seconds"): pickups
             // are now paced by a real-time cooldown instead of a wave count,
@@ -15230,14 +15293,57 @@ window.mu_syncHtmlBg = function(){
                 // turns the toughest stretches from a coin flip into
                 // something reliably survivable.
                 const spawnY = isHardest ? -obsHMax * 1.45 : -obsHMax;
+                // One vehicle per wave may perform a real lane change — an
+                // actual overtaking/weaving maneuver, not just a cosmetic
+                // wobble — but only on waves that leave 2+ lanes open, and
+                // only ever swapping a blocked lane for an already-open
+                // one. That swap can never change how many lanes end up
+                // blocked (one closes exactly as the other opens, the
+                // instant the maneuver completes), so the wave's "always
+                // at least one way through" guarantee holds at every point
+                // during the maneuver, not just before/after it. It also
+                // always finishes well above the player's danger zone, so
+                // by the time it matters for a dodge the vehicle is
+                // already settled into its final lane.
+                let laneChangeFrom = null, laneChangeTo = null;
+                const changeEndY = playerY - collisionBand * 2.2;
+                if (!isHardest && openLanes.length >= 2 && blocked.length >= 1 && changeEndY > spawnY + collisionBand && Math.random() < 0.32) {
+                    laneChangeFrom = blocked[Math.floor(Math.random() * blocked.length)];
+                    laneChangeTo = openLanes[Math.floor(Math.random() * openLanes.length)];
+                }
                 blocked.forEach(lane => {
-                    const isTruck = Math.random() < 0.36;
+                    // A little more variety than plain "car vs truck":
+                    // a boxier SUV and a low sport coupe round out the
+                    // traffic mix so the road doesn't read as one shape
+                    // repeated in five colors.
+                    const roll = Math.random();
+                    const isTruck = roll < 0.22;
+                    const isSport = !isTruck && roll < 0.40;
+                    const isSuv = !isTruck && !isSport && roll < 0.68;
+                    const shape = isTruck ? 'truck' : (isSport ? 'sport' : (isSuv ? 'suv' : 'car'));
+                    const w = isTruck ? truckW : (isSport ? sportW : (isSuv ? suvW : obsW));
+                    const h = isTruck ? truckH : (isSport ? sportH : (isSuv ? suvH : obsH));
+                    const startX = laneCenterX(lane);
+                    const changing = lane === laneChangeFrom;
                     obstacles.push({
                         lane, y: spawnY, prevY: spawnY,
-                        w: isTruck ? truckW : obsW, h: isTruck ? truckH : obsH,
+                        x: startX, prevX: startX,
+                        w, h,
                         color: TRAFFIC_COLORS[Math.floor(Math.random() * TRAFFIC_COLORS.length)],
-                        shape: isTruck ? 'truck' : 'car',
-                        passed: false,
+                        shape, passed: false,
+                        // Every vehicle now closes on the player at its own
+                        // pace instead of in lockstep with the rest of its
+                        // wave (see TRAFFIC_SPD_MIN/MAX above) — this is
+                        // what lets a quicker car visibly pull away from a
+                        // slower one that started at the same y, i.e.
+                        // actually overtake it, rather than the whole wave
+                        // sliding down the screen as one rigid block.
+                        spdMul: TRAFFIC_SPD_MIN + Math.random() * (TRAFFIC_SPD_MAX - TRAFFIC_SPD_MIN),
+                        changeFromLane: changing ? lane : null,
+                        changeToLane: changing ? laneChangeTo : null,
+                        changeStartY: spawnY,
+                        changeEndY: changeEndY,
+                        changeDone: !changing,
                         // Purely cosmetic motion state (never read by the
                         // collision/spacing math, which only ever uses
                         // lane/y/w/h) — a random phase so cars don't all
@@ -15247,7 +15353,6 @@ window.mu_syncHtmlBg = function(){
                         // driving, not just sliding down as a static
                         // cut-out.
                         bounceSeed: Math.random() * Math.PI * 2,
-                        driftAmp: 0.09 + Math.random() * 0.13,
                         exhaustTimer: 150 + Math.random() * 200
                     });
                 });
@@ -15379,32 +15484,89 @@ window.mu_syncHtmlBg = function(){
             // The wheel brightness flicker and taillight glow are
             // genuinely time-based, so those two still draw fresh each
             // frame -- only the static part underneath them is cached.
+            // Small helper so every traffic body can get a lighter roof
+            // panel / darker lower shade from its single base color,
+            // instead of every vehicle being one flat block of color.
+            function shadeColor(hex, percent) {
+                const num = parseInt(hex.replace('#', ''), 16);
+                let r = Math.max(0, Math.min(255, (num >> 16) + Math.round(255 * percent)));
+                let g = Math.max(0, Math.min(255, ((num >> 8) & 0xff) + Math.round(255 * percent)));
+                let b = Math.max(0, Math.min(255, (num & 0xff) + Math.round(255 * percent)));
+                return '#' + (0x1000000 + r * 0x10000 + g * 0x100 + b).toString(16).slice(1);
+            }
             const trafficSpriteCache = Object.create(null);
             function getTrafficBodySprite(shape, color, bw, bh) {
                 const key = shape + '|' + color;
                 const cached = trafficSpriteCache[key];
                 if (cached) return cached;
-                const isTruck = shape === 'truck';
+                const isTruck = shape === 'truck', isSuv = shape === 'suv', isSport = shape === 'sport';
                 const sw = Math.ceil(bw * 1.2), sh = Math.ceil(bh * 1.1);
                 const off = document.createElement('canvas');
                 off.width = sw; off.height = sh;
                 const octx = off.getContext('2d');
                 octx.translate(sw / 2, sh / 2);
-                octx.beginPath();
-                octx.roundRect(-bw / 2, -bh / 2, bw, bh, bw * (isTruck ? 0.22 : 0.3));
-                octx.fillStyle = color; octx.fill();
-                if (isTruck) {
-                    octx.fillStyle = 'rgba(255,255,255,0.14)';
-                    octx.fillRect(-bw * 0.42, -bh * 0.44, bw * 0.84, bh * 0.22);
+                const lightShade = shadeColor(color, 0.16), darkShade = shadeColor(color, -0.22);
+                if (isSport) {
+                    // Low, tapered nose instead of a plain rounded box —
+                    // reads as a coupe even at this scale.
+                    octx.beginPath();
+                    octx.moveTo(0, -bh * 0.5);
+                    octx.lineTo(bw * 0.42, -bh * 0.28);
+                    octx.lineTo(bw * 0.46, bh * 0.42);
+                    octx.arcTo(bw * 0.46, bh * 0.5, bw * 0.3, bh * 0.5, bw * 0.14);
+                    octx.lineTo(-bw * 0.3, bh * 0.5);
+                    octx.arcTo(-bw * 0.46, bh * 0.5, -bw * 0.46, bh * 0.42, bw * 0.14);
+                    octx.lineTo(-bw * 0.46, bh * 0.42);
+                    octx.lineTo(-bw * 0.42, -bh * 0.28);
+                    octx.closePath();
+                    octx.fillStyle = color; octx.fill();
+                    // Racing stripe down the middle.
+                    octx.fillStyle = lightShade;
+                    octx.fillRect(-bw * 0.08, -bh * 0.46, bw * 0.16, bh * 0.9);
+                    // Rear spoiler.
+                    octx.fillStyle = darkShade;
+                    octx.fillRect(-bw * 0.34, bh * 0.36, bw * 0.68, bh * 0.06);
+                    octx.fillRect(-bw * 0.3, bh * 0.3, bw * 0.06, bh * 0.08);
+                    octx.fillRect(bw * 0.24, bh * 0.3, bw * 0.06, bh * 0.08);
+                } else {
+                    octx.beginPath();
+                    octx.roundRect(-bw / 2, -bh / 2, bw, bh, bw * (isTruck ? 0.18 : (isSuv ? 0.24 : 0.3)));
+                    octx.fillStyle = color; octx.fill();
+                    if (isSuv) {
+                        // Two-tone roofline — a shade lighter than the body,
+                        // running the length of the greenhouse.
+                        octx.fillStyle = lightShade;
+                        octx.fillRect(-bw * 0.34, -bh * 0.46, bw * 0.68, bh * 0.18);
+                        // Roof rails.
+                        octx.fillStyle = darkShade;
+                        octx.fillRect(-bw * 0.36, -bh * 0.4, bw * 0.05, bh * 0.5);
+                        octx.fillRect(bw * 0.31, -bh * 0.4, bw * 0.05, bh * 0.5);
+                    }
+                    if (isTruck) {
+                        octx.fillStyle = 'rgba(255,255,255,0.14)';
+                        octx.fillRect(-bw * 0.42, -bh * 0.44, bw * 0.84, bh * 0.22);
+                        octx.fillStyle = darkShade;
+                        octx.fillRect(-bw * 0.42, bh * 0.02, bw * 0.84, bh * 0.06);
+                    }
                 }
+                // Windshield — every non-sport shape shares this; the
+                // sport coupe gets its own lower, raked one instead.
                 octx.fillStyle = 'rgba(10,14,26,0.55)';
-                octx.fillRect(-bw * 0.32, -bh * 0.32, bw * 0.64, bh * (isTruck ? 0.36 : 0.26));
+                if (isSport) {
+                    octx.beginPath();
+                    octx.moveTo(-bw * 0.22, -bh * 0.24); octx.lineTo(bw * 0.22, -bh * 0.24);
+                    octx.lineTo(bw * 0.14, bh * 0.02); octx.lineTo(-bw * 0.14, bh * 0.02);
+                    octx.closePath(); octx.fill();
+                } else {
+                    octx.fillRect(-bw * 0.32, -bh * 0.32, bw * 0.64, bh * (isTruck ? 0.32 : (isSuv ? 0.24 : 0.26)));
+                }
                 trafficSpriteCache[key] = off;
                 return off;
             }
-            function drawTrafficVehicle(cx, cy, w, h, color, shape, ts, seed) {
+            function drawTrafficVehicle(cx, cy, w, h, color, shape, ts, seed, tilt) {
                 ctx.save();
                 ctx.translate(snapPx(cx), snapPx(cy));
+                if (tilt) ctx.rotate(tilt);
                 const bw = w, bh = h;
                 // Wheels drawn first so the body sits on top of them. The
                 // brightness pulse (driven by time + a per-car seed) reads
@@ -15509,6 +15671,9 @@ window.mu_syncHtmlBg = function(){
                     ctx.beginPath(); ctx.ellipse(0, -h * 0.18, w * 0.15, h * 0.12, 0, 0, Math.PI * 2); ctx.fill();
                     ctx.fillStyle = vehicle.accent;
                     ctx.fillRect(-w * 0.11, -h * 0.02, w * 0.22, h * 0.16);
+                    ctx.fillStyle = '#fff3c4'; ctx.shadowColor = '#fff3c4'; ctx.shadowBlur = 7;
+                    ctx.fillRect(-w * 0.1, -h * 0.47, w * 0.2, h * 0.06);
+                    ctx.shadowBlur = 0;
                     ctx.fillStyle = '#ff4d4d'; ctx.shadowColor = '#ff4d4d'; ctx.shadowBlur = 9;
                     ctx.fillRect(-w * 0.11, h * 0.38, w * 0.22, h * 0.07);
                     ctx.shadowBlur = 0;
@@ -15523,6 +15688,13 @@ window.mu_syncHtmlBg = function(){
                     ctx.roundRect(-w / 2, -h / 2, w, h, w * 0.42);
                     ctx.fillStyle = bodyColor;
                     ctx.fill();
+                    // Two-tone roof/hood highlight, a shade lighter than the
+                    // body — gives the car a rounded, less flat-looking top
+                    // instead of one uniform slab of color.
+                    ctx.fillStyle = shadeColor(bodyColor, 0.14);
+                    ctx.beginPath();
+                    ctx.roundRect(-w * 0.3, -h * 0.46, w * 0.6, h * 0.3, w * 0.24);
+                    ctx.fill();
                     // Side mirrors.
                     ctx.fillStyle = vehicle.mirror;
                     ctx.beginPath(); ctx.roundRect(-w * 0.58, -h * 0.05, w * 0.09, h * 0.08, w * 0.03); ctx.fill();
@@ -15534,6 +15706,12 @@ window.mu_syncHtmlBg = function(){
                     ctx.moveTo(-w * 0.26, -h * 0.36); ctx.lineTo(w * 0.26, -h * 0.36);
                     ctx.lineTo(w * 0.15, -h * 0.08); ctx.lineTo(-w * 0.15, -h * 0.08);
                     ctx.closePath(); ctx.fill();
+                    // Headlights at the nose, mirroring the taillights at
+                    // the rear.
+                    ctx.fillStyle = '#fff3c4'; ctx.shadowColor = '#fff3c4'; ctx.shadowBlur = 7;
+                    ctx.fillRect(-w * 0.4, -h * 0.47, w * 0.16, h * 0.07);
+                    ctx.fillRect(w * 0.24, -h * 0.47, w * 0.16, h * 0.07);
+                    ctx.shadowBlur = 0;
                     ctx.fillStyle = '#ff4d4d'; ctx.shadowColor = '#ff4d4d'; ctx.shadowBlur = 9;
                     ctx.fillRect(-w * 0.4, h * 0.36, w * 0.18, h * 0.08);
                     ctx.fillRect(w * 0.22, h * 0.36, w * 0.18, h * 0.08);
@@ -15619,7 +15797,7 @@ window.mu_syncHtmlBg = function(){
             const MAX_FRAME_MS = STEP_MS * 3;
 
             function step(ts) {
-                obstacles.forEach(o => { o.prevY = o.y; });
+                obstacles.forEach(o => { o.prevY = o.y; o.prevX = o.x; });
                 pickups.forEach(p => { p.prevY = p.y; });
                 prevRoadOffset = roadOffset;
                 prevMountainOffset = mountainOffset;
@@ -15650,13 +15828,42 @@ window.mu_syncHtmlBg = function(){
                     if (distSinceSpawn >= nextGap) { distSinceSpawn = 0; nextGap = jitteredGap(); spawnWave(); }
 
                     obstacles.forEach(o => {
-                        o.y += speed * trafficDrift(o, simMs);
+                        // Bug fix: was `o.y += speed * trafficDrift(...)`, a
+                        // sine-based per-tick speed wobble — see the removed
+                        // trafficDrift() definition above for why that read as
+                        // constant vertical trembling. Every obstacle now
+                        // moves at a constant speed every tick — but that
+                        // constant is the vehicle's OWN speed (speed *
+                        // o.spdMul), not the shared wave speed, so cars set
+                        // loose from the same wave visibly spread apart as
+                        // they close in: a quicker one pulls ahead and
+                        // overtakes a slower one that started at the exact
+                        // same y.
+                        o.y += speed * o.spdMul;
+                        // Lane-change maneuver (see spawnWave): ease the
+                        // vehicle's x from its spawn lane to its target
+                        // lane as it travels from changeStartY to
+                        // changeEndY, then lock it into the new lane for
+                        // good — this always finishes well above the
+                        // player, so the collision check below (which only
+                        // ever looks at o.lane, never o.x) is never in
+                        // doubt about which lane a vehicle "really" counts
+                        // as being in.
+                        if (!o.changeDone) {
+                            const span = o.changeEndY - o.changeStartY;
+                            const p = span > 0 ? Math.max(0, Math.min(1, (o.y - o.changeStartY) / span)) : 1;
+                            const eased = 1 - Math.pow(1 - p, 3);
+                            o.x = laneCenterX(o.changeFromLane) + (laneCenterX(o.changeToLane) - laneCenterX(o.changeFromLane)) * eased;
+                            if (p >= 1) { o.lane = o.changeToLane; o.changeDone = true; }
+                        } else {
+                            o.x = laneCenterX(o.lane);
+                        }
                         o.exhaustTimer -= STEP_MS;
                         if (o.exhaustTimer <= 0) {
                             o.exhaustTimer = 150 + Math.random() * 200;
                             // Only bother once it's actually on-screen; no
                             // point spawning particles still off the top.
-                            if (o.y > -o.h * 0.3) spawnExhaust(laneCenterX(o.lane), o.y + o.h * 0.42, 'rgba(190,196,214,0.5)');
+                            if (o.y > -o.h * 0.3) spawnExhaust(o.x, o.y + o.h * 0.42, 'rgba(190,196,214,0.5)');
                         }
                         if (!o.passed && o.y > playerY) {
                             o.passed = true;
@@ -15821,23 +16028,27 @@ window.mu_syncHtmlBg = function(){
 
                 obstacles.forEach(o => {
                     const renderY = o.prevY + (o.y - o.prevY) * alpha;
-                    // Small vertical bob, independent per car via bounceSeed,
-                    // so the row of traffic doesn't bounce in unison — this
-                    // is render-only and never feeds back into o.y, so it
-                    // can't affect collisions or the wave-spacing guarantee.
-                    // Bug fix ("obstacle cars trembling/jumping"): this used
-                    // to be driven by the raw rAF `ts`, the same class of
-                    // bug already fixed for trafficDrift() above (see its
-                    // comment) — on the affected Telegram in-app WebView
-                    // builds, that raw ts can stall for a frame and then
-                    // jump by roughly double the next, which fed straight
-                    // into this sin() and showed up as a visible shake/leap
-                    // on every obstacle car's position, on top of whichever
-                    // one the player was about to dodge. simMs only ever
-                    // advances by exactly STEP_MS per simulated tick, so it
-                    // can't inherit that staleness — same fix, same reason.
-                    const bounce = Math.sin(renderSimMs / 130 + o.bounceSeed) * o.h * 0.012;
-                    drawTrafficVehicle(laneCenterX(o.lane), renderY + bounce, o.w, o.h, o.color, o.shape, renderSimMs, o.bounceSeed);
+                    // Bug fix: this used to add a per-frame
+                    // Math.sin(renderSimMs/130 + o.bounceSeed) "bob" on top of
+                    // renderY — a small but constant vertical oscillation on
+                    // every obstacle, which combined with the trafficDrift
+                    // wobble above (also removed) is what read as obstacles
+                    // never sitting still. Obstacles now render at exactly
+                    // their interpolated position, with no added motion.
+                    const renderX = o.prevX + (o.x - o.prevX) * alpha;
+                    // A slight bank into the lane change while it's in
+                    // progress — purely cosmetic (drawTrafficVehicle's
+                    // tilt never touches the collision math), same "sell
+                    // the motion" treatment the player's own car gets when
+                    // it swerves.
+                    let laneTilt = 0;
+                    if (!o.changeDone) {
+                        const span = o.changeEndY - o.changeStartY;
+                        const p = span > 0 ? Math.max(0, Math.min(1, (o.y - o.changeStartY) / span)) : 1;
+                        const dir = o.changeToLane > o.changeFromLane ? 1 : -1;
+                        laneTilt = dir * Math.sin(p * Math.PI) * 0.16;
+                    }
+                    drawTrafficVehicle(renderX, renderY, o.w, o.h, o.color, o.shape, renderSimMs, o.bounceSeed, laneTilt);
                 });
                 pickups.forEach(p => {
                     if (p.taken) return;
