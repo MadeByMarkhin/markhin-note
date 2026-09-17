@@ -6219,13 +6219,26 @@
         .note-sort-bar {
             display: flex;
             align-items: center;
-            justify-content: flex-end;
+            justify-content: space-between;
+            flex-wrap: wrap;
             gap: 8px;
             max-width: 720px;
             margin: -4px auto var(--spacing-md);
             padding: 0 8px;
             box-sizing: border-box;
         }
+        .note-sort-bar-end { display: flex; align-items: center; gap: 8px; }
+        .note-preview-toggle {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 11px;
+            color: rgba(255,255,255,0.55);
+            white-space: nowrap;
+            cursor: pointer;
+            user-select: none;
+        }
+        .note-preview-toggle input { accent-color: var(--text-color); cursor: pointer; width: 14px; height: 14px; }
         .note-sort-label { font-size: 11px; color: rgba(255,255,255,0.55); white-space: nowrap; }
         .note-sort-select {
             background: rgba(0,0,0,.28);
@@ -8412,8 +8425,14 @@ window.mu_syncHtmlBg = function(){
     <div id="foldersContainer" class="folder-bar"></div>
     <div id="buttonsContainer" class="btn-container"></div>
     <div id="noteSortBar" class="note-sort-bar">
-        <label for="noteSortSelect" class="note-sort-label" id="noteSortLabel">ترتیب نمایش:</label>
-        <select id="noteSortSelect" class="note-sort-select" onchange="mu_setNoteSortMode(this.value)"></select>
+        <label class="note-preview-toggle" id="notePreviewToggleLabel">
+            <input type="checkbox" id="notePreviewToggle" onchange="mu_setNotePreviewEnabled(this.checked)">
+            <span id="notePreviewToggleText">پیش‌نمایش یادداشت‌ها</span>
+        </label>
+        <div class="note-sort-bar-end">
+            <label for="noteSortSelect" class="note-sort-label" id="noteSortLabel">ترتیب نمایش:</label>
+            <select id="noteSortSelect" class="note-sort-select" onchange="mu_setNoteSortMode(this.value)"></select>
+        </div>
     </div>
     <div id="contentsContainer"></div>
 
@@ -10127,6 +10146,7 @@ window.mu_syncHtmlBg = function(){
             applyLanguageUI();
             MU_Theme.apply(MU_Theme.getCurrentIndex());
             if(typeof mu_renderNoteSortLabels === 'function') mu_renderNoteSortLabels();
+            if(typeof mu_renderNotePreviewToggle === 'function') mu_renderNotePreviewToggle();
             renderApp();
         }
 
@@ -10515,12 +10535,39 @@ window.mu_syncHtmlBg = function(){
 
         function renderContents(filtered = getVisibleCategories()) {
             const contentContainer = document.getElementById('contentsContainer');
-            contentContainer.innerHTML = '';
             const t = i18n[currentLang];
+            // Reconcile instead of wiping and rebuilding every note's full DOM on
+            // every single render. Previously this cleared the whole container and
+            // recreated every note's entire panel (action bar, canvas, dropdowns —
+            // all of it, even for notes that are closed and unchanged) on every
+            // call, which fires after nearly every action (opening/closing a note,
+            // pinning, favoriting, etc.). With many notes that made any single
+            // action pay an O(n) full-DOM-rebuild cost, and — worse — if a render
+            // was ever triggered while a note was actively being typed in, it tore
+            // out and recreated that note's own contenteditable field out from
+            // under the person's cursor. Now each note's derived HTML is cached
+            // (mu_boxHtmlCache) and the DOM is only actually rewritten when that
+            // string changes; unchanged notes keep their existing DOM node as-is.
+            if (!window.mu_boxHtmlCache) window.mu_boxHtmlCache = new Map();
+            const mu_htmlCache = window.mu_boxHtmlCache;
+            const mu_keepIds = new Set(filtered.map(item => item.id));
+            Array.from(contentContainer.children).forEach(child => {
+                const cid = child.id && child.id.indexOf('container-') === 0 ? child.id.slice('container-'.length) : null;
+                if (!cid || !mu_keepIds.has(cid)) {
+                    if (child.parentNode === contentContainer) contentContainer.removeChild(child);
+                    if (cid) mu_htmlCache.delete(cid);
+                }
+            });
+            Array.from(mu_htmlCache.keys()).forEach(cid => { if (!mu_keepIds.has(cid)) mu_htmlCache.delete(cid); });
+            let mu_prevBoxNode = null;
 
             filtered.forEach((item) => {
-                const box = document.createElement('div');
-                box.id = `container-${item.id}`;
+                let box = document.getElementById(`container-${item.id}`);
+                const mu_isNewBox = !box;
+                if (mu_isNewBox) {
+                    box = document.createElement('div');
+                    box.id = `container-${item.id}`;
+                }
                 const mu_isOpenBox = activeOpenId === item.id;
                 const mu_skipOpenAnim = mu_isOpenBox && mu_reopenNoAnimId === item.id;
                 box.className = `content-container ${mu_isOpenBox ? 'show' : ''} ${mu_skipOpenAnim ? 'mu-noanim' : ''}`;
@@ -10546,7 +10593,7 @@ window.mu_syncHtmlBg = function(){
                 const isRecordingThis = (activeRecId === item.id);
                 const lastEditedText = item.lastEdited ? item.lastEdited : 'ثبت نشده';
 
-                box.innerHTML = `
+                const html = `
                     <div class="mc-head">
                         <span class="mc-head-label">🗂️ ${t.contentManagement}</span>
                         <div class="mc-head-actions">
@@ -10678,7 +10725,15 @@ window.mu_syncHtmlBg = function(){
                         </div>
                     </div>
                 `;
-                contentContainer.appendChild(box);
+                if (mu_isNewBox || mu_htmlCache.get(item.id) !== html) {
+                    box.innerHTML = html;
+                    mu_htmlCache.set(item.id, html);
+                }
+                const mu_wantNextSibling = mu_prevBoxNode ? mu_prevBoxNode.nextSibling : contentContainer.firstChild;
+                if (mu_wantNextSibling !== box) {
+                    contentContainer.insertBefore(box, mu_wantNextSibling);
+                }
+                mu_prevBoxNode = box;
 
                 if (activeOpenId === item.id) {
                     setTimeout(() => {
@@ -16373,6 +16428,84 @@ window.mu_syncHtmlBg = function(){
             });
         }
 
+        // Generic modal with one or more input fields plus an optional
+        // extra button (used as a "🚫 Disable" action alongside Cancel/Save).
+        // opts: { title, message, fields:[{id,type,label,placeholder,defaultValue,min,max,step}],
+        //         okText, cancelText, extraButton:{label,style} }
+        // Resolves to: null (cancelled) | {action:'extra'} | {action:'save', values:{id:value,...}}
+        function promptFieldsModal(opts) {
+            opts = opts || {};
+            const fa = currentLang === 'fa';
+            const fields = opts.fields || [];
+            return new Promise(resolve => {
+                const uid = 'pfm' + Date.now() + Math.random().toString(36).slice(2, 7);
+                const modalEl = document.getElementById('advancedModal');
+                const openerScrollY = window.scrollY || window.pageYOffset || 0;
+                let settled = false;
+                const finish = value => {
+                    if (settled) return;
+                    settled = true;
+                    if (modalEl) modalEl.removeEventListener('click', outsideClick, true);
+                    closeAdvancedModal();
+                    window.scrollTo(0, openerScrollY);
+                    requestAnimationFrame(() => window.scrollTo(0, openerScrollY));
+                    resolve(value);
+                };
+                const outsideClick = e => { if (e.target === modalEl) finish(null); };
+                if (modalEl) modalEl.addEventListener('click', outsideClick, true);
+                const fieldsHtml = fields.map((f, i) => `
+                    <div class="markhin-filename-row" style="flex-direction:column;align-items:stretch;gap:5px">
+                        ${f.label ? `<label style="font-size:11px;opacity:.65;padding:0 2px">${escapeHtml(f.label)}</label>` : ''}
+                        <input type="${escapeHtml(f.type || 'text')}" id="${uid}_f${i}" class="markhin-filename-input"
+                            ${f.placeholder ? `placeholder="${escapeHtml(f.placeholder)}"` : ''}
+                            value="${escapeHtml(f.defaultValue != null ? String(f.defaultValue) : '')}"
+                            ${f.min != null ? `min="${escapeHtml(String(f.min))}"` : ''}
+                            ${f.max != null ? `max="${escapeHtml(String(f.max))}"` : ''}
+                            ${f.step != null ? `step="${escapeHtml(String(f.step))}"` : ''}
+                            autocomplete="off" spellcheck="false">
+                    </div>`).join('');
+                showAdvanced(`
+                    <div class="advanced-head image-export-picker-head">
+                        <div>
+                            <h3 style="margin:0">${escapeHtml(opts.title || (fa ? 'ورود اطلاعات' : 'Enter value'))}</h3>
+                            ${opts.message ? `<p class="markhin-filename-hint">${escapeHtml(opts.message)}</p>` : ''}
+                        </div>
+                        <button class="btn-main" type="button" id="${uid}_x">✕</button>
+                    </div>
+                    ${fieldsHtml}
+                    <div class="markhin-filename-actions">
+                        <button class="btn-main" type="button" id="${uid}_cancel">${escapeHtml(opts.cancelText || (fa ? 'انصراف' : 'Cancel'))}</button>
+                        ${opts.extraButton ? `<button class="btn-main" type="button" id="${uid}_extra" style="${opts.extraButton.style || ''}">${escapeHtml(opts.extraButton.label || '')}</button>` : ''}
+                        <button class="btn-main image-export-all-btn" type="button" id="${uid}_ok">${escapeHtml(opts.okText || (fa ? '✔️ تایید' : '✔️ OK'))}</button>
+                    </div>
+                `);
+                setTimeout(() => {
+                    const inputs = fields.map((f, i) => document.getElementById(`${uid}_f${i}`));
+                    const ok = document.getElementById(uid + '_ok');
+                    const cancel = document.getElementById(uid + '_cancel');
+                    const x = document.getElementById(uid + '_x');
+                    const extra = document.getElementById(uid + '_extra');
+                    if (inputs[0]) inputs[0].focus();
+                    const submit = () => {
+                        const values = {};
+                        fields.forEach((f, i) => { values[f.id] = inputs[i] ? inputs[i].value : ''; });
+                        finish({ action: 'save', values });
+                    };
+                    inputs.forEach(inp => {
+                        if (!inp) return;
+                        inp.addEventListener('keydown', e => {
+                            if (e.key === 'Enter') { e.preventDefault(); submit(); }
+                            else if (e.key === 'Escape') { e.preventDefault(); finish(null); }
+                        });
+                    });
+                    if (ok) ok.onclick = submit;
+                    if (cancel) cancel.onclick = () => finish(null);
+                    if (x) x.onclick = () => finish(null);
+                    if (extra) extra.onclick = () => finish({ action: 'extra' });
+                }, 0);
+            });
+        }
+
         async function handleCategoryClick(id) {
             const item = categories.find(c => c.id === id);
             if (!item) return;
@@ -19180,30 +19313,75 @@ window.mu_syncHtmlBg = function(){
         };
 
         // Time Capsule: the note remains visible but cannot be opened until the date.
+        // Structured date + time fields (native <input type=date>/<input type=time>,
+        // whose values are always Gregorian YYYY-MM-DD / 24h HH:MM regardless of the
+        // device's display locale) replace the old single free-text field. Clicking
+        // this again on a note that already has an active capsule shows its current
+        // unlock date/time pre-filled (so you can adjust it) plus a Disable button.
         async function setTimeCapsule(id){
             const item=categories.find(c=>c.id===id); if(!item)return;
             const fa=currentLang==='fa';
-            const raw=await promptStyledText({
+            const active=!!item.unlockAt && Date.now()<Number(item.unlockAt);
+            let defDate='', defTime='';
+            if(active){
+                const d=new Date(Number(item.unlockAt));
+                const pad=n=>String(n).padStart(2,'0');
+                defDate=`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+                defTime=`${pad(d.getHours())}:${pad(d.getMinutes())}`;
+            }
+            const result=await promptFieldsModal({
                 title: fa?'⏳ کپسول زمانی':'⏳ Time Capsule',
-                placeholder: fa?'زمان باز شدن را وارد کن (مثلاً 2026-12-31 18:00)':'Enter unlock time (e.g. 2026-12-31 18:00)',
-                okText: fa?'⏳ فعال کن':'⏳ Arm'
+                message: active
+                    ? (fa?`الان فعال است تا ${new Date(Number(item.unlockAt)).toLocaleString()}. می‌توانی زمان جدید تنظیم کنی یا غیرفعالش کنی.`:`Currently active until ${new Date(Number(item.unlockAt)).toLocaleString()}. Set a new time, or disable it.`)
+                    : (fa?'تاریخ و ساعت باز شدن یادداشت را وارد کن:':'Enter the date and time this note unlocks:'),
+                fields: [
+                    { id:'date', type:'date', label: fa?'تاریخ (میلادی)':'Date (Gregorian)', defaultValue: defDate },
+                    { id:'time', type:'time', label: fa?'ساعت (ساعت:دقیقه)':'Time (hour:minute)', defaultValue: defTime }
+                ],
+                okText: fa?'⏳ فعال کن':'⏳ Arm',
+                extraButton: active ? { label:`🚫 ${fa?'غیرفعال کردن':'Disable'}`, style:'color:#ff6b6b' } : null
             });
-            if(!raw)return;
-            const ts=Date.parse(raw); if(!Number.isFinite(ts)||ts<=Date.now()){showToast(currentLang==='fa'?'زمان باید در آینده باشد.':'Time must be in the future.');return;}
-            item.unlockAt=ts; saveToLocalStorage(); mu_refreshNoteBadgeRow(id); showToast(currentLang==='fa'?'کپسول زمان فعال شد.':'Time Capsule armed.');
+            if(result===null)return;
+            if(result.action==='extra'){
+                item.unlockAt='';
+                saveToLocalStorage(); mu_refreshNoteBadgeRow(id);
+                showToast(fa?'🚫 کپسول زمانی غیرفعال شد.':'🚫 Time Capsule disabled.');
+                return;
+            }
+            const {date,time}=result.values;
+            if(!date||!time){ showToast(fa?'تاریخ و ساعت را کامل وارد کن.':'Enter both date and time.'); return; }
+            const ts=new Date(`${date}T${time}:00`).getTime();
+            if(!Number.isFinite(ts)||ts<=Date.now()){showToast(fa?'زمان باید در آینده باشد.':'Time must be in the future.');return;}
+            item.unlockAt=ts; saveToLocalStorage(); mu_refreshNoteBadgeRow(id); showToast(fa?'کپسول زمان فعال شد.':'Time Capsule armed.');
         }
 
+        // Ghost Note: same edit/disable pattern as Time Capsule — clicking this on a
+        // note that already has an active ghost timer pre-fills the remaining hours
+        // (so entering a new number re-arms it from now) and offers a Disable button.
         async function setGhostNote(id){
             const item=categories.find(c=>c.id===id);if(!item)return;
             const fa=currentLang==='fa';
-            const raw=await promptStyledText({
+            const active=!!item.ghostUntil && Date.now()<Number(item.ghostUntil);
+            const remainHours=active?Math.max(1,Math.ceil((Number(item.ghostUntil)-Date.now())/3600000)):'';
+            const result=await promptFieldsModal({
                 title: fa?'👻 Ghost Note':'👻 Ghost Note',
-                placeholder: fa?'بعد از چند ساعت محو شود؟ (مثلاً 24)':'Disappear after how many hours? (e.g. 24)',
-                type: 'number',
-                okText: fa?'👻 فعال کن':'👻 Arm'
+                message: active
+                    ? (fa?`الان فعال است تا ${new Date(Number(item.ghostUntil)).toLocaleString()}. عدد جدید یعنی تنظیم دوباره از همین الان.`:`Currently active until ${new Date(Number(item.ghostUntil)).toLocaleString()}. A new number re-arms it starting from now.`)
+                    : (fa?'یادداشت بعد از این تعداد ساعت خودکار محو می‌شود:':'The note will automatically disappear after this many hours:'),
+                fields: [{ id:'hours', type:'number', label: fa?'چند ساعت دیگر؟':'Hours from now', placeholder: fa?'مثلاً 24':'e.g. 24', defaultValue: remainHours, min:0.1, step:'any' }],
+                okText: fa?'👻 فعال کن':'👻 Arm',
+                extraButton: active ? { label:`🚫 ${fa?'غیرفعال کردن':'Disable'}`, style:'color:#ff6b6b' } : null
             });
-            if(raw===null)return; const hours=Number(raw); if(!Number.isFinite(hours)||hours<=0){showToast(currentLang==='fa'?'عدد نامعتبر است.':'Invalid duration.');return;}
-            item.ghostUntil=Date.now()+hours*3600000; saveToLocalStorage(); mu_refreshNoteBadgeRow(id); showToast(currentLang==='fa'?'Ghost Note فعال شد.':'Ghost Note armed.');
+            if(result===null)return;
+            if(result.action==='extra'){
+                item.ghostUntil='';
+                saveToLocalStorage(); mu_refreshNoteBadgeRow(id);
+                showToast(fa?'🚫 Ghost Note غیرفعال شد.':'🚫 Ghost Note disabled.');
+                return;
+            }
+            const hours=Number(result.values.hours);
+            if(!Number.isFinite(hours)||hours<=0){showToast(fa?'عدد نامعتبر است.':'Invalid duration.');return;}
+            item.ghostUntil=Date.now()+hours*3600000; saveToLocalStorage(); mu_refreshNoteBadgeRow(id); showToast(fa?'Ghost Note فعال شد.':'Ghost Note armed.');
         }
 
         function noteAgeDays(item){return Math.max(0,(Date.now()-(Date.parse(item.lastEdited)||Date.now()))/86400000)}
@@ -19659,8 +19837,13 @@ window.mu_syncHtmlBg = function(){
 .markhin-star{font-size:17px;line-height:1}
 .note-card-pin,.note-card-fav{margin-inline-start:4px}
 .note-pin-action{border-color:rgba(255,209,102,.45)!important}
-.custom-btn.note-pinned{border-color:#ffd166;box-shadow:0 0 10px rgba(255,209,102,.12)}
-.custom-btn.note-favorite{border-color:#ff7aa8;box-shadow:0 0 10px rgba(255,122,168,.12)}.note-fav-action{border-color:rgba(255,122,168,.45)!important}
+.custom-btn.note-pinned{border-color:#ffd166;box-shadow:0 0 10px rgba(255,209,102,.12);border-inline-start:3px solid #ffd166}
+.custom-btn.note-favorite{border-color:#ff7aa8;box-shadow:0 0 10px rgba(255,122,168,.12);border-inline-start:3px solid #ff7aa8}.note-fav-action{border-color:rgba(255,122,168,.45)!important}
+/* A note that's both pinned and favorite gets its own two-tone bar
+   (half gold, half pink) instead of one silently overriding the other
+   — the two class rules above would otherwise just fight over the
+   same border-inline-start property in source order. */
+.custom-btn.note-pinned.note-favorite{border-inline-start:3px solid transparent;border-image:linear-gradient(180deg,#ffd166 50%,#ff7aa8 50%) 1}
 .note-archive-action{border-color:var(--panel-border)!important}
 .custom-btn.note-archived{opacity:.72}
 .markhin-tag{display:inline-flex;align-items:center;padding:3px 8px;border:1px solid var(--panel-border);border-radius:999px;font-size:9px;margin:2px;opacity:.82}
@@ -19998,9 +20181,18 @@ function mcLiveTitle(id, value){
     if (!item) return;
     item.name = value;
     const tab = document.querySelector('.custom-btn[data-note-id="' + id + '"]');
-    if (tab) {
+    // Bug fix: this used to overwrite the whole button's innerHTML, which
+    // (now that each row also carries a .note-item-meta line underneath
+    // the title — see renderButtons()) would silently wipe that second
+    // line out on the very first keystroke. Writing into just the title
+    // span keeps the meta line intact while the title updates live.
+    const titleEl = tab ? tab.querySelector('.note-item-title') : null;
+    if (titleEl) {
         const lockIcon = isNoteLocked(item) ? '🔒 ' : '';
-        tab.innerHTML = lockIcon + escapeHtml(value || '');
+        const pinIcon = item.pinned ? '📌 ' : '';
+        const favIcon = item.favorite ? '⭐ ' : '';
+        const decoyIcon = item.fakeContent ? '🎭 ' : '';
+        titleEl.innerHTML = escapeHtml(lockIcon + pinIcon + favIcon + decoyIcon + (value || ''));
     }
 }
 function mcCommitTitle(id){
@@ -20009,12 +20201,18 @@ function mcCommitTitle(id){
     const trimmed = String(item.name || '').trim();
     item.name = trimmed || (currentLang === 'fa' ? 'یادداشت بدون عنوان' : 'Untitled note');
     saveToLocalStorage();
-    const titleEl = document.getElementById('mc-title-' + id);
-    if (titleEl) titleEl.value = item.name;
+    const titleFieldEl = document.getElementById('mc-title-' + id);
+    if (titleFieldEl) titleFieldEl.value = item.name;
     const tab = document.querySelector('.custom-btn[data-note-id="' + id + '"]');
-    if (tab) {
+    // Same fix as mcLiveTitle() above: patch just the title span, not the
+    // row's whole innerHTML (which would also erase the meta line).
+    const titleEl = tab ? tab.querySelector('.note-item-title') : null;
+    if (titleEl) {
         const lockIcon = isNoteLocked(item) ? '🔒 ' : '';
-        tab.innerHTML = lockIcon + escapeHtml(item.name);
+        const pinIcon = item.pinned ? '📌 ' : '';
+        const favIcon = item.favorite ? '⭐ ' : '';
+        const decoyIcon = item.fakeContent ? '🎭 ' : '';
+        titleEl.innerHTML = escapeHtml(lockIcon + pinIcon + favIcon + decoyIcon + item.name);
     }
 }
 // These run from inline onclick/oninput attributes in the note template,
@@ -20069,35 +20267,106 @@ window.duplicateNote=function(id){const o=categories.find(x=>x.id===id);if(!o)re
 window.editFake=async function(id){
     const item=categories.find(x=>x.id===id);if(!item)return;
     const fa=currentLang==='fa';
-    const v=await promptStyledText({
-        title: fa?'🎭 محتوای Fake Note':'🎭 Fake note content',
-        message: fa?'متن Fake Note را وارد کن. وقتی رمز اشتباه باشد این متن نمایش داده می‌شود:':'Enter fake content. It is shown when the wrong password is entered:',
-        defaultValue: item.fakeContent||(fa?'این یادداشت چیزی برای نمایش ندارد.':'This note has nothing to show.'),
-        multiline: true,
-        okText: fa?'✔️ ذخیره':'✔️ Save'
+    const hasFake=!!item.fakeContent;
+    // Custom modal (instead of the plain promptStyledText used before) so
+    // an explicit "🚫 Disable" button can sit next to Cancel/Save when the
+    // note already has fake content — a discoverable way to turn the
+    // feature off entirely, instead of the non-obvious "leave the field
+    // empty and press Save" trick.
+    const uid='ef'+Date.now()+Math.random().toString(36).slice(2,7);
+    const modalEl=document.getElementById('advancedModal');
+    const openerScrollY=window.scrollY||window.pageYOffset||0;
+    let settled=false;
+    const result=await new Promise(resolve=>{
+        const finish=value=>{
+            if(settled)return;settled=true;
+            if(modalEl)modalEl.removeEventListener('click',outsideClick,true);
+            closeAdvancedModal();
+            window.scrollTo(0,openerScrollY);
+            requestAnimationFrame(()=>window.scrollTo(0,openerScrollY));
+            resolve(value);
+        };
+        const outsideClick=e=>{if(e.target===modalEl)finish(null);};
+        if(modalEl)modalEl.addEventListener('click',outsideClick,true);
+        showAdvanced(`
+            <div class="advanced-head image-export-picker-head">
+                <div>
+                    <h3 style="margin:0">🎭 ${fa?'محتوای Fake Note':'Fake note content'}</h3>
+                    <p class="markhin-filename-hint">${escapeHtml(fa?'متن Fake Note را وارد کن. وقتی رمز اشتباه باشد این متن نمایش داده می‌شود:':'Enter fake content. It is shown when the wrong password is entered:')}</p>
+                </div>
+                <button class="btn-main" type="button" id="${uid}_x">✕</button>
+            </div>
+            <div class="markhin-filename-row">
+                <textarea id="${uid}_input" class="markhin-filename-input" style="min-height:110px;resize:vertical" placeholder="${escapeHtml(fa?'این یادداشت چیزی برای نمایش ندارد.':'This note has nothing to show.')}" maxlength="8000" spellcheck="false"></textarea>
+            </div>
+            <div class="markhin-filename-actions">
+                <button class="btn-main" type="button" id="${uid}_cancel">${fa?'انصراف':'Cancel'}</button>
+                ${hasFake?`<button class="btn-main" type="button" id="${uid}_disable" style="color:#ff6b6b">🚫 ${fa?'غیرفعال کردن':'Disable'}</button>`:''}
+                <button class="btn-main image-export-all-btn" type="button" id="${uid}_ok">✔️ ${fa?'ذخیره':'Save'}</button>
+            </div>
+        `);
+        setTimeout(()=>{
+            const input=document.getElementById(uid+'_input');
+            const ok=document.getElementById(uid+'_ok');
+            const cancel=document.getElementById(uid+'_cancel');
+            const x=document.getElementById(uid+'_x');
+            const disable=document.getElementById(uid+'_disable');
+            if(input)input.focus();
+            if(input)input.addEventListener('keydown',e=>{if(e.key==='Escape'){e.preventDefault();finish(null);}});
+            if(ok)ok.onclick=()=>finish({action:'save',value:input?input.value:''});
+            if(cancel)cancel.onclick=()=>finish(null);
+            if(x)x.onclick=()=>finish(null);
+            if(disable)disable.onclick=()=>finish({action:'disable'});
+        },0);
     });
-    if(v===null)return;
-    item.fakeContent=v;
+    // Canceling (✕ / Cancel / Escape / tap outside) resolves null and
+    // nothing below ever runs, so nothing gets touched.
+    if(result===null)return;
+    if(result.action==='disable'){
+        if(!confirm(fa?'فیک‌نوت این یادداشت غیرفعال شود؟ محتوای فیک پاک خواهد شد.':'Disable the fake note for this item? The fake content will be cleared.'))return;
+        item.fakeContent='';
+        saveToLocalStorage();
+        renderApp(id);
+        showToast(fa?'🚫 فیک‌نوت غیرفعال شد':'🚫 Fake note disabled');
+        return;
+    }
+    const v=result.value;
     if(!isNoteLocked(item)){
+        // First-time creation of a fake note: the fake content only ever
+        // matters once the note actually has a real lock password to hide
+        // behind, so ask for that password BEFORE committing the fake
+        // content at all.
+        // Bug fix ("no way to cancel creating a fake note"): this used to
+        // set item.fakeContent=v (and save it) unconditionally, THEN ask
+        // for the password — so canceling/leaving-blank the password step
+        // still silently left the typed fake content saved on the note,
+        // with no lock actually protecting it and no way back to the
+        // note's previous (no-decoy) state. Now the fake content is only
+        // written in if the password step actually succeeds; canceling or
+        // leaving it blank at any point aborts the whole action and the
+        // note is left exactly as it was before.
         const pass=await promptStyledText({
             title: fa?'🔒 رمز اصلی Fake Note':'🔒 Real password for this fake note',
             placeholder: fa?'برای Fake Note یک رمز اصلی تعیین کن:':'Set the real password for this fake note:',
             type: 'password',
             okText: fa?'🔒 تنظیم':'🔒 Set'
         });
-        if(pass&&pass.trim()){
-            try{
-                item.encrypted=await encryptNotePayload(pass.trim(),item.html||'',item.text||'');
-                noteSessionKeys.set(item.id,pass.trim());
-                saveToLocalStorage();
-                renderApp(id);
-            }catch(e){
-                console.error(e);
-                alert(fa?'رمزگذاری انجام نشد.':'Encryption failed.');
-            }
-            return;
+        if(!pass||!pass.trim()) return;
+        try{
+            item.fakeContent=v;
+            item.encrypted=await encryptNotePayload(pass.trim(),item.html||'',item.text||'');
+            noteSessionKeys.set(item.id,pass.trim());
+            saveToLocalStorage();
+            renderApp(id);
+        }catch(e){
+            console.error(e);
+            alert(fa?'رمزگذاری انجام نشد.':'Encryption failed.');
         }
+        return;
     }
+    // Editing an already-locked note's fake content: a single step, so the
+    // Cancel handled above already covers it fully.
+    item.fakeContent=v;
     saveToLocalStorage();
     renderApp(id);
 };
@@ -20626,9 +20895,15 @@ const oldToggle=window.toggleCategory;window.toggleCategory=function(id){const i
 /* ===== MARKHIN NOTE — ULTRA SEARCH + AI + DELETE MODE ===== */
 .note-btn-wrap{display:flex;width:100%;align-items:center;gap:4px;touch-action:pan-y;max-width:100%;box-sizing:border-box}
 /* Notes render as long horizontal bars (one per row) rather than
-   content-sized chips: full width, text pinned to the start side, with
-   enough height to read as a proper list row. */
-.note-btn-wrap .custom-btn{flex:1;width:100%;max-width:100%;justify-content:center;text-align:center;padding:13px 16px;font-size:13px;min-height:46px;box-sizing:border-box}
+   content-sized chips: full width, centered text, with enough height
+   to read as a proper list row. Title on its own line, with an
+   optional second line underneath — a short snippet of the note's
+   own text — shown only when the person turns on the "note previews"
+   toggle next to the sort-order picker (off by default). */
+.note-btn-wrap .custom-btn{flex:1;width:100%;max-width:100%;flex-direction:column;align-items:stretch;justify-content:center;text-align:center;gap:2px;padding:10px 14px;font-size:13px;min-height:46px;box-sizing:border-box}
+.note-item-title{display:block;min-width:0;width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
+.note-item-meta{display:block;min-width:0;width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10.5px;font-weight:400;color:rgba(255,255,255,.5)}
+.custom-btn.active-btn .note-item-meta{color:rgba(255,255,255,.68)}
 /* Dragging item: left behind in the flow as a dimmed "hole" placeholder —
    the actual floating visual is the .markhin-float-ghost clone below,
    which is what makes the item feel picked-up and carried, not just
@@ -20937,6 +21212,51 @@ window.mu_renderNoteSortLabels = function(){
 };
 mu_renderNoteSortLabels();
 
+/* ---------- Note list row content: optional preview line ----------
+   Off by default (see MU_NOTE_PREVIEW_KEY below) — when the person
+   turns it on next to the sort-order picker, each row gets a second
+   line underneath its title with a short plain-text snippet of the
+   note's own content, so the list can be scanned without opening
+   every note. */
+const MU_NOTE_PREVIEW_KEY = 'markhin_note_preview_enabled_v1';
+window.mu_getNotePreviewEnabled = function(){
+    try { return localStorage.getItem(MU_NOTE_PREVIEW_KEY) === '1'; } catch(e){ return false; }
+};
+window.mu_setNotePreviewEnabled = function(enabled){
+    try { localStorage.setItem(MU_NOTE_PREVIEW_KEY, enabled ? '1' : '0'); } catch(e){}
+    renderButtons();
+};
+// Plain-text, single-line snippet of a note's own content for the list
+// row. Deliberately returns '' (no preview line at all) for anything
+// whose text shouldn't be shown without opening the note first: a
+// locked note with no unlocked session key (its content only exists as
+// ciphertext at that point anyway) and a decoy note (fakeContent is
+// meant to be seen only by whoever opens it with the decoy password,
+// not broadcast in the list everyone sees).
+function mu_notePreviewSnippet(item){
+    if (item.fakeContent) return '';
+    if (isNoteLocked(item) && !noteSessionKeys.has(item.id)) return '';
+    const src = item.html || item.text || '';
+    if (!src) return '';
+    const tmp = document.createElement('div');
+    tmp.innerHTML = sanitizeHtml(src);
+    const text = (tmp.textContent || '').replace(/\s+/g, ' ').trim();
+    if (!text) return '';
+    return text.length > 64 ? text.slice(0, 64).trim() + '…' : text;
+}
+function mu_noteMetaLine(item){
+    return mu_getNotePreviewEnabled() ? mu_notePreviewSnippet(item) : '';
+}
+window.mu_renderNotePreviewToggle = function(){
+    const cb = document.getElementById('notePreviewToggle');
+    const label = document.getElementById('notePreviewToggleText');
+    if(!cb) return;
+    const fa = currentLang === 'fa';
+    if(label) label.textContent = fa ? 'پیش‌نمایش یادداشت‌ها' : 'Note previews';
+    cb.checked = mu_getNotePreviewEnabled();
+};
+mu_renderNotePreviewToggle();
+
 /* ---------- FINAL note-list render: relevance order while searching + delete mode ---------- */
 window.MarkhinNoteDeleteMode = false;
 window.renderButtons = function(filtered){
@@ -20956,10 +21276,21 @@ window.renderButtons = function(filtered){
         if(!Array.isArray(item.tags)) item.tags=[];
         const wrap = document.createElement('div'); wrap.className='note-btn-wrap'; wrap.dataset.id=item.id;
         const b = document.createElement('button');
-        b.className = 'custom-btn '+(activeOpenId===item.id?'active-btn ':'')+(item.pinned?'note-pinned ':'')+(item.favorite?'note-favorite ':'');
+        b.className = 'custom-btn note-item '+(activeOpenId===item.id?'active-btn ':'')+(item.pinned?'note-pinned ':'')+(item.favorite?'note-favorite ':'');
         b.setAttribute('aria-expanded', activeOpenId===item.id ? 'true':'false');
+        // Bug fix: mcLiveTitle()/mcCommitTitle() (in the open note editor,
+        // fired on every keystroke of the title field) look this button up
+        // by data-note-id to live-patch its label as you type — but this
+        // attribute was never actually set here, so that lookup always
+        // came back empty and silently did nothing. The list row's title
+        // only ever caught up on the next full renderButtons() call (e.g.
+        // closing the note), not while you were still typing it.
+        b.dataset.noteId = item.id;
         if(window.MarkhinNoteDeleteMode) b.style.animationDelay = '0s';
-        b.innerHTML = escapeHtml((isNoteLocked(item)?'🔒 ':'')+(item.pinned?'📌 ':'')+(item.favorite?'⭐ ':'')+(item.fakeContent?'🎭 ':'')+String(item.name||''));
+        const titleHtml = escapeHtml((isNoteLocked(item)?'🔒 ':'')+(item.pinned?'📌 ':'')+(item.favorite?'⭐ ':'')+(item.fakeContent?'🎭 ':'')+String(item.name||''));
+        const metaText = mu_noteMetaLine(item);
+        b.innerHTML = '<span class="note-item-title">'+titleHtml+'</span>'
+            + (metaText ? '<span class="note-item-meta">'+escapeHtml(metaText)+'</span>' : '');
         b.onclick = ()=>{
             if(searching){ mu_openAndHighlight(item.id, mu_queryTerms(rawQuery)); }
             else { handleCategoryClick(item.id); }
