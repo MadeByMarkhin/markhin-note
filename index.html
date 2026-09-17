@@ -11122,11 +11122,43 @@ window.mu_syncHtmlBg = function(){
 
         // Small wrapper so every haptic call site stays one line and never
         // throws on clients (or plain browsers) that lack the API.
+        //
+        // Bug fix ("obstacles/the whole game jerking and doubling every
+        // time you tap — fast and repeated, only inside Telegram, never in
+        // a plain mobile browser on the same phone"): TG.HapticFeedback.*
+        // is a synchronous round trip over Telegram's native WebView
+        // bridge, and this file already found (and removed, see the "10
+        // clean dodges" comment in Twin Lane Racer's step()) that on a lot
+        // of phones that round trip actually blocks the calling JS thread
+        // for a noticeable slice of a frame. That one call site was rare
+        // (once every 10 dodges); the ones left were not — triggerJump()
+        // in Cyber Flappy and every lane-switch tap in Twin Lane Racer/
+        // Dead Road call this on EVERY single tap, and those games are
+        // controlled by tapping rapidly and repeatedly. Each tap's haptic
+        // call was blocking the exact same synchronous handler that also
+        // drives that frame's physics/render step, so `acc` (the
+        // fixed-timestep accumulator) built up while the bridge call
+        // stalled the thread, and the very next frame then had to run
+        // extra ticks to catch up — the identical stall-then-double-jump
+        // pattern already fixed elsewhere in this file for stale rAF
+        // timestamps, just triggered by tapping instead of by the
+        // WebView's own timer this time. It only ever showed up inside
+        // Telegram because TG.HapticFeedback doesn't exist anywhere else —
+        // mAiGameHaptic already no-ops in a plain browser, which is
+        // exactly why the same tap felt fine there. Pushing the actual
+        // bridge call to right after this frame's own work finishes
+        // (setTimeout 0) keeps the tactile buzz on every tap without
+        // letting the bridge's blocking round trip land inside this
+        // frame's physics/render step.
         function mAiGameHaptic(kind) {
             if (!TG || !TG.HapticFeedback) return;
             try {
-                if (kind === 'error') TG.HapticFeedback.notificationOccurred('error');
-                else TG.HapticFeedback.impactOccurred(kind || 'light');
+                setTimeout(function () {
+                    try {
+                        if (kind === 'error') TG.HapticFeedback.notificationOccurred('error');
+                        else TG.HapticFeedback.impactOccurred(kind || 'light');
+                    } catch (_) {}
+                }, 0);
             } catch (_) {}
         }
 
@@ -12688,7 +12720,27 @@ window.mu_syncHtmlBg = function(){
                 const safeDt = frameDt > 0 ? frameDt : avgFrameMs;
                 const clampedDt = Math.min(safeDt, MAX_FRAME_MS);
                 avgFrameMs += (clampedDt - avgFrameMs) * 0.1;
-                acc += clampedDt;
+                // Bug fix (real remaining cause of "obstacles trembling/
+                // vertical judder, almost looking like they double up" even
+                // after every fix above and in fitGameCanvas): `acc` — the
+                // thing that actually decides how many ticks fire this
+                // frame, and therefore exactly how far every pipe/coin
+                // moves — was still fed straight from `clampedDt`, the RAW
+                // per-frame delta. Even with the stale-ts fix above,
+                // ordinary vsync/compositor scheduling still makes
+                // clampedDt bounce a little frame to frame on real devices
+                // (16.1ms, 17.4ms, 15.8ms...), and `avgFrameMs` was already
+                // being computed as a smoothed version of exactly that
+                // value — it just wasn't actually driving anything, only
+                // used as a fallback for the rare zero/negative-dt frame.
+                // Blending it into what feeds `acc` turns that leftover
+                // per-frame noise into a near-constant increment, so the
+                // tick count — and thus the exact distance moved — stops
+                // varying for reasons that have nothing to do with the
+                // simulation's own speed. Kept mostly (not entirely)
+                // smoothed so a genuine speed change (tab actually
+                // stalling) still catches up quickly instead of lagging.
+                acc += avgFrameMs * 0.85 + clampedDt * 0.15;
                 lastTs = now;
 
                 while (acc >= STEP_MS) {
@@ -13582,7 +13634,21 @@ window.mu_syncHtmlBg = function(){
                 const safeDt = frameDt > 0 ? frameDt : avgFrameMs;
                 const clampedDt = Math.min(safeDt, MAX_FRAME_MS);
                 avgFrameMs += (clampedDt - avgFrameMs) * 0.1;
-                acc += clampedDt;
+                // Bug fix (real remaining cause of "obstacles trembling/
+                // vertical judder, almost looking like they double up" even
+                // after every fix above): see the full explanation in Cyber
+                // Flappy's own loop(). Short version — `acc` (what decides
+                // how many ticks fire, and thus exactly how far every
+                // obstacle moves, this frame) was still fed the RAW
+                // per-frame `clampedDt`, which keeps bouncing a little frame
+                // to frame from ordinary vsync/compositor scheduling alone,
+                // even once the stale-ts case above is handled. `avgFrameMs`
+                // was already computed as a smoothed version of exactly that
+                // value but never actually used to drive anything. Blending
+                // it in turns that leftover noise into a near-constant
+                // increment (mostly, not entirely, smoothed — a genuine
+                // stall still catches up quickly).
+                acc += avgFrameMs * 0.85 + clampedDt * 0.15;
                 lastTs = now;
 
                 while (acc >= STEP_MS) {
@@ -14757,7 +14823,17 @@ window.mu_syncHtmlBg = function(){
                 const clampedDt = Math.min(safeDt, MAX_FRAME_MS);
                 avgFrameMs += (clampedDt - avgFrameMs) * 0.1;
                 const rawDt = Math.min(safeDt, 200);
-                acc += clampedDt;
+                // Bug fix (real remaining cause of "obstacles trembling/
+                // vertical judder, almost looking like they double up" even
+                // after every fix above): see the full explanation in Cyber
+                // Flappy's own loop(). `acc` was still fed the RAW
+                // `clampedDt` instead of the already-computed smoothed
+                // `avgFrameMs`, so ordinary per-frame vsync/compositor noise
+                // kept nudging the tick count around. rawDt above is left
+                // exactly as-is on purpose — updateChaos's own event timing
+                // is meant to track real elapsed time directly, not the
+                // smoothed value used for the obstacle simulation clock.
+                acc += avgFrameMs * 0.85 + clampedDt * 0.15;
                 lastTs = now;
 
                 if (!dying && !ended) updateChaos(rawDt);
@@ -15828,7 +15904,15 @@ window.mu_syncHtmlBg = function(){
                 const safeDt = frameDt > 0 ? frameDt : avgFrameMs;
                 const clampedDt = Math.min(safeDt, MAX_FRAME_MS);
                 avgFrameMs += (clampedDt - avgFrameMs) * 0.1;
-                acc += clampedDt;
+                // Bug fix (real remaining cause of "obstacles trembling/
+                // vertical judder, almost looking like they double up" even
+                // after every fix above): see the full explanation in Cyber
+                // Flappy's own loop(). `acc` was still fed the RAW
+                // `clampedDt` instead of the already-computed smoothed
+                // `avgFrameMs`, so ordinary per-frame vsync/compositor noise
+                // kept nudging the tick count (and thus the exact distance
+                // every traffic car moves) around frame to frame.
+                acc += avgFrameMs * 0.85 + clampedDt * 0.15;
                 lastTs = now;
 
                 while (acc >= STEP_MS) {
