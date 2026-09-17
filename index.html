@@ -8661,8 +8661,20 @@ window.mu_syncHtmlBg = function(){
         // before, while silencing the noise that doesn't correspond to anything
         // actually changing on screen.
         let __muLastAppVhPx = 0;
-        function mu_setAppVh(){
+        function mu_setAppVh(force){
             try{
+                // While a game is running, keep the game viewport geometry
+                // frozen. Telegram can emit viewportChanged for tiny native
+                // chrome/safe-area bookkeeping changes without the physical
+                // game viewport actually moving. Rewriting --app-1vh for
+                // those events forces a CSS reflow while the canvas is being
+                // painted and is the remaining page-level path that can
+                // produce a vertical wobble even when the canvas simulation
+                // itself is perfectly steady. The value is refreshed again
+                // as soon as gameplay ends, so the rest of the app remains
+                // fully responsive to Telegram's real viewport.
+                const gamePlaying = document.getElementById('gamePlayArea')?.style.display === 'flex';
+                if (gamePlaying && !force) return;
                 const h = (TG && TG.viewportStableHeight) ? TG.viewportStableHeight : window.innerHeight;
                 if (__muLastAppVhPx && Math.abs(h - __muLastAppVhPx) < 4) return;
                 __muLastAppVhPx = h;
@@ -11051,6 +11063,7 @@ window.mu_syncHtmlBg = function(){
             document.getElementById('gameCard').classList.remove('theme-flappy');
             document.getElementById('gameCard').classList.remove('theme-deadroad');
             document.getElementById('gameCard').classList.remove('theme-snake');
+            mu_setAppVh();
         }
 
         function closeGame() {
@@ -11067,6 +11080,7 @@ window.mu_syncHtmlBg = function(){
             clearGameEvents();
             mAiGameTelegramChrome(false);
             document.body.classList.remove('mu-game-open');
+            mu_setAppVh(true);
         }
 
         // Adapts Telegram's native chrome to the game modal's lifetime:
@@ -11238,10 +11252,16 @@ window.mu_syncHtmlBg = function(){
             // visible sharpness difference on a phone screen, in exchange
             // for meaningfully more headroom against dropped frames.
             const dpr = Math.min(window.devicePixelRatio || 1, 2);
-            canvas.width = Math.round(w * dpr);
-            canvas.height = Math.round(h * dpr);
+            canvas.width = Math.max(1, Math.round(w * dpr));
+            canvas.height = Math.max(1, Math.round(h * dpr));
             canvas.style.width = w + 'px';
             canvas.style.height = h + 'px';
+            // The rounded backing-store dimensions can differ from the raw
+            // requested DPR by a tiny fraction. Use the exact scale that
+            // the bitmap actually received, so the 2D transform and the
+            // backing store never disagree by a fractional scale.
+            const backingScaleX = canvas.width / w;
+            const backingScaleY = canvas.height / h;
             // { alpha: false } tells the browser this canvas never needs to
             // show anything through it — every game here clears and
             // repaints the WHOLE canvas with an opaque background every
@@ -11316,19 +11336,18 @@ window.mu_syncHtmlBg = function(){
             // math can fix a mismatch that's happening one level below it,
             // in the browser's own compositor. Two independent, safe
             // mitigations, neither of which changes anything else about how
-            // the games look or play: `willReadFrequently: true` is a
-            // standard hint that steers the browser toward this canvas's
-            // plain CPU/software raster path instead of a GPU-composited
-            // layer, which sidesteps GPU-compositor resampling entirely;
-            // and forcing imageSmoothingEnabled off means that even a sprite
+            // the games look or play: a forced software/readback path is unnecessary for this animation and can
+            // make frame delivery less consistent on mobile WebViews; the
+            // normal opaque Canvas2D path is preferable here. Forcing
+            // imageSmoothingEnabled off means that even a sprite
             // blit that does land on a fractional pixel is drawn with crisp
             // nearest-neighbor sampling instead of blended/blurred — so a
             // residual fractional-pixel offset (from either cause) can no
             // longer paint as a soft double edge, only as a sharp one-pixel
             // shift too small to read as "trembling".
-            const ctx = canvas.getContext('2d', { alpha: false, willReadFrequently: true });
+            const ctx = canvas.getContext('2d', { alpha: false });
             ctx.imageSmoothingEnabled = false;
-            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            ctx.setTransform(backingScaleX, 0, 0, backingScaleY, 0, 0);
             // resize apart from cosmetic viewport jitter and skip needless
             // restarts — see the bug fix there.
             window.__markhinFitW = w;
@@ -11353,7 +11372,7 @@ window.mu_syncHtmlBg = function(){
             // uneven frame timing. Returning dpr lets a caller snap in
             // device-pixel space instead: round(cssPos * dpr) / dpr always
             // lands exactly on a whole device pixel regardless of dpr.
-            return { width: w, height: h, ctx, dpr };
+            return { width: w, height: h, ctx, dpr: backingScaleX };
         }
 
         // Wires the game-over card once per game and returns a function that
@@ -11455,6 +11474,28 @@ window.mu_syncHtmlBg = function(){
             }, 200);
         }
         window.addEventListener('resize', mAiGameScheduleRefit);
+        window.addEventListener('orientationchange', function () {
+            // Orientation is a real geometry change, not Telegram viewport
+            // bookkeeping noise. Let the normal refit path handle it.
+            setTimeout(function () {
+                if (document.getElementById('gamePlayArea')?.style.display === 'flex') {
+                    const wrap = document.getElementById('gameCanvasWrap');
+                    if (wrap) {
+                        const rect = wrap.getBoundingClientRect();
+                        if (Math.abs(rect.width - (window.__markhinFitW || 0)) >= 1 ||
+                            Math.abs(rect.height - (window.__markhinFitH || 0)) >= 1) {
+                            if (window.__markhinActiveGame === 'snake') startNeonSnake();
+                            else if (window.__markhinActiveGame === 'flappy') startCyberFlappy();
+                            else if (window.__markhinActiveGame === 'deadroad') startDeadRoad();
+                            else if (window.__markhinActiveGame === 'racer') {
+                                if (window.__markhinRacerVariant === 'modern') startTwinLaneRacerModern();
+                                else startTwinLaneRacerClassic();
+                            }
+                        }
+                    }
+                }
+            }, 120);
+        });
         // Bug fix (real root cause of "screen shakes / obstacles jitter
         // constantly", specifically inside Telegram): TG is declared as
         // `let TG = null` near the top of this script and is only ever
