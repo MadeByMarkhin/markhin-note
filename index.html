@@ -19755,7 +19755,7 @@ window.MonsterHunt = (function(){
     const MONSTER_RAMP_TIME = 110;      // seconds to reach max speed factor
     const FLARE_STUN_TIME = 3.2;        // seconds every monster is frozen after a flare pickup
     const JOY_MAX_R = 58;               // virtual joystick radius, px
-    const WORLD_SCALE = 3.6;            // much bigger arena than before — the camera follows
+    const WORLD_SCALE = 5.2;            // even bigger arena — the camera follows
                                          // the player around it instead of arena == viewport
     const REF_AREA = 960 * 600;         // baseline used to scale obstacle/firefly counts to world size
 
@@ -19790,7 +19790,8 @@ window.MonsterHunt = (function(){
         shotgun: { ammoMin: 3, ammoMax: 5, icon: '💥', color: '#ffcf5c', w: 3, pellets: 3, spread: 0.55, dmg: 1 },
         laser:   { ammoMin: 2, ammoMax: 3, icon: '🔴', color: '#ff5cf0', w: 2, pierce: true, dmg: 2 }
     };
-    const WEAPON_SPAWN_MIN = 8, WEAPON_SPAWN_MAX = 13;
+    const WEAPON_SPAWN_MIN = 6, WEAPON_SPAWN_MAX = 10;  // a new crate appears on this schedule, whether or not the last one was picked up
+    const WEAPON_MAX_ON_GROUND_BASE = 3;                 // how many weapon crates can sit on the ground at once (scales up on bigger maps)
     const BULLET_SPEED = 620;            // px/s
     const BULLET_R = 4;
     const BULLET_LIFE = 1.1;             // seconds before a bullet fizzles out
@@ -19902,7 +19903,10 @@ window.MonsterHunt = (function(){
     function fit(){
         if (!canvas) return;
         const rect = root.getBoundingClientRect();
-        view.dpr = Math.min(window.devicePixelRatio || 1, 2);
+        // Capped lower than the site default (2) — Telegram's in-app WebView
+        // (especially on Android) renders canvas shadowBlur/gradients in
+        // software, so a smaller backing buffer keeps the game smooth.
+        view.dpr = Math.min(window.devicePixelRatio || 1, 1.5);
         view.w = Math.max(1, Math.round(rect.width));
         view.h = Math.max(1, Math.round(rect.height));
         canvas.width = Math.round(view.w * view.dpr);
@@ -19964,7 +19968,7 @@ window.MonsterHunt = (function(){
     // Bigger world → proportionally more obstacles/fireflies to fill it,
     // capped so it never gets absurd on very large screens.
     function worldAreaScale(){
-        return Math.max(1, Math.min(7, (world.w * world.h) / REF_AREA));
+        return Math.max(1, Math.min(11, (world.w * world.h) / REF_AREA));
     }
     function buildObstacles(){
         const n = Math.round((13 + Math.floor(Math.random()*5)) * worldAreaScale());
@@ -19979,7 +19983,7 @@ window.MonsterHunt = (function(){
             if (Math.hypot(x - cx, y - cy) < 140) continue; // keep the player's spawn clear
             let ok = true;
             for (const o of list){ if (Math.hypot(x - o.x, y - o.y) < r + o.r + 26){ ok = false; break; } }
-            if (ok) list.push({ x, y, r });
+            if (ok) list.push({ x, y, r, tint: Math.floor(Math.random()*3) });
         }
         return list;
     }
@@ -20029,7 +20033,8 @@ window.MonsterHunt = (function(){
             wanderTimer: 1 + Math.random(), wanderDir: randomUnitVec(), lastSeen: null,
             type: type, hp: def.hp, maxHp: def.hp, hitFlash: 0, r: def.r,
             phaseTimer: def.phase ? (2.4 + Math.random()*2.4) : 0, phaseActive: false,
-            spitTimer: def.ranged ? (1.2 + Math.random()*1.2) : 0 };
+            spitTimer: def.ranged ? (1.2 + Math.random()*1.2) : 0,
+            knockTimer: 0, knockVx: 0, knockVy: 0 };
     }
     // A fresh monster (first spawn or a refill after a kill) always
     // appears far from the player and from every monster already alive,
@@ -20077,13 +20082,13 @@ window.MonsterHunt = (function(){
     }
     function spawnWeapon(){
         const P = S.player;
-        const avoid = [P].concat(S.monsters);
+        const avoid = [P].concat(S.monsters).concat(S.weapons);
         const spot = randomFreeSpot(S.obstacles, avoid, 110, 18);
         const pool = Object.keys(WEAPON_DEFS);
         const total = pool.reduce(function(s,k){ return s + WEAPON_DEFS[k].w; }, 0);
         let r = Math.random()*total, chosen = pool[0];
         for (const k of pool){ if (r < WEAPON_DEFS[k].w){ chosen = k; break; } r -= WEAPON_DEFS[k].w; }
-        S.weapon = { x: spot.x, y: spot.y, type: chosen };
+        S.weapons.push({ x: spot.x, y: spot.y, type: chosen });
     }
     function spawnBoost(){
         const P = S.player;
@@ -20114,7 +20119,8 @@ window.MonsterHunt = (function(){
             shards: [],
             flare: null,
             flareSpawnTimer: 9 + Math.random()*6,
-            weapon: null,
+            weapons: [],
+            weaponInitialCount: Math.min(6, WEAPON_MAX_ON_GROUND_BASE + Math.round(worldAreaScale()*0.7)),
             weaponSpawnTimer: WEAPON_SPAWN_MIN + Math.random()*(WEAPON_SPAWN_MAX - WEAPON_SPAWN_MIN),
             boost: null,
             boostSpawnTimer: BOOST_SPAWN_MIN + Math.random()*(BOOST_SPAWN_MAX - BOOST_SPAWN_MIN),
@@ -20137,7 +20143,7 @@ window.MonsterHunt = (function(){
         // run — the flare/weapon/boost/shield timers above only govern how
         // long it takes for the *next* one to appear after this one's used.
         spawnFlare();
-        spawnWeapon();
+        for (let wi = 0; wi < S.weaponInitialCount; wi++) spawnWeapon();
         spawnBoost();
         spawnShieldItem();
         updateAmmoUI();
@@ -20372,6 +20378,20 @@ window.MonsterHunt = (function(){
             if (M.stunTimer > 0){ M.stunTimer = Math.max(0, M.stunTimer - dt); }
             if (M.hitFlash > 0){ M.hitFlash = Math.max(0, M.hitFlash - dt); }
 
+            // a shield-blocked collision launches this monster backward —
+            // while that's playing out, skip the normal wander/chase AI
+            // and just carry it along the knockback velocity, decaying
+            // it out over a fraction of a second.
+            if (M.knockTimer > 0){
+                M.knockTimer = Math.max(0, M.knockTimer - dt);
+                M.x += M.knockVx * dt;
+                M.y += M.knockVy * dt;
+                M.knockVx *= 0.88; M.knockVy *= 0.88;
+                resolveWalls(M, M.r);
+                if (!M.phaseActive) resolveObstacles(M, M.r, S.obstacles);
+                return;
+            }
+
             // wraiths flicker in and out of a "phased" state where they can
             // shortcut straight through obstacles — unsettling and unfair-
             // feeling on purpose, in a small, telegraphed dose
@@ -20468,13 +20488,15 @@ window.MonsterHunt = (function(){
         // has stashed (never overwritten), and any ammo left in the weapon
         // you were currently holding is stashed away instead of lost, so
         // switching back to it later still has everything you'd found.
-        if (S.weapon && Math.hypot(P.x - S.weapon.x, P.y - S.weapon.y) < PLAYER_R + WEAPON_R + 2){
-            const wdef = WEAPON_DEFS[S.weapon.type] || WEAPON_DEFS.pistol;
+        for (let wi = S.weapons.length - 1; wi >= 0; wi--){
+            const wpn = S.weapons[wi];
+            if (Math.hypot(P.x - wpn.x, P.y - wpn.y) >= PLAYER_R + WEAPON_R + 2) continue;
+            const wdef = WEAPON_DEFS[wpn.type] || WEAPON_DEFS.pistol;
             const gained = wdef.ammoMin + Math.floor(Math.random()*(wdef.ammoMax - wdef.ammoMin + 1));
             if (!P.weaponAmmo) P.weaponAmmo = { pistol: 0, shotgun: 0, laser: 0 };
             if (!P.weaponQueue) P.weaponQueue = [];
             let label;
-            if (S.weapon.type === P.weaponType){
+            if (wpn.type === P.weaponType){
                 // Same gun you're already holding — just tops up the
                 // clip, no switching involved.
                 P.ammo += gained;
@@ -20482,28 +20504,32 @@ window.MonsterHunt = (function(){
             } else if (P.ammo <= 0){
                 // Not currently holding a loaded weapon (or just fired
                 // your last round) — arm this one right away.
-                P.weaponType = S.weapon.type;
-                P.ammo = (P.weaponAmmo[S.weapon.type] || 0) + gained;
-                P.weaponAmmo[S.weapon.type] = 0;
+                P.weaponType = wpn.type;
+                P.ammo = (P.weaponAmmo[wpn.type] || 0) + gained;
+                P.weaponAmmo[wpn.type] = 0;
                 label = wdef.icon + ' ' + (isFa() ? 'سلاح!' : 'WEAPON!');
             } else {
                 // A different weapon while the current one still has
                 // ammo — stash it in the queue; it takes over the
                 // instant the current gun runs dry (see fireWeapon()).
-                P.weaponAmmo[S.weapon.type] = (P.weaponAmmo[S.weapon.type] || 0) + gained;
-                if (P.weaponQueue.indexOf(S.weapon.type) === -1) P.weaponQueue.push(S.weapon.type);
+                P.weaponAmmo[wpn.type] = (P.weaponAmmo[wpn.type] || 0) + gained;
+                if (P.weaponQueue.indexOf(wpn.type) === -1) P.weaponQueue.push(wpn.type);
                 label = wdef.icon + ' ' + (isFa() ? 'ذخیره شد' : 'STORED');
             }
-            addParticles(S.weapon.x, S.weapon.y, 16, [wdef.color,'#eafcff'], 200);
-            popup(label, S.weapon.x, S.weapon.y - 14, wdef.color);
+            addParticles(wpn.x, wpn.y, 16, [wdef.color,'#eafcff'], 200);
+            popup(label, wpn.x, wpn.y - 14, wdef.color);
             sfxWeaponPickup();
-            S.weapon = null;
-            S.weaponSpawnTimer = WEAPON_SPAWN_MIN + Math.random()*(WEAPON_SPAWN_MAX - WEAPON_SPAWN_MIN);
+            S.weapons.splice(wi, 1);
             updateAmmoUI();
         }
-        if (!S.weapon){
-            S.weaponSpawnTimer -= dt;
-            if (S.weaponSpawnTimer <= 0) spawnWeapon();
+        // Weapon crates spawn on a fixed schedule, independent of whether
+        // earlier crates have already been picked up and with no cap on
+        // how many can be sitting on the map at once — every tick of the
+        // schedule just adds another one.
+        S.weaponSpawnTimer -= dt;
+        if (S.weaponSpawnTimer <= 0){
+            S.weaponSpawnTimer = WEAPON_SPAWN_MIN + Math.random()*(WEAPON_SPAWN_MAX - WEAPON_SPAWN_MIN);
+            spawnWeapon();
         }
 
         // speed-boost pickup — a short, strong burst of speed
@@ -20620,11 +20646,16 @@ window.MonsterHunt = (function(){
                 if (P.shieldActive){
                     P.shieldActive = false;
                     P.invulnTimer = 0.9;
-                    const pushAng = Math.atan2(P.y - M.y, P.x - M.x) || Math.random()*Math.PI*2;
-                    P.x += Math.cos(pushAng)*44; P.y += Math.sin(pushAng)*44;
-                    resolveWalls(P, PLAYER_R);
+                    const pushAng = Math.atan2(M.y - P.y, M.x - P.x) || Math.random()*Math.PI*2;
+                    // the shield throws the MONSTER backward, away from the
+                    // player, instead of nudging the player away from it
+                    M.knockVx = Math.cos(pushAng) * 620;
+                    M.knockVy = Math.sin(pushAng) * 620;
+                    M.knockTimer = 0.4;
+                    M.stunTimer = Math.max(M.stunTimer, 0.25); // brief beat before it can re-engage
+                    resolveWalls(M, M.r);
                     addParticles(P.x, P.y, 20, ['#9bd3ff','#eafcff'], 210);
-                    popup(isFa() ? '🛡 سپر شکست!' : '🛡 Shield broke!', P.x, P.y - 22, '#9bd3ff');
+                    popup(isFa() ? '🛡 سپر هیولا رو پرت کرد عقب!' : '🛡 Shield knocked it back!', P.x, P.y - 22, '#9bd3ff');
                     sfxShieldBreak();
                     updatePowerUI();
                     continue;
@@ -20713,18 +20744,26 @@ window.MonsterHunt = (function(){
         ctx.beginPath();
         ctx.moveTo(11, 0); ctx.lineTo(-7, -7); ctx.lineTo(-7, 7); ctx.closePath();
         ctx.fillStyle = stunned ? 'rgba(255,207,92,.85)' : hexToRgba(def.color, 0.85);
-        ctx.shadowColor = ctx.fillStyle; ctx.shadowBlur = 9;
+        ctx.shadowColor = ctx.fillStyle; ctx.shadowBlur = 6;
         ctx.fill();
         ctx.restore();
         ctx.shadowBlur = 0;
     }
+    // Three subtle rock tints (mossy, cold-grey, warm-brown) so a bigger
+    // map reads as varied terrain instead of the same boulder repeated.
+    const OBSTACLE_TINTS = [
+        { near: '#2a2420', far: '#0e0c0a', edge: 'rgba(124,255,160,.12)' },
+        { near: '#22282e', far: '#0a0d10', edge: 'rgba(124,210,255,.12)' },
+        { near: '#2e2420', far: '#120c0a', edge: 'rgba(255,190,124,.12)' }
+    ];
     function drawObstacles(){
         S.obstacles.forEach(function(o){
+            const tint = OBSTACLE_TINTS[o.tint || 0];
             ctx.beginPath(); ctx.arc(o.x, o.y, o.r, 0, Math.PI*2);
             const g = ctx.createRadialGradient(o.x - o.r*0.3, o.y - o.r*0.3, 2, o.x, o.y, o.r);
-            g.addColorStop(0, '#2a2420'); g.addColorStop(1, '#0e0c0a');
+            g.addColorStop(0, tint.near); g.addColorStop(1, tint.far);
             ctx.fillStyle = g; ctx.fill();
-            ctx.strokeStyle = 'rgba(124,255,160,.12)'; ctx.lineWidth = 1.5; ctx.stroke();
+            ctx.strokeStyle = tint.edge; ctx.lineWidth = 1.5; ctx.stroke();
         });
     }
     function drawShards(){
@@ -20738,7 +20777,7 @@ window.MonsterHunt = (function(){
             const g = ctx.createLinearGradient(0, -SHARD_R, 0, SHARD_R);
             g.addColorStop(0, '#bfffe0'); g.addColorStop(1, '#38c98a');
             ctx.fillStyle = g;
-            ctx.shadowColor = 'rgba(124,255,160,.9)'; ctx.shadowBlur = 12;
+            ctx.shadowColor = 'rgba(124,255,160,.9)'; ctx.shadowBlur = 8;
             ctx.fill();
             ctx.restore();
         });
@@ -20752,30 +20791,31 @@ window.MonsterHunt = (function(){
         ctx.fillStyle = 'rgba(255,180,60,.25)'; ctx.fill();
         ctx.beginPath(); ctx.arc(f.x, f.y, 7, 0, Math.PI*2);
         ctx.fillStyle = '#ffcf5c';
-        ctx.shadowColor = 'rgba(255,207,92,.9)'; ctx.shadowBlur = 16;
+        ctx.shadowColor = 'rgba(255,207,92,.9)'; ctx.shadowBlur = 10;
         ctx.fill();
         ctx.shadowBlur = 0;
     }
     // Temporary weapon crate lying on the ground — its glow color and icon
     // shape now reflect which of the three weapon types it actually is.
     function drawWeapon(){
-        if (!S.weapon) return;
-        const w = S.weapon;
-        const def = WEAPON_DEFS[w.type] || WEAPON_DEFS.pistol;
-        const pulse = 0.7 + 0.3*Math.sin(S.t*4.2);
-        ctx.save();
-        ctx.translate(w.x, w.y + Math.sin(S.t*2.6)*2.5);
-        ctx.beginPath(); ctx.arc(0, 0, 15*pulse, 0, Math.PI*2);
-        ctx.fillStyle = hexToRgba(def.color, 0.22); ctx.fill();
-        ctx.rotate(-0.5);
-        ctx.fillStyle = '#eafcff';
-        ctx.shadowColor = hexToRgba(def.color, 0.95); ctx.shadowBlur = 14;
-        ctx.fillRect(-WEAPON_R, -3, WEAPON_R*1.7, 5);
-        ctx.fillRect(-WEAPON_R*0.4, -3, 5, 8);
-        if (def.pellets){ ctx.fillRect(WEAPON_R*0.5, -6, 4, 12); }
-        if (def.pierce){ ctx.beginPath(); ctx.arc(WEAPON_R*0.4, 0, 4, 0, Math.PI*2); ctx.fillStyle = def.color; ctx.fill(); }
-        ctx.shadowBlur = 0;
-        ctx.restore();
+        S.weapons.forEach(function(w){
+            const def = WEAPON_DEFS[w.type] || WEAPON_DEFS.pistol;
+            const phase = w.x * 0.01; // desyncs the bob/pulse across multiple crates on the ground
+            const pulse = 0.7 + 0.3*Math.sin(S.t*4.2 + phase);
+            ctx.save();
+            ctx.translate(w.x, w.y + Math.sin(S.t*2.6 + phase)*2.5);
+            ctx.beginPath(); ctx.arc(0, 0, 15*pulse, 0, Math.PI*2);
+            ctx.fillStyle = hexToRgba(def.color, 0.22); ctx.fill();
+            ctx.rotate(-0.5);
+            ctx.fillStyle = '#eafcff';
+            ctx.shadowColor = hexToRgba(def.color, 0.95); ctx.shadowBlur = 9;
+            ctx.fillRect(-WEAPON_R, -3, WEAPON_R*1.7, 5);
+            ctx.fillRect(-WEAPON_R*0.4, -3, 5, 8);
+            if (def.pellets){ ctx.fillRect(WEAPON_R*0.5, -6, 4, 12); }
+            if (def.pierce){ ctx.beginPath(); ctx.arc(WEAPON_R*0.4, 0, 4, 0, Math.PI*2); ctx.fillStyle = def.color; ctx.fill(); }
+            ctx.shadowBlur = 0;
+            ctx.restore();
+        });
     }
     // Speed-boost pickup: a small glowing lightning bolt.
     function drawBoostItem(){
@@ -20789,7 +20829,7 @@ window.MonsterHunt = (function(){
         ctx.beginPath();
         ctx.moveTo(-3, -11); ctx.lineTo(4, -2); ctx.lineTo(-1, -2); ctx.lineTo(4, 11); ctx.lineTo(-5, 1); ctx.lineTo(1, 1); ctx.closePath();
         ctx.fillStyle = '#ffe27a';
-        ctx.shadowColor = 'rgba(255,226,122,.9)'; ctx.shadowBlur = 14;
+        ctx.shadowColor = 'rgba(255,226,122,.9)'; ctx.shadowBlur = 9;
         ctx.fill();
         ctx.shadowBlur = 0;
         ctx.restore();
@@ -20806,7 +20846,7 @@ window.MonsterHunt = (function(){
         ctx.beginPath();
         ctx.moveTo(0, -10); ctx.lineTo(8, -5); ctx.lineTo(8, 3); ctx.lineTo(0, 11); ctx.lineTo(-8, 3); ctx.lineTo(-8, -5); ctx.closePath();
         ctx.fillStyle = '#9bd3ff';
-        ctx.shadowColor = 'rgba(155,211,255,.9)'; ctx.shadowBlur = 14;
+        ctx.shadowColor = 'rgba(155,211,255,.9)'; ctx.shadowBlur = 9;
         ctx.fill();
         ctx.shadowBlur = 0;
         ctx.restore();
@@ -20822,7 +20862,7 @@ window.MonsterHunt = (function(){
             ctx.strokeStyle = g; ctx.lineWidth = BULLET_R;
             ctx.beginPath(); ctx.moveTo(-10, 0); ctx.lineTo(2, 0); ctx.stroke();
             ctx.beginPath(); ctx.arc(2, 0, BULLET_R*0.7, 0, Math.PI*2);
-            ctx.fillStyle = col; ctx.shadowColor = hexToRgba(col.charAt(0)==='#'?col:'#eafcff', 0.9); ctx.shadowBlur = 10; ctx.fill();
+            ctx.fillStyle = col; ctx.shadowColor = hexToRgba(col.charAt(0)==='#'?col:'#eafcff', 0.9); ctx.shadowBlur = 6; ctx.fill();
             ctx.restore();
         });
         ctx.shadowBlur = 0;
@@ -20835,7 +20875,7 @@ window.MonsterHunt = (function(){
         ctx.globalAlpha = a;
         ctx.strokeStyle = '#ff5cf0';
         ctx.lineWidth = 5;
-        ctx.shadowColor = 'rgba(255,92,240,.9)'; ctx.shadowBlur = 18;
+        ctx.shadowColor = 'rgba(255,92,240,.9)'; ctx.shadowBlur = 11;
         ctx.beginPath(); ctx.moveTo(b.x1, b.y1); ctx.lineTo(b.x2, b.y2); ctx.stroke();
         ctx.lineWidth = 2; ctx.strokeStyle = '#ffe6fb';
         ctx.beginPath(); ctx.moveTo(b.x1, b.y1); ctx.lineTo(b.x2, b.y2); ctx.stroke();
@@ -20847,7 +20887,7 @@ window.MonsterHunt = (function(){
             const pulse = 0.7 + 0.3*Math.sin(S.t*10 + sp.age*20);
             ctx.beginPath(); ctx.arc(sp.x, sp.y, 6*pulse, 0, Math.PI*2);
             ctx.fillStyle = hexToRgba(sp.color, 0.9);
-            ctx.shadowColor = hexToRgba(sp.color, 0.9); ctx.shadowBlur = 12;
+            ctx.shadowColor = hexToRgba(sp.color, 0.9); ctx.shadowBlur = 8;
             ctx.fill();
         });
         ctx.shadowBlur = 0;
@@ -20862,7 +20902,7 @@ window.MonsterHunt = (function(){
         if (P.shieldActive){
             ctx.beginPath(); ctx.arc(0, 0, PLAYER_R + 8, 0, Math.PI*2);
             ctx.strokeStyle = 'rgba(155,211,255,.75)'; ctx.lineWidth = 2.5;
-            ctx.shadowColor = 'rgba(155,211,255,.7)'; ctx.shadowBlur = 10;
+            ctx.shadowColor = 'rgba(155,211,255,.7)'; ctx.shadowBlur = 6;
             ctx.stroke(); ctx.shadowBlur = 0;
         }
         if (P.invulnTimer > 0 && Math.floor(S.t*14) % 2 === 0) ctx.globalAlpha = 0.4;
@@ -20871,7 +20911,7 @@ window.MonsterHunt = (function(){
         const g = ctx.createRadialGradient(-4, -4, 2, 0, 0, PLAYER_R);
         g.addColorStop(0, '#eafff0'); g.addColorStop(1, boosting ? '#ffcf5c' : '#4fe08a');
         ctx.fillStyle = g;
-        ctx.shadowColor = boosting ? 'rgba(255,226,122,.8)' : 'rgba(124,255,160,.8)'; ctx.shadowBlur = 14;
+        ctx.shadowColor = boosting ? 'rgba(255,226,122,.8)' : 'rgba(124,255,160,.8)'; ctx.shadowBlur = 9;
         ctx.fill();
         ctx.shadowBlur = 0;
         ctx.beginPath();
