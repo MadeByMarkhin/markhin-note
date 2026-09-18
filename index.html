@@ -5839,6 +5839,10 @@
             white-space:nowrap;
         }
         .advanced-tools-row > .btn-main, .advanced-tools-row .cemetery-tool-wrap, .advanced-tools-row .portal-tool-wrap{align-self:center;}
+        .advanced-tools-row-2{margin-top:8px;flex-wrap:wrap;}
+        .advanced-tools-row-2 .btn-main{flex:0 0 auto;padding:6px 10px;font-size:10.5px;min-width:0;}
+        html[dir="ltr"] .advanced-tools-row-2 .btn-main{padding:6px 9px;font-size:9.5px;}
+        @media(max-width:380px){.advanced-tools-row-2 .btn-main{padding:5px 8px;font-size:9.5px;}}
         html[dir="ltr"] .advanced-tools-row{gap:5px;}
         html[dir="ltr"] .advanced-tools-row .btn-main{padding:7px 9px;font-size:10px;min-width:0;}
         html[dir="ltr"] .advanced-tools-row #btnKnowledgeGraph{padding:7px 10px;}
@@ -7998,6 +8002,10 @@ window.mu_syncHtmlBg = function(){
                     <button class="btn-main" id="btnRandomPortal" onclick="openRandomPortal()">🌀 پورتال رندوم</button>
                 </span>
             </div>
+            <div class="advanced-tools-row advanced-tools-row-2">
+                <button class="btn-main" id="btnMorseCode" onclick="openMorseTool()">📡 کد مورس</button>
+                <button class="btn-main" id="btnBinaryCode" onclick="openBinaryTool()">🔢 کد باینری</button>
+            </div>
         </div>
 
         <div class="toolbar-section-box">
@@ -9673,6 +9681,8 @@ window.mu_syncHtmlBg = function(){
             if(document.getElementById('btnCemetery')) document.getElementById('btnCemetery').innerText=currentLang==='fa'?'⚰️ گورستان':'⚰️ Cemetery';
             if(document.getElementById('cemeteryMotto')) document.getElementById('cemeteryMotto').innerText=currentLang==='fa'?'هیچ چیز همیشگی نیست..':'Nothing Lasts Forever..';
             if(document.getElementById('btnRandomPortal')) document.getElementById('btnRandomPortal').innerText=currentLang==='fa'?'🌀 پورتال رندوم':'🌀 Random Portal';
+            if(document.getElementById('btnMorseCode')) document.getElementById('btnMorseCode').innerText=currentLang==='fa'?'📡 کد مورس':'📡 Morse Code';
+            if(document.getElementById('btnBinaryCode')) document.getElementById('btnBinaryCode').innerText=currentLang==='fa'?'🔢 کد باینری':'🔢 Binary Code';
             if(document.getElementById('btnSmartSearch')) document.getElementById('btnSmartSearch').innerText=currentLang==='fa'?'جستجو':'Search';
             if(document.getElementById('markhinGameLaunchBtn')) document.getElementById('markhinGameLaunchBtn').title=currentLang==='fa'?'منطقه بازی':'Game Zone';
             if(document.getElementById('markhinGameLaunchLabel')) document.getElementById('markhinGameLaunchLabel').innerText=currentLang==='fa'?'منطقه بازی':'Game Zone';
@@ -14152,6 +14162,196 @@ window.mu_syncHtmlBg = function(){
                 </div>`);
         }
 
+        /* ---------- Morse Code & Binary Code tools ---------- */
+        const MORSE_MAP = {A:'.-',B:'-...',C:'-.-.',D:'-..',E:'.',F:'..-.',G:'--.',H:'....',I:'..',J:'.---',K:'-.-',L:'.-..',M:'--',N:'-.',O:'---',P:'.--.',Q:'--.-',R:'.-.',S:'...',T:'-',U:'..-',V:'...-',W:'.--',X:'-..-',Y:'-.--',Z:'--..','0':'-----','1':'.----','2':'..---','3':'...--','4':'....-','5':'.....','6':'-....','7':'--...','8':'---..','9':'----.','.':'.-.-.-',',':'--..--','?':'..--..',"'":'.----.','!':'-.-.--','/':'-..-.','(':'-.--.',')':'-.--.-','&':'.-...',':':'---...',';':'-.-.-.','=':'-...-','+':'.-.-.','-':'-....-','_':'..--.-','"':'.-..-.','$':'...-..-','@':'.--.-.'};
+        const MORSE_MAP_REV = Object.fromEntries(Object.entries(MORSE_MAP).map(([k,v])=>[v,k]));
+        let morseToolBuffer = '';
+
+        async function specialToolsCopyText(elId){
+            const el = document.getElementById(elId); if(!el) return;
+            const fa = currentLang==='fa';
+            const text = (el.innerText !== undefined ? el.innerText : el.value) || '';
+            if(!text.trim()){ showToast(fa?'چیزی برای کپی نیست.':'Nothing to copy.'); return; }
+            const legacyCopy=()=>{ try{ const ta=document.createElement('textarea'); ta.value=text; ta.style.position='fixed'; ta.style.opacity='0'; document.body.appendChild(ta); ta.focus(); ta.select(); document.execCommand('copy'); ta.remove(); return true; }catch(e){ return false; } };
+            try{
+                if(navigator.clipboard && navigator.clipboard.writeText){ await navigator.clipboard.writeText(text); }
+                else if(!legacyCopy()){ throw new Error('no clipboard'); }
+                showToast(fa?'📋 کپی شد.':'📋 Copied.');
+            }catch(e){
+                if(legacyCopy()) showToast(fa?'📋 کپی شد.':'📋 Copied.');
+                else showToast(fa?'⚠️ کپی ناموفق بود.':'⚠️ Copy failed.');
+            }
+        }
+
+        function morseToolSwitchTab(tab){
+            const textPanel=document.getElementById('morseTabText'), morsePanel=document.getElementById('morseTabMorse');
+            const btnText=document.getElementById('morseTabBtnText'), btnMorse=document.getElementById('morseTabBtnMorse');
+            if(textPanel) textPanel.style.display = tab==='text' ? 'block':'none';
+            if(morsePanel) morsePanel.style.display = tab==='morse' ? 'block':'none';
+            if(btnText) btnText.classList.toggle('active', tab==='text');
+            if(btnMorse) btnMorse.classList.toggle('active', tab==='morse');
+        }
+        function morseToolTextToMorse(){
+            const inputEl=document.getElementById('morseTextIn'), out=document.getElementById('morseTextOut');
+            if(!inputEl||!out) return;
+            const trimmed = inputEl.value.toUpperCase().trim();
+            if(!trimmed){ out.innerText=''; return; }
+            const words = trimmed.split(/\s+/);
+            out.innerText = words.map(w=>w.split('').map(ch=>MORSE_MAP[ch]).filter(Boolean).join(' ')).join('  /  ');
+        }
+        function morseToolRenderBuffer(){
+            const el=document.getElementById('morseBuffer');
+            if(el) el.innerText = morseToolBuffer || '…';
+        }
+        function morseToolAppendSymbol(sym){
+            if(sym===' '){
+                if(!morseToolBuffer || morseToolBuffer.endsWith(' ')) return;
+                morseToolBuffer += ' ';
+            } else if(sym==='/'){
+                morseToolBuffer = morseToolBuffer.replace(/\s+$/,'');
+                if(!morseToolBuffer || morseToolBuffer.endsWith('/')) return;
+                morseToolBuffer += ' / ';
+            } else {
+                morseToolBuffer += sym;
+            }
+            morseToolRenderBuffer();
+        }
+        function morseToolAppendCode(code){
+            if(morseToolBuffer && !morseToolBuffer.endsWith(' ') && !morseToolBuffer.endsWith('/')) morseToolBuffer += ' ';
+            morseToolBuffer += code + ' ';
+            morseToolRenderBuffer();
+        }
+        function morseToolBackspace(){
+            morseToolBuffer = morseToolBuffer.slice(0, -1);
+            morseToolRenderBuffer();
+        }
+        function morseToolClearBuffer(){
+            morseToolBuffer = '';
+            morseToolRenderBuffer();
+            const out=document.getElementById('morseDecodeOut'); if(out) out.innerText='';
+        }
+        function morseToolDecode(str){
+            return str.trim().split('/').map(word=>
+                word.trim().split(/\s+/).filter(Boolean).map(code=>MORSE_MAP_REV[code]||'?').join('')
+            ).join(' ').trim();
+        }
+        function morseToolConfirmDecode(){
+            const fa = currentLang==='fa';
+            const out = document.getElementById('morseDecodeOut'); if(!out) return;
+            if(!morseToolBuffer.trim()){ out.innerText = fa?'(چیزی برای تبدیل نیست)':'(nothing to convert)'; return; }
+            out.innerText = morseToolDecode(morseToolBuffer) || (fa?'(کد نامعتبر است)':'(invalid code)');
+        }
+        function morseToolBuildRefGrid(){
+            return Object.entries(MORSE_MAP).filter(([k])=>/^[A-Z0-9]$/.test(k)).map(([k,v])=>
+                `<button type="button" class="mc-ref-item" onclick="morseToolAppendCode('${v}')"><b>${k}</b><span dir="ltr">${v}</span></button>`
+            ).join('');
+        }
+        function openMorseTool(){
+            const fa = currentLang==='fa';
+            morseToolBuffer = '';
+            showAdvanced(`
+                <div class="advanced-head"><h3>📡 ${fa?'مبدل کد مورس':'Morse Code Converter'}</h3><button class="btn-main" onclick="closeAdvancedModal()">✕</button></div>
+                <div class="mc-tool-tabs">
+                    <button type="button" class="mc-tool-tab-btn active" id="morseTabBtnText" onclick="morseToolSwitchTab('text')">✍️ ${fa?'متن ← مورس':'Text → Morse'}</button>
+                    <button type="button" class="mc-tool-tab-btn" id="morseTabBtnMorse" onclick="morseToolSwitchTab('morse')">📡 ${fa?'مورس ← متن':'Morse → Text'}</button>
+                </div>
+                <div id="morseTabText" class="mc-tool-tab-panel">
+                    <p class="mc-tool-hint">${fa?'متن انگلیسی را وارد کن؛ به‌صورت خودکار به کد مورس تبدیل می‌شود.':'Type English text — it converts to Morse code automatically.'}</p>
+                    <textarea id="morseTextIn" class="mc-tool-textarea" placeholder="${fa?'مثلاً: HELLO WORLD':'e.g. HELLO WORLD'}" oninput="morseToolTextToMorse()"></textarea>
+                    <div class="mc-tool-result-box" id="morseTextOut" dir="ltr"></div>
+                    <div class="mc-tool-actions">
+                        <button type="button" class="btn-main" onclick="specialToolsCopyText('morseTextOut')">📋 ${fa?'کپی':'Copy'}</button>
+                        <button type="button" class="btn-main" onclick="document.getElementById('morseTextIn').value='';morseToolTextToMorse();">🗑️ ${fa?'پاک کردن':'Clear'}</button>
+                    </div>
+                </div>
+                <div id="morseTabMorse" class="mc-tool-tab-panel" style="display:none">
+                    <p class="mc-tool-hint">${fa?'به‌جای تایپ، با دکمه‌های زیر یا جدول مرجع، کد مورس را بساز و در پایان تایید کن.':'Instead of typing, build the Morse code with the buttons below or the reference table, then confirm.'}</p>
+                    <div class="mc-tool-buffer-box" id="morseBuffer" dir="ltr">…</div>
+                    <div class="mc-tool-keypad">
+                        <button type="button" class="btn-main mc-key-dot" onclick="morseToolAppendSymbol('.')">•</button>
+                        <button type="button" class="btn-main mc-key-dash" onclick="morseToolAppendSymbol('-')">–</button>
+                        <button type="button" class="btn-main" onclick="morseToolAppendSymbol(' ')">${fa?'فاصلهٔ حرف':'Letter gap'}</button>
+                        <button type="button" class="btn-main" onclick="morseToolAppendSymbol('/')">${fa?'فاصلهٔ کلمه':'Word gap'}</button>
+                        <button type="button" class="btn-main" onclick="morseToolBackspace()">⌫</button>
+                        <button type="button" class="btn-main" onclick="morseToolClearBuffer()">🗑️ ${fa?'پاک همه':'Clear all'}</button>
+                    </div>
+                    <button type="button" class="btn-main mc-confirm-btn" onclick="morseToolConfirmDecode()">✅ ${fa?'تایید و تبدیل به متن':'Confirm & Convert to Text'}</button>
+                    <div class="mc-tool-result-box" id="morseDecodeOut" dir="ltr"></div>
+                    <div class="mc-tool-actions">
+                        <button type="button" class="btn-main" onclick="specialToolsCopyText('morseDecodeOut')">📋 ${fa?'کپی نتیجه':'Copy result'}</button>
+                    </div>
+                    <details class="mc-tool-ref">
+                        <summary>📖 ${fa?'جدول مرجع کد مورس (برای افزودن به بافر، لمس کن)':'Morse code reference table (tap to add to buffer)'}</summary>
+                        <div class="mc-tool-ref-grid">${morseToolBuildRefGrid()}</div>
+                    </details>
+                </div>
+            `);
+        }
+
+        function binToolSwitchTab(tab){
+            const textPanel=document.getElementById('binTabText'), binPanel=document.getElementById('binTabBin');
+            const btnText=document.getElementById('binTabBtnText'), btnBin=document.getElementById('binTabBtnBin');
+            if(textPanel) textPanel.style.display = tab==='text' ? 'block':'none';
+            if(binPanel) binPanel.style.display = tab==='bin' ? 'block':'none';
+            if(btnText) btnText.classList.toggle('active', tab==='text');
+            if(btnBin) btnBin.classList.toggle('active', tab==='bin');
+        }
+        function binToolTextToBinary(){
+            const inputEl=document.getElementById('binTextIn'), out=document.getElementById('binTextOut');
+            if(!inputEl||!out) return;
+            const val = inputEl.value;
+            if(!val){ out.innerText=''; return; }
+            const bytes = new TextEncoder().encode(val);
+            out.innerText = Array.from(bytes).map(b=>b.toString(2).padStart(8,'0')).join(' ');
+        }
+        function binToolBinaryToText(){
+            const fa = currentLang==='fa';
+            const inputEl=document.getElementById('binBinaryIn'), out=document.getElementById('binBinaryOut');
+            if(!inputEl||!out) return;
+            const cleaned = inputEl.value.trim();
+            if(!cleaned){ out.innerText=''; return; }
+            let groups = cleaned.split(/[\s,]+/).filter(Boolean);
+            let bytes;
+            if(groups.length && groups.every(g=>/^[01]{1,8}$/.test(g))){
+                bytes = groups.map(g=>parseInt(g,2));
+            } else {
+                const bits = cleaned.replace(/\s+/g,'');
+                if(!/^[01]+$/.test(bits)){ out.innerText = fa?'⚠️ ورودی باینری نامعتبر است (فقط 0 و 1 مجاز است).':'⚠️ Invalid binary input (only 0 and 1 allowed).'; return; }
+                if(bits.length % 8 !== 0){ out.innerText = fa?'⚠️ تعداد بیت‌ها باید مضربی از ۸ باشد، یا هر بایت را با فاصله جدا کن.':'⚠️ Bit count must be a multiple of 8, or separate each byte with a space.'; return; }
+                bytes=[]; for(let i=0;i<bits.length;i+=8) bytes.push(parseInt(bits.slice(i,i+8),2));
+            }
+            try{ out.innerText = new TextDecoder().decode(new Uint8Array(bytes)); }
+            catch(e){ out.innerText = fa?'⚠️ تبدیل ممکن نشد.':'⚠️ Could not convert.'; }
+        }
+        function openBinaryTool(){
+            const fa = currentLang==='fa';
+            showAdvanced(`
+                <div class="advanced-head"><h3>🔢 ${fa?'مبدل کد باینری':'Binary Code Converter'}</h3><button class="btn-main" onclick="closeAdvancedModal()">✕</button></div>
+                <div class="mc-tool-tabs">
+                    <button type="button" class="mc-tool-tab-btn active" id="binTabBtnText" onclick="binToolSwitchTab('text')">✍️ ${fa?'متن ← باینری':'Text → Binary'}</button>
+                    <button type="button" class="mc-tool-tab-btn" id="binTabBtnBin" onclick="binToolSwitchTab('bin')">🔢 ${fa?'باینری ← متن':'Binary → Text'}</button>
+                </div>
+                <div id="binTabText" class="mc-tool-tab-panel">
+                    <p class="mc-tool-hint">${fa?'متن انگلیسی را وارد کن؛ به‌صورت خودکار به کد باینری تبدیل می‌شود.':'Type English text — it converts to binary automatically.'}</p>
+                    <textarea id="binTextIn" class="mc-tool-textarea" placeholder="${fa?'مثلاً: HELLO':'e.g. HELLO'}" oninput="binToolTextToBinary()"></textarea>
+                    <div class="mc-tool-result-box" id="binTextOut" dir="ltr"></div>
+                    <div class="mc-tool-actions">
+                        <button type="button" class="btn-main" onclick="specialToolsCopyText('binTextOut')">📋 ${fa?'کپی':'Copy'}</button>
+                        <button type="button" class="btn-main" onclick="document.getElementById('binTextIn').value='';binToolTextToBinary();">🗑️ ${fa?'پاک کردن':'Clear'}</button>
+                    </div>
+                </div>
+                <div id="binTabBin" class="mc-tool-tab-panel" style="display:none">
+                    <p class="mc-tool-hint">${fa?'کد باینری را وارد کن (هر بایت را با فاصله جدا کن، مثلاً 01001000 01000101).':'Enter binary code (separate each byte with a space, e.g. 01001000 01000101).'}</p>
+                    <textarea id="binBinaryIn" class="mc-tool-textarea" dir="ltr" placeholder="01001000 01000101 01001100 01001100 01001111" oninput="binToolBinaryToText()"></textarea>
+                    <div class="mc-tool-result-box" id="binBinaryOut"></div>
+                    <div class="mc-tool-actions">
+                        <button type="button" class="btn-main" onclick="specialToolsCopyText('binBinaryOut')">📋 ${fa?'کپی نتیجه':'Copy result'}</button>
+                        <button type="button" class="btn-main" onclick="document.getElementById('binBinaryIn').value='';binToolBinaryToText();">🗑️ ${fa?'پاک کردن':'Clear'}</button>
+                    </div>
+                </div>
+            `);
+        }
+
         /* ---------- Knowledge Graph: stopword-filtered, tag-weighted similarity ---------- */
         const KG_STOPWORDS = new Set(['و','در','به','از','که','این','را','با','هم','برای','تا','یا','اگر','است','بود','شود','شد','می','نمی','های','ها','یک','دو','آن','چون','ولی','اما','هر','همه','نیز','دیگر','باید','کرد','کند','شده','بین','روی','زیر','پیش','بعد','قبل','فقط','چند','خود','چه','کدام','هیچ','همین','آیا',
             'the','and','is','in','of','to','a','for','on','with','as','at','by','an','be','are','was','were','this','that','it','or','from','you','your','not','but','have','has','had']);
@@ -14509,6 +14709,30 @@ window.mu_syncHtmlBg = function(){
 .mc-subgroup-ai .mc-row button,.mc-subgroup-ai .mc-row .img-btn{flex:1 1 0}
 @media(max-width:600px){.mc-subgroup .mc-row button,.mc-subgroup .mc-row .img-btn{padding:4px 5px;font-size:8.5px}}
 @media(max-width:420px){.mc-subgroup .mc-row button,.mc-subgroup .mc-row .img-btn{padding:4px 4px;font-size:8px}}
+
+/* Morse code / Binary code tools */
+.mc-tool-tabs{display:flex;gap:6px;margin:0 0 12px;border-bottom:1px solid var(--panel-border);padding-bottom:8px}
+.mc-tool-tab-btn{flex:1 1 0;padding:8px 6px;font-size:11px;font-weight:700;border-radius:9px;border:1px solid var(--panel-border);background:rgba(0,0,0,.2);color:var(--text-color);opacity:.6;cursor:pointer;transition:var(--transition-smooth)}
+.mc-tool-tab-btn.active{opacity:1;background:rgba(72,202,228,.16);border-color:var(--text-color)}
+.mc-tool-hint{opacity:.65;font-size:11px;line-height:1.8;margin:0 0 10px}
+.mc-tool-textarea{width:100%;box-sizing:border-box;min-height:74px;padding:9px 10px;border-radius:10px;border:1px solid var(--panel-border);background:rgba(0,0,0,.25);color:var(--text-color);font-family:inherit;font-size:12px;resize:vertical;outline:none;line-height:1.7}
+.mc-tool-textarea:focus{border-color:var(--text-color)}
+.mc-tool-result-box{margin-top:9px;min-height:44px;padding:10px 11px;border-radius:10px;border:1px dashed var(--panel-border);background:rgba(0,0,0,.18);font-size:12px;line-height:1.8;word-break:break-word;white-space:pre-wrap}
+.mc-tool-buffer-box{margin:0 0 10px;min-height:40px;padding:10px 11px;border-radius:10px;border:1px solid var(--panel-border);background:rgba(0,0,0,.28);font-size:15px;letter-spacing:1px;text-align:center;word-break:break-all}
+.mc-tool-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:9px}
+.mc-tool-actions .btn-main{flex:1 1 auto}
+.mc-tool-keypad{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin-bottom:10px}
+.mc-tool-keypad .btn-main{padding:10px 6px;font-size:11px}
+.mc-key-dot,.mc-key-dash{font-size:19px!important;font-weight:800;padding:6px!important}
+.mc-confirm-btn{width:100%;background:rgba(72,202,228,.16);border-color:var(--text-color);font-weight:700}
+.mc-tool-ref{margin-top:12px;border-top:1px solid var(--panel-border);padding-top:9px}
+.mc-tool-ref summary{cursor:pointer;font-size:11px;opacity:.75;user-select:none}
+.mc-tool-ref-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(52px,1fr));gap:6px;margin-top:10px}
+.mc-ref-item{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:6px 3px;border-radius:8px;border:1px solid var(--panel-border);background:rgba(0,0,0,.2);color:var(--text-color);cursor:pointer;transition:var(--transition-smooth)}
+.mc-ref-item:hover,.mc-ref-item:active{background:rgba(72,202,228,.18);border-color:var(--text-color)}
+.mc-ref-item b{font-size:12px}
+.mc-ref-item span{font-size:10px;opacity:.75}
+@media(max-width:480px){.mc-tool-keypad{grid-template-columns:repeat(2,minmax(0,1fr))}}
 
 </style>
 <script>
@@ -15516,9 +15740,9 @@ if(textEl && textEl.innerHTML.indexOf('[[')!==-1){textEl.querySelectorAll('a[dat
    optional second line underneath — a short snippet of the note's
    own text — shown only when the person turns on the "note previews"
    toggle next to the sort-order picker (off by default). */
-.note-btn-wrap .custom-btn{flex:1;width:100%;max-width:100%;flex-direction:column;align-items:stretch;justify-content:center;text-align:center;gap:2px;padding:10px 14px;font-size:13px;min-height:46px;box-sizing:border-box}
-.note-item-title{display:block;min-width:0;width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
-.note-item-meta{display:block;min-width:0;width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10.5px;font-weight:400;color:rgba(255,255,255,.5)}
+.note-btn-wrap .custom-btn{flex:1;width:100%;max-width:100%;flex-direction:column;align-items:stretch;justify-content:center;text-align:center;gap:5px;padding:11px 14px;font-size:13px;min-height:46px;box-sizing:border-box}
+.note-item-title{display:block;min-width:0;width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;line-height:1.35}
+.note-item-meta{display:block;min-width:0;width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;font-weight:400;line-height:1.35;color:rgba(255,255,255,.52);letter-spacing:.1px}
 .custom-btn.active-btn .note-item-meta{color:rgba(255,255,255,.68)}
 /* Dragging item: left behind in the flow as a dimmed "hole" placeholder —
    the actual floating visual is the .markhin-float-ghost clone below,
@@ -15856,6 +16080,20 @@ function mu_notePreviewSnippet(item){
     if (!src) return '';
     const tmp = document.createElement('div');
     tmp.innerHTML = sanitizeHtml(src);
+    // Bug fix (preview words running into each other with no space): each
+    // line typed in the note editor is its own block element (<div>/<p>),
+    // and a line break is a <br> — but .textContent walks the DOM purely by
+    // text nodes and inserts NO whitespace at those block boundaries. So
+    // "<div>سلام</div><div>خوبی؟</div>" (two separate lines) previously
+    // collapsed straight into "سلامخوبی؟" with the words glued together,
+    // instead of "سلام خوبی؟". Inserting an explicit space right after every
+    // <br>/<div>/<p>/<li> before reading textContent restores exactly the
+    // line break the person actually typed, as a normal space in the
+    // one-line snippet; the whitespace/newline fold below then cleans up
+    // any doubled-up spaces this produces.
+    tmp.querySelectorAll('br, div, p, li').forEach(el => {
+        el.insertAdjacentText('afterend', ' ');
+    });
     const text = (tmp.textContent || '').replace(/\s+/g, ' ').trim();
     if (!text) return '';
     return text.length > 64 ? text.slice(0, 64).trim() + '…' : text;
@@ -18317,6 +18555,22 @@ window.attachWrapperEvents = function(categoryId){
                     </div>
                   </div>
                 </div>
+                <div class="mg-card mc-card" id="mgCardMonsterHunt" onclick="mgLaunch('monster-hunt')" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();mgLaunch('monster-hunt');}">
+                  <div class="mg-card-inner">
+                    <span class="mg-card-art mc-card-art">
+                        <span class="mc-card-fog"></span>
+                        <span class="mc-card-eyes"></span>
+                        <span class="mg-card-emoji">👹</span>
+                        <span class="mg-card-best" id="mgCardMonsterHuntBest" hidden>🏆 <b id="mgCardMonsterHuntBestVal">0</b></span>
+                    </span>
+                    <div class="mg-card-body">
+                        <span class="mg-card-title">MONSTER HUNT</span>
+                        <span class="mg-card-title-fa" id="mgCardMonsterHuntTitleFa">تحت تعقیب هیولا</span>
+                        <span class="mg-card-desc" id="mgCardMonsterHuntDesc">تو یه نقشه‌ی بزرگ، دسته‌ای از هیولاهای متفاوت — تک‌تیرانداز، غول‌پیکر، سایه‌ای، از راه دور — دنبالتن؛ فرار کن، جاخالی بده، بوت سرعت و سپر جمع کن، سلاح‌های مختلف پیدا کن و شلیک کن. هرچی جلوتر بری عجیب‌تر و ترسناک‌تر می‌شه!</span>
+                        <span class="mg-card-play" id="mgCardMonsterHuntPlay">👣 فرار کن</span>
+                    </div>
+                  </div>
+                </div>
             </div>
             <div class="mg-hub-footer" id="mgHubFooter">🚧 بازی‌های بیشتری به‌زودی به این بخش اضافه می‌شن…</div>
         </div>
@@ -18355,6 +18609,49 @@ window.attachWrapperEvents = function(categoryId){
         <div class="nd-newbest" id="ndNewBest" hidden>NEW BEST 🏆</div>
         <div class="nd-best-row" id="ndOverBest">BEST — 0</div>
         <button class="nd-btn" id="ndRetryBtn">🔁 دوباره برون</button>
+    </div>
+</div>
+<div class="mc-root" id="mcRoot" hidden>
+    <canvas id="mcCanvas"></canvas>
+
+    <div class="mc-hud">
+        <div class="mc-hud-box">
+            <span class="mc-hud-label">SCORE</span>
+            <span class="mc-hud-value" id="mcScoreVal">0</span>
+        </div>
+        <div class="mc-hud-box" style="align-items:flex-end">
+            <span class="mc-hud-label">BEST</span>
+            <span class="mc-hud-value mc-best" id="mcBestVal">0</span>
+        </div>
+    </div>
+    <div class="mc-center" id="mcCenter"></div>
+    <div class="mc-warn" id="mcWarn"></div>
+    <div class="mc-ammo" id="mcAmmo" hidden>
+        <span id="mcWeaponIcon">🔫</span>
+        <span class="mc-ammo-dots" id="mcAmmoDots"></span>
+        <span class="mc-wq" id="mcWeaponQueue" hidden></span>
+    </div>
+    <div class="mc-boost" id="mcBoostBadge" hidden>⚡ <span id="mcBoostVal">SPEED</span></div>
+    <div class="mc-shield" id="mcShieldBadge" hidden>🛡 <span id="mcShieldVal">SHIELD</span></div>
+    <button class="mc-back" id="mcBackBtn" title="بازگشت به فهرست بازی‌ها" onclick="mgBackToHub()">‹</button>
+    <button class="mc-mute" id="mcMuteBtn" title="صدا">🔊</button>
+    <button class="mc-fire" id="mcFireBtn" title="شلیک" hidden>🔫</button>
+
+    <div class="mc-panel" id="mcStartPanel">
+        <h2 class="mc-title">MONSTER HUNT</h2>
+        <div class="mc-sub" id="mcStartSub">یه دسته هیولای عجیب‌وغریب — تک‌تیرانداز، غول‌پیکر، سایه‌ای و حتی از راه دور — تو یه نقشه‌ی بزرگ افتادن دنبالت 👹👹<br>انگشتتو روی صفحه بکش تا فرار کنی و جاخالی بدی، پشتِ تخته‌سنگ‌ها قایم شو، بلورهای درخشان جمع کن، بوت سرعت و سپر بردار، و اگه <b>سلاح 🔫💥🔴</b> پیدا کردی شلیک کن. هرچی جلوتر بری، هیولاها عجیب‌تر و خطرناک‌تر می‌شن!</div>
+        <div class="mc-best-row" id="mcStartBest">BEST — 0</div>
+        <button class="mc-btn" id="mcStartBtn">👣 START</button>
+        <div class="mc-hint" id="mcHint">هر جای صفحه انگشتتو نگه‌دار و بکش تا حرکت کنی — اگه هیولا دیدت رو گم کنه، ردت رو هم گم می‌کنه! بعضی هیولاها از راه دور بهت شلیک می‌کنن؛ جاخالی بده، چون بدون سپر، هم شلیکشون و هم برخوردشون کارت رو می‌سازه. ⚡ بوت سرعت موقت می‌ده، 🛡 سپر یه ضربه یا شلیک رو خنثی می‌کنه. سلاح که پیدا کردی، دکمه‌ی شلیک رو بزن.</div>
+    </div>
+
+    <div class="mc-panel" id="mcOverPanel" hidden>
+        <div class="mc-sub" id="mcCaughtMsg" style="opacity:1;color:#ff9ad6">😱 هیولا گرفتت!</div>
+        <div class="mc-score-big" id="mcOverScore">0</div>
+        <div class="mc-shard-row" id="mcOverShards">💎 0 · ⏱ 0.0s</div>
+        <div class="mc-newbest" id="mcNewBest" hidden>NEW BEST 🏆</div>
+        <div class="mc-best-row" id="mcOverBest">BEST — 0</div>
+        <button class="mc-btn" id="mcRetryBtn">🔁 دوباره فرار کن</button>
     </div>
 </div>
     </div>
@@ -19369,6 +19666,1606 @@ window.NightDriver = (function(){
     };
 })();
 </script>
+<style>
+.mc-root{position:absolute;inset:0;overflow:hidden;background:#050a08;touch-action:none;user-select:none;-webkit-user-select:none;font-family:'Share Tech Mono',monospace;direction:ltr}
+.mc-root canvas{display:block;width:100%;height:100%}
+.mc-hud{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:flex-start;padding:calc(env(safe-area-inset-top,0px) + 12px) 52px 12px 52px;pointer-events:none;z-index:4;box-sizing:border-box}
+.mc-hud-box{display:flex;flex-direction:column;line-height:1.25}
+.mc-hud-label{font-size:10px;letter-spacing:2px;opacity:.55;color:#9be8a8}
+.mc-hud-value{font-size:20px;font-weight:700;color:#7cffa0;text-shadow:0 0 10px rgba(124,255,160,.75),0 0 22px rgba(124,255,160,.35)}
+.mc-hud-value.mc-best{color:#ffcf5c;text-shadow:0 0 10px rgba(255,207,92,.75),0 0 22px rgba(255,207,92,.35)}
+.mc-center{position:absolute;top:calc(env(safe-area-inset-top,0px) + 12px);left:50%;transform:translateX(-50%);font-size:12px;letter-spacing:1px;color:#9be8a8;text-shadow:0 0 8px rgba(155,232,168,.6);opacity:.9;transition:color .2s;pointer-events:none;z-index:4;white-space:nowrap}
+.mc-center.mc-stun{color:#ffe27a;text-shadow:0 0 12px rgba(255,226,122,.85);animation:mcStunPulse .5s ease-in-out infinite}
+@keyframes mcStunPulse{0%,100%{opacity:1}50%{opacity:.45}}
+.mc-mute,.mc-back{position:absolute;top:calc(env(safe-area-inset-top,0px) + 9px);width:34px;height:34px;border-radius:50%;border:1px solid rgba(124,255,160,.35);background:rgba(2,8,4,.6);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);color:#9be8a8;display:flex;align-items:center;justify-content:center;cursor:pointer;pointer-events:auto;z-index:6;transition:transform .12s ease,border-color .15s ease,background .15s ease}
+.mc-mute{right:10px;font-size:14px}
+.mc-back{left:10px;font-size:18px;line-height:1}
+.mc-mute:active,.mc-back:active{transform:scale(.88);border-color:rgba(124,255,160,.7)}
+.mc-ammo{position:absolute;top:calc(env(safe-area-inset-top,0px) + 40px);left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:6px;padding:5px 12px;border-radius:20px;border:1px solid rgba(124,246,255,.4);background:rgba(3,14,18,.6);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);color:#9be8ff;font-size:12px;letter-spacing:1px;z-index:4;pointer-events:none;box-shadow:0 0 14px rgba(124,246,255,.2);transition:opacity .2s,transform .2s}
+.mc-ammo[hidden]{display:none}
+.mc-ammo-dots{display:flex;gap:3px}
+.mc-ammo-dot{width:7px;height:7px;border-radius:50%;background:rgba(124,246,255,.25);box-shadow:0 0 6px rgba(124,246,255,.15)}
+.mc-ammo-dot.mc-ammo-filled{background:#7cf6ff;box-shadow:0 0 8px rgba(124,246,255,.9)}
+.mc-wq{display:flex;align-items:center;gap:3px;margin-inline-start:6px;padding-inline-start:6px;border-inline-start:1px solid rgba(124,246,255,.25)}
+.mc-wq[hidden]{display:none}
+.mc-wq-icon{font-size:12px;opacity:.55;filter:grayscale(.3)}
+.mc-boost,.mc-shield{position:absolute;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:6px;padding:4px 12px;border-radius:20px;font-size:11px;letter-spacing:1px;z-index:4;pointer-events:none;transition:opacity .2s,transform .2s}
+.mc-boost{top:calc(env(safe-area-inset-top,0px) + 74px);border:1px solid rgba(255,226,122,.5);background:rgba(20,16,2,.6);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);color:#ffe27a;box-shadow:0 0 14px rgba(255,226,122,.25)}
+.mc-shield{top:calc(env(safe-area-inset-top,0px) + 106px);border:1px solid rgba(124,199,255,.5);background:rgba(2,10,20,.6);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);color:#9bd3ff;box-shadow:0 0 14px rgba(124,199,255,.25)}
+.mc-boost[hidden],.mc-shield[hidden]{display:none}
+.mc-fire{position:absolute;right:16px;bottom:calc(env(safe-area-inset-bottom,0px) + 22px);width:74px;height:74px;border-radius:50%;border:2px solid rgba(124,246,255,.55);background:radial-gradient(circle at 35% 30%,rgba(124,246,255,.35),rgba(3,14,18,.75));color:#eafcff;font-size:26px;display:flex;align-items:center;justify-content:center;cursor:pointer;pointer-events:auto;z-index:6;box-shadow:0 0 26px rgba(124,246,255,.35);animation:mcFirePulse 1.4s ease-in-out infinite;touch-action:none}
+.mc-fire[hidden]{display:none}
+.mc-fire:active{transform:scale(.88);animation:none}
+@keyframes mcFirePulse{0%,100%{box-shadow:0 0 18px rgba(124,246,255,.3)}50%{box-shadow:0 0 32px rgba(124,246,255,.55)}}
+.mc-warn{position:absolute;top:38%;left:50%;transform:translate(-50%,-50%);font-family:'Creepster',cursive;font-size:clamp(13px,4.2vw,20px);color:#ff5c6a;text-shadow:0 0 20px rgba(255,60,90,.85);letter-spacing:1px;opacity:0;pointer-events:none;z-index:5;white-space:nowrap;max-width:94vw;transition:opacity .25s}
+.mc-warn.mc-warn-show{opacity:1;animation:mcWarnPop 1.6s ease-out forwards}
+@keyframes mcWarnPop{0%{opacity:0;transform:translate(-50%,-50%) scale(.7)}15%{opacity:1;transform:translate(-50%,-50%) scale(1.06)}75%{opacity:1;transform:translate(-50%,-50%) scale(1)}100%{opacity:0;transform:translate(-50%,-58%) scale(1)}}
+.mc-panel{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center;padding:26px 18px;box-sizing:border-box;background:radial-gradient(ellipse at 50% 30%,rgba(50,10,20,.35),rgba(1,2,6,.82) 70%);z-index:5;direction:rtl}
+.mc-panel[hidden]{display:none}
+.mc-title{font-family:'Creepster',cursive;font-weight:400;font-size:clamp(28px,10vw,46px);letter-spacing:2px;direction:ltr;color:#ff5c6a;text-shadow:0 0 22px rgba(255,60,90,.6),0 0 44px rgba(255,60,90,.3);margin:0}
+.mc-sub{font-size:13px;line-height:2;color:#cdeacf;opacity:.85;max-width:280px}
+.mc-sub b{color:#ffcf5c;font-weight:700}
+.mc-score-big{font-family:'Orbitron',sans-serif;font-size:44px;font-weight:700;color:#7cffa0;text-shadow:0 0 18px rgba(124,255,160,.65);direction:ltr;margin:2px 0}
+.mc-shard-row{font-size:12px;color:#9be8a8;opacity:.8;direction:ltr;letter-spacing:.4px}
+.mc-newbest{font-size:12px;letter-spacing:2px;color:#ffcf5c;text-shadow:0 0 12px rgba(255,207,92,.8);direction:ltr;animation:mcPulse 1s ease-in-out infinite}
+@keyframes mcPulse{0%,100%{opacity:1}50%{opacity:.45}}
+.mc-best-row{font-size:12px;color:#9be8a8;opacity:.75;direction:ltr}
+.mc-btn{font-family:'Share Tech Mono',monospace;font-weight:700;font-size:15px;letter-spacing:1px;padding:12px 26px;border-radius:12px;border:1px solid rgba(124,255,160,.5);background:linear-gradient(180deg,rgba(124,255,160,.22),rgba(255,60,90,.14));color:#eafff0;cursor:pointer;pointer-events:auto;box-shadow:0 0 22px rgba(124,255,160,.2);transition:transform .12s ease}
+.mc-btn:active{transform:scale(.95)}
+.mc-hint{font-size:11px;opacity:.5;margin-top:2px}
+
+.mc-card-art{background:linear-gradient(135deg,#1a0b12,#050206)}
+.mc-card-art::before{background:radial-gradient(circle at 18% 120%,rgba(255,60,90,.35),transparent 55%),radial-gradient(circle at 88% -10%,rgba(124,255,160,.28),transparent 55%)}
+.mc-card-fog{position:absolute;left:-20%;right:-20%;bottom:0;height:60%;background:radial-gradient(ellipse at 30% 100%,rgba(255,255,255,.10),transparent 60%),radial-gradient(ellipse at 75% 100%,rgba(255,255,255,.08),transparent 65%);animation:mcFogDrift 6s ease-in-out infinite alternate;opacity:.7}
+@keyframes mcFogDrift{from{transform:translateX(-4%)}to{transform:translateX(4%)}}
+.mc-card-eyes{position:absolute;top:16px;right:22px;width:24px;height:8px}
+.mc-card-eyes::before,.mc-card-eyes::after{content:'';position:absolute;top:0;width:6px;height:6px;border-radius:50%;background:#ff2f3f;box-shadow:0 0 8px 2px rgba(255,47,63,.9);animation:mcEyeBlink 2.6s ease-in-out infinite}
+.mc-card-eyes::before{left:0}
+.mc-card-eyes::after{left:14px;animation-delay:.08s}
+@keyframes mcEyeBlink{0%,88%,100%{opacity:1}90%,96%{opacity:.05}}
+</style>
+<script>
+/* =========================================================================
+   MONSTER HUNT — the second game in the MARKHIN game section
+   (#markhinGameStage). A self-contained canvas top-down chase: a monster
+   relentlessly hunts the player around a single-screen arena scattered with
+   boulders. Drag anywhere to move (virtual joystick), collect glowing
+   shards for score, and grab rare flares that stun the monster for a few
+   seconds. The monster only knows the player's real position while it has
+   a clear line of sight to them — duck behind a boulder for a couple of
+   seconds and it loses the trail and has to search/wander instead of
+   beelining straight for you. Registers itself with
+   window.MU_Game.register('monster-hunt', ...) (see the shell above) so it
+   (re)builds into the stage every time the game page opens, and does
+   nothing while the game section isn't visible. Fully self-contained: no
+   external assets, WebAudio-synth sound effects, localStorage best score.
+   ========================================================================= */
+window.MonsterHunt = (function(){
+    const BEST_KEY = 'markhin_monsterhunt_best_v1';
+    const MUTE_KEY = 'markhin_monsterhunt_muted_v1';
+
+    const PLAYER_R = 15;
+    const MONSTER_R = 19;        // default/reference radius (per-type monsters override this)
+    const SHARD_R = 7;
+    const MAX_SHARDS = 6;
+    const SHARD_SCORE = 15;
+    const PLAYER_SPEED = 205;           // px/s
+    const MONSTER_BASE_FACTOR = 0.78;   // monster pack starts slower than the player
+    const MONSTER_MAX_FACTOR = 1.18;    // and eventually outpaces them — harder ceiling
+    const MONSTER_RAMP_TIME = 110;      // seconds to reach max speed factor
+    const FLARE_STUN_TIME = 3.2;        // seconds every monster is frozen after a flare pickup
+    const JOY_MAX_R = 58;               // virtual joystick radius, px
+    const WORLD_SCALE = 3.6;            // much bigger arena than before — the camera follows
+                                         // the player around it instead of arena == viewport
+    const REF_AREA = 960 * 600;         // baseline used to scale obstacle/firefly counts to world size
+
+    // --- monster pack ---------------------------------------------------
+    const MONSTER_RESPAWN_DELAY = 3.6;   // seconds after a kill before a slot refills
+    // A new monster's *type* is rolled from a weighted pool that only opens
+    // up as the run goes on — see pickMonsterType(). The pool weight/keys
+    // below double as "how many monster slots have opened up over time".
+    const MONSTER_SPAWN_TIMES = [0, 16, 34, 55, 80, 110, 145, 185, 230, 280];
+
+    // Per-type definitions — radius, HP (shots to put down), how its speed
+    // compares to the player's ramping base speed, and simple behavior
+    // flags (erratic dodging, keeps its distance and lobs projectiles,
+    // phases through obstacles). This is what makes the later game feel
+    // like a completely different, weirder threat than the first minute.
+    const MONSTER_TYPES = {
+        stalker: { r: 19, hp: 2, speedFactor: 0.90, wanderSpeedFactor: 0.55, searchSpeedFactor: 0.92, score: 90,  color: '#ff3c5a', spikes: 8  },
+        runner:  { r: 15, hp: 1, speedFactor: 0.82, wanderSpeedFactor: 0.55, searchSpeedFactor: 0.85, score: 110, color: '#c8ff3c', spikes: 10, ranged: true, keepDist: 210, lethalShot: true },
+        brute:   { r: 28, hp: 4, speedFactor: 0.70, wanderSpeedFactor: 0.40, searchSpeedFactor: 0.68, score: 150, color: '#b03cff', spikes: 6  },
+        spitter: { r: 17, hp: 2, speedFactor: 0.86, wanderSpeedFactor: 0.50, searchSpeedFactor: 0.80, score: 120, color: '#3cf0e0', spikes: 8,  ranged: true, keepDist: 230 },
+        wraith:  { r: 18, hp: 3, speedFactor: 1.08, wanderSpeedFactor: 0.60, searchSpeedFactor: 0.95, score: 210, color: '#ff8cf0', spikes: 9,  phase: true }
+    };
+    const SPIT_SPEED = 210;
+    const SPIT_LIFE = 2.6;
+    const PLAYER_SLOW_TIME = 2.4;
+    const PLAYER_SLOW_MULT = 0.55;
+
+    // --- pickups: shard / flare / weapon / speed boost / shield ---------
+    const WEAPON_R = 13;
+    const WEAPON_DEFS = {
+        pistol:  { ammoMin: 4, ammoMax: 6, icon: '🔫', color: '#eafcff', w: 5 },
+        shotgun: { ammoMin: 3, ammoMax: 5, icon: '💥', color: '#ffcf5c', w: 3, pellets: 3, spread: 0.55, dmg: 1 },
+        laser:   { ammoMin: 2, ammoMax: 3, icon: '🔴', color: '#ff5cf0', w: 2, pierce: true, dmg: 2 }
+    };
+    const WEAPON_SPAWN_MIN = 8, WEAPON_SPAWN_MAX = 13;
+    const BULLET_SPEED = 620;            // px/s
+    const BULLET_R = 4;
+    const BULLET_LIFE = 1.1;             // seconds before a bullet fizzles out
+    const BULLET_RANGE_AIM = 620;        // world px — auto-aim only locks on within this range
+
+    const BOOST_R = 14;
+    const BOOST_SPEED_MULT = 1.55;
+    const BOOST_DURATION = 6;
+    const BOOST_SPAWN_MIN = 10, BOOST_SPAWN_MAX = 16;
+
+    const SHIELD_R = 15;
+    const SHIELD_SPAWN_MIN = 15, SHIELD_SPAWN_MAX = 22;
+
+    let built = false;
+    let raf = null;
+    let lastT = 0;
+    let muted = false;
+    let best = 0;
+    let state = 'idle'; // idle | ready | playing | over
+    let S = null; // per-run state, created in resetRun()
+
+    // DOM refs (assigned once, in build())
+    let root, canvas, ctx, scoreEl, bestEl, centerEl, startPanel, overPanel,
+        startBtn, retryBtn, overScoreEl, overShardsEl, overBestEl, newBestEl,
+        startBestEl, muteBtn, warnEl, ammoEl, ammoDotsEl, weaponIconEl, fireBtn,
+        boostBadgeEl, shieldBadgeEl, queueEl;
+
+    // Canvas-space geometry. `view` is the visible screen (canvas) size;
+    // `world` is the full arena, larger than the screen — everything with
+    // world-space coordinates (player, monsters, obstacles, shards…) is
+    // clamped/placed against `world`, while `cam` is the top-left of the
+    // viewport within that world. Render translates by -cam so world-space
+    // drawing lands in the right screen spot.
+    const view = { w: 0, h: 0, dpr: 1 };
+    const world = { w: 0, h: 0 };
+    const cam = { x: 0, y: 0 };
+
+    function isFa(){ try { return typeof currentLang === 'undefined' || currentLang === 'fa'; } catch(_) { return true; } }
+
+    // -------------------------------------------------------------- color
+    function hexToRgb(hex){
+        const h = hex.replace('#','');
+        return { r: parseInt(h.substring(0,2),16), g: parseInt(h.substring(2,4),16), b: parseInt(h.substring(4,6),16) };
+    }
+    function hexToRgba(hex, a){ const c = hexToRgb(hex); return 'rgba(' + c.r + ',' + c.g + ',' + c.b + ',' + a + ')'; }
+    function shadeColor(hex, percent){
+        const c = hexToRgb(hex);
+        const amt = Math.round(2.55 * percent);
+        const r = Math.max(0, Math.min(255, c.r + amt));
+        const g = Math.max(0, Math.min(255, c.g + amt));
+        const b = Math.max(0, Math.min(255, c.b + amt));
+        return 'rgb(' + r + ',' + g + ',' + b + ')';
+    }
+
+    // ---------------------------------------------------------------- audio
+    let actx = null;
+    function ensureAudio(){
+        if (muted) return null;
+        if (!actx){
+            try { actx = new (window.AudioContext || window.webkitAudioContext)(); }
+            catch(_) { actx = null; }
+        }
+        if (actx && actx.state === 'suspended') { try { actx.resume(); } catch(_){} }
+        return actx;
+    }
+    function tone(freq, dur, type, vol, delay){
+        const c = ensureAudio(); if (!c) return;
+        try {
+            const t0 = c.currentTime + (delay || 0);
+            const osc = c.createOscillator(); const gain = c.createGain();
+            osc.type = type || 'sine';
+            osc.frequency.setValueAtTime(freq, t0);
+            gain.gain.setValueAtTime(0, t0);
+            gain.gain.linearRampToValueAtTime(vol || 0.16, t0 + 0.015);
+            gain.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+            osc.connect(gain).connect(c.destination);
+            osc.start(t0); osc.stop(t0 + dur + 0.03);
+        } catch(_){}
+    }
+    function sfxStart(){ tone(196, 0.16, 'sawtooth', 0.12); tone(130, 0.22, 'sawtooth', 0.1, 0.06); }
+    function sfxShard(){ tone(760, 0.08, 'triangle', 0.15); tone(1140, 0.1, 'triangle', 0.12, 0.05); }
+    function sfxFlare(){ tone(320, 0.12, 'sine', 0.14); tone(700, 0.16, 'sine', 0.16, 0.07); tone(1050, 0.2, 'sine', 0.13, 0.15); }
+    function sfxCaught(){
+        const c = ensureAudio(); if (!c) return;
+        try {
+            const dur = 0.4;
+            const buf = c.createBuffer(1, Math.floor(c.sampleRate * dur), c.sampleRate);
+            const data = buf.getChannelData(0);
+            for (let i = 0; i < data.length; i++){ data[i] = (Math.random()*2-1) * Math.pow(1 - i/data.length, 2); }
+            const src = c.createBufferSource(); src.buffer = buf;
+            const gain = c.createGain(); gain.gain.setValueAtTime(0.3, c.currentTime);
+            src.connect(gain).connect(c.destination); src.start();
+        } catch(_){}
+        tone(70, 0.4, 'sawtooth', 0.22);
+    }
+    function sfxRecord(){ [523,659,784,1046].forEach(function(f,i){ tone(f, 0.16, 'triangle', 0.15, i*0.09); }); }
+    function sfxShoot(){ tone(920, 0.05, 'square', 0.13); tone(480, 0.06, 'square', 0.09, 0.02); }
+    function sfxLaser(){ tone(1400, 0.14, 'sawtooth', 0.14); tone(2000, 0.1, 'sine', 0.1, 0.02); }
+    function sfxHit(){ tone(210, 0.08, 'sawtooth', 0.15); }
+    function sfxMonsterDown(){ tone(150, 0.3, 'sawtooth', 0.2); tone(85, 0.4, 'sine', 0.18, 0.06); }
+    function sfxWeaponPickup(){ tone(520, 0.1, 'square', 0.14); tone(780, 0.12, 'square', 0.14, 0.06); tone(1080, 0.15, 'square', 0.12, 0.13); }
+    function sfxMonsterSpawn(){ tone(75, 0.5, 'sawtooth', 0.17); tone(58, 0.6, 'sine', 0.14, 0.08); }
+    function sfxBoost(){ tone(660, 0.09, 'triangle', 0.15); tone(990, 0.1, 'triangle', 0.14, 0.05); tone(1320, 0.12, 'triangle', 0.12, 0.1); }
+    function sfxShield(){ tone(300, 0.16, 'sine', 0.15); tone(450, 0.18, 'sine', 0.14, 0.06); }
+    function sfxShieldBreak(){ tone(500, 0.1, 'square', 0.16); tone(250, 0.16, 'sawtooth', 0.14, 0.05); }
+    function sfxSlow(){ tone(180, 0.2, 'sine', 0.15); tone(120, 0.24, 'sine', 0.13, 0.07); }
+
+    // -------------------------------------------------------------- layout
+    function fit(){
+        if (!canvas) return;
+        const rect = root.getBoundingClientRect();
+        view.dpr = Math.min(window.devicePixelRatio || 1, 2);
+        view.w = Math.max(1, Math.round(rect.width));
+        view.h = Math.max(1, Math.round(rect.height));
+        canvas.width = Math.round(view.w * view.dpr);
+        canvas.height = Math.round(view.h * view.dpr);
+        canvas.style.width = view.w + 'px';
+        canvas.style.height = view.h + 'px';
+        ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
+        world.w = Math.round(view.w * WORLD_SCALE);
+        world.h = Math.round(view.h * WORLD_SCALE);
+    }
+
+    function updateCamera(){
+        if (!S) return;
+        const targetX = S.player.x - view.w / 2;
+        const targetY = S.player.y - view.h / 2;
+        cam.x = Math.max(0, Math.min(Math.max(0, world.w - view.w), targetX));
+        cam.y = Math.max(0, Math.min(Math.max(0, world.h - view.h), targetY));
+    }
+
+    // ------------------------------------------------------------- helpers
+    function randomUnitVec(){ const a = Math.random()*Math.PI*2; return { x: Math.cos(a), y: Math.sin(a) }; }
+    function resolveWalls(p, r){
+        p.x = Math.max(r, Math.min(world.w - r, p.x));
+        p.y = Math.max(r, Math.min(world.h - r, p.y));
+    }
+    function resolveObstacles(p, r, obstacles){
+        obstacles.forEach(function(o){
+            const dx = p.x - o.x, dy = p.y - o.y;
+            const d = Math.hypot(dx, dy);
+            const minD = o.r + r;
+            if (d < minD){
+                if (d > 0.0001){ p.x += (dx/d) * (minD - d); p.y += (dy/d) * (minD - d); }
+                else { p.x += minD; }
+            }
+        });
+    }
+    function circleHitsObstacles(x, y, r, obstacles){
+        for (const o of obstacles){ if (Math.hypot(x - o.x, y - o.y) < o.r + r) return true; }
+        return false;
+    }
+    function segCircleHit(ax, ay, bx, by, cx, cy, r){
+        const dx = bx - ax, dy = by - ay;
+        const len2 = dx*dx + dy*dy;
+        let t = len2 > 0 ? ((cx-ax)*dx + (cy-ay)*dy) / len2 : 0;
+        t = Math.max(0, Math.min(1, t));
+        const px = ax + dx*t, py = ay + dy*t;
+        return Math.hypot(px - cx, py - cy) < r;
+    }
+    // Straight line-of-sight check between two points, blocked by any
+    // obstacle circle in between — this is what lets the player duck
+    // behind a boulder and actually lose a chaser instead of it always
+    // beelining straight through cover.
+    function hasLOS(ax, ay, bx, by, obstacles){
+        for (const o of obstacles){ if (segCircleHit(ax, ay, bx, by, o.x, o.y, o.r - 2)) return false; }
+        return true;
+    }
+
+    // --------------------------------------------------------- world build
+    // Bigger world → proportionally more obstacles/fireflies to fill it,
+    // capped so it never gets absurd on very large screens.
+    function worldAreaScale(){
+        return Math.max(1, Math.min(7, (world.w * world.h) / REF_AREA));
+    }
+    function buildObstacles(){
+        const n = Math.round((13 + Math.floor(Math.random()*5)) * worldAreaScale());
+        const list = [];
+        const cx = world.w/2, cy = world.h/2;
+        let attempts = 0;
+        while (list.length < n && attempts < n*40){
+            attempts++;
+            const r = 24 + Math.random()*24;
+            const x = r + Math.random()*(world.w - r*2);
+            const y = r + Math.random()*(world.h - r*2);
+            if (Math.hypot(x - cx, y - cy) < 140) continue; // keep the player's spawn clear
+            let ok = true;
+            for (const o of list){ if (Math.hypot(x - o.x, y - o.y) < r + o.r + 26){ ok = false; break; } }
+            if (ok) list.push({ x, y, r });
+        }
+        return list;
+    }
+    function buildFireflies(){
+        const list = [];
+        const n = Math.round(34 * worldAreaScale());
+        for (let i = 0; i < n; i++) list.push({ x: Math.random(), y: Math.random(), r: 1 + Math.random()*1.6, tw: Math.random()*10 });
+        return list;
+    }
+    // `avoid` is a list of points (usually the player + any already-alive
+    // monsters) — a freshly (re)spawned monster always appears as far as
+    // possible from all of them, never right on top of the player or
+    // stacked on a packmate.
+    function pickMonsterStart(obstacles, avoid, r){
+        const rr = r || MONSTER_R;
+        const pts = avoid || [{ x: world.w/2, y: world.h/2 }];
+        let spot = null, bestD = -1;
+        for (let i = 0; i < 30; i++){
+            const x = 40 + Math.random()*(world.w - 80);
+            const y = 40 + Math.random()*(world.h - 80);
+            if (circleHitsObstacles(x, y, rr, obstacles)) continue;
+            let minD = Infinity;
+            for (const a of pts) minD = Math.min(minD, Math.hypot(x - a.x, y - a.y));
+            if (minD > bestD){ bestD = minD; spot = { x, y }; }
+        }
+        return spot || { x: 40, y: 40 };
+    }
+    // Which monster species can join the hunt depends on how long the run
+    // has gone on — this is the "gets weirder the further you go" ramp:
+    // the pool only grows, it never shrinks, and later species are worth
+    // more points but are individually nastier (faster, tankier, ranged,
+    // or able to phase through cover).
+    function pickMonsterType(t){
+        const pool = [{ type: 'stalker', w: 5 }];
+        if (t > 18)  pool.push({ type: 'runner',  w: 4 });
+        if (t > 48)  pool.push({ type: 'brute',   w: 3 });
+        if (t > 80)  pool.push({ type: 'spitter', w: 3 });
+        if (t > 140) pool.push({ type: 'wraith',  w: 3 });
+        const total = pool.reduce(function(s,p){ return s+p.w; }, 0);
+        let r = Math.random()*total;
+        for (const p of pool){ if (r < p.w) return p.type; r -= p.w; }
+        return 'stalker';
+    }
+    function makeMonster(spot, type){
+        const def = MONSTER_TYPES[type] || MONSTER_TYPES.stalker;
+        return { x: spot.x, y: spot.y, facing: 0, mode: 'wander', stunTimer: 0,
+            wanderTimer: 1 + Math.random(), wanderDir: randomUnitVec(), lastSeen: null,
+            type: type, hp: def.hp, maxHp: def.hp, hitFlash: 0, r: def.r,
+            phaseTimer: def.phase ? (2.4 + Math.random()*2.4) : 0, phaseActive: false,
+            spitTimer: def.ranged ? (1.2 + Math.random()*1.2) : 0 };
+    }
+    // A fresh monster (first spawn or a refill after a kill) always
+    // appears far from the player and from every monster already alive,
+    // and its species is rolled fresh against the current run time.
+    function addMonster(type){
+        const t = type || pickMonsterType(S.t);
+        const def = MONSTER_TYPES[t] || MONSTER_TYPES.stalker;
+        const spot = pickMonsterStart(S.obstacles, [S.player].concat(S.monsters), def.r);
+        S.monsters.push(makeMonster(spot, t));
+        return t;
+    }
+    function monsterJoinText(type){
+        const fa = isFa();
+        const map = {
+            stalker: fa ? '⚠️ یه هیولای دیگه اومد!'                      : '⚠️ Another monster joins the hunt!',
+            runner:  fa ? '🎯 یه هیولای تک‌تیرانداز اومد سراغت! جاخالی بده!'    : '🎯 A sharpshooter monster joins the hunt! Dodge its shots!',
+            brute:   fa ? '💢 یه هیولای غول‌پیکر ظاهر شد!'                : '💢 A hulking brute appears!',
+            spitter: fa ? '🧪 یه هیولای عجیب از راه دور بهت شلیک می‌کنه!' : '🧪 A strange spitter attacks from afar!',
+            wraith:  fa ? '👻 یه روح ترسناک از دیوارها رد می‌شه!'          : '👻 A ghostly wraith phases through walls!'
+        };
+        return map[type] || map.stalker;
+    }
+    function randomFreeSpot(obstacles, avoid, minAvoidDist, marginR){
+        for (let i = 0; i < 30; i++){
+            const x = marginR + Math.random()*(world.w - marginR*2);
+            const y = marginR + Math.random()*(world.h - marginR*2);
+            if (circleHitsObstacles(x, y, marginR, obstacles)) continue;
+            let ok = true;
+            for (const a of avoid){ if (Math.hypot(x - a.x, y - a.y) < minAvoidDist){ ok = false; break; } }
+            if (ok) return { x, y };
+        }
+        return { x: world.w/2 + (Math.random()*200 - 100), y: world.h/2 + (Math.random()*200 - 100) };
+    }
+    function spawnShard(){
+        const P = S.player;
+        const avoid = [P].concat(S.monsters).concat(S.shards);
+        const spot = randomFreeSpot(S.obstacles, avoid, 70, SHARD_R + 10);
+        S.shards.push({ x: spot.x, y: spot.y, phase: Math.random()*Math.PI*2 });
+    }
+    function spawnFlare(){
+        const P = S.player;
+        const avoid = [P].concat(S.monsters);
+        const spot = randomFreeSpot(S.obstacles, avoid, 120, 20);
+        S.flare = { x: spot.x, y: spot.y };
+    }
+    function spawnWeapon(){
+        const P = S.player;
+        const avoid = [P].concat(S.monsters);
+        const spot = randomFreeSpot(S.obstacles, avoid, 110, 18);
+        const pool = Object.keys(WEAPON_DEFS);
+        const total = pool.reduce(function(s,k){ return s + WEAPON_DEFS[k].w; }, 0);
+        let r = Math.random()*total, chosen = pool[0];
+        for (const k of pool){ if (r < WEAPON_DEFS[k].w){ chosen = k; break; } r -= WEAPON_DEFS[k].w; }
+        S.weapon = { x: spot.x, y: spot.y, type: chosen };
+    }
+    function spawnBoost(){
+        const P = S.player;
+        const avoid = [P].concat(S.monsters);
+        const spot = randomFreeSpot(S.obstacles, avoid, 100, BOOST_R + 10);
+        S.boost = { x: spot.x, y: spot.y };
+    }
+    function spawnShieldItem(){
+        const P = S.player;
+        const avoid = [P].concat(S.monsters);
+        const spot = randomFreeSpot(S.obstacles, avoid, 100, SHIELD_R + 10);
+        S.shield = { x: spot.x, y: spot.y };
+    }
+
+    function resetRun(){
+        const maxMonsters = Math.min(10, MONSTER_SPAWN_TIMES.length, 2 + Math.round(worldAreaScale()*1.3));
+        S = {
+            t: 0, score: 0, shardCount: 0,
+            player: { x: world.w*0.5, y: world.h*0.5, facing: 0, ammo: 0, weaponType: 'pistol',
+                      weaponAmmo: { pistol: 0, shotgun: 0, laser: 0 }, weaponQueue: [],
+                      boostTimer: 0, shieldActive: false, invulnTimer: 0, slowTimer: 0 },
+            monsters: [],
+            comboCount: 0, comboTimer: 0,
+            maxMonsters: maxMonsters,
+            nextMonsterIdx: 1,       // MONSTER_SPAWN_TIMES[0] is used immediately below
+            respawnQueue: [],        // { at: S.t } — a slot waiting to refill after a kill
+            obstacles: buildObstacles(),
+            shards: [],
+            flare: null,
+            flareSpawnTimer: 9 + Math.random()*6,
+            weapon: null,
+            weaponSpawnTimer: WEAPON_SPAWN_MIN + Math.random()*(WEAPON_SPAWN_MAX - WEAPON_SPAWN_MIN),
+            boost: null,
+            boostSpawnTimer: BOOST_SPAWN_MIN + Math.random()*(BOOST_SPAWN_MAX - BOOST_SPAWN_MIN),
+            shield: null,
+            shieldSpawnTimer: SHIELD_SPAWN_MIN + Math.random()*(SHIELD_SPAWN_MAX - SHIELD_SPAWN_MIN),
+            bullets: [],
+            monsterShots: [],
+            laserBeam: null,
+            warnTimer: 0, warnText: '',
+            particles: [],
+            shake: 0,
+            joyActive: false, joyOrigin: { x: 0, y: 0 }, joyKnob: { x: 0, y: 0 }, joyVec: { x: 0, y: 0 },
+            keyUp: false, keyDown: false, keyLeft: false, keyRight: false,
+            fireflies: buildFireflies()
+        };
+        addMonster('stalker'); // the very first threat is always the plain, fair one
+        S.maxShards = Math.round(MAX_SHARDS * worldAreaScale());
+        for (let i = 0; i < S.maxShards; i++) spawnShard();
+        // Every pickup type is already out on the map at the start of the
+        // run — the flare/weapon/boost/shield timers above only govern how
+        // long it takes for the *next* one to appear after this one's used.
+        spawnFlare();
+        spawnWeapon();
+        spawnBoost();
+        spawnShieldItem();
+        updateAmmoUI();
+        updatePowerUI();
+        updateCamera();
+    }
+
+    // ------------------------------------------------------------- effects
+    function addParticles(x, y, count, colors, speed){
+        for (let i = 0; i < count; i++){
+            const ang = Math.random()*Math.PI*2;
+            const spd = speed*(0.4 + Math.random()*0.6);
+            S.particles.push({ x, y, vx: Math.cos(ang)*spd, vy: Math.sin(ang)*spd, age: 0, life: 0.5 + Math.random()*0.4, color: colors[Math.floor(Math.random()*colors.length)], r: 2 + Math.random()*2.5, isText: false });
+        }
+    }
+    function popup(text, x, y, color){
+        S.particles.push({ isText: true, text, x, y, vy: -40, age: 0, life: 0.9, color });
+    }
+
+    // --------------------------------------------------------------- logic
+    // Reflects the player's remaining temporary ammo (and current weapon
+    // icon) in the HUD dots, and shows/hides the fire button — called on
+    // pickup, on every shot, and whenever a run starts/ends.
+    function updateAmmoUI(){
+        if (!ammoEl || !fireBtn) return;
+        const n = S ? S.player.ammo : 0;
+        // Any other weapon types currently queued up (picked up while a
+        // different gun was still loaded) get shown as small dim icons
+        // after the ammo dots, so the player can see what's coming next.
+        const queue = S && S.player.weaponQueue ? S.player.weaponQueue : [];
+        if (queueEl) {
+            if (queue.length){
+                queueEl.hidden = false;
+                queueEl.innerHTML = queue.map(function(t){
+                    const d = WEAPON_DEFS[t] || WEAPON_DEFS.pistol;
+                    return '<span class="mc-wq-icon">' + d.icon + '</span>';
+                }).join('');
+            } else {
+                queueEl.hidden = true;
+                queueEl.innerHTML = '';
+            }
+        }
+        if (n > 0){
+            ammoEl.hidden = false;
+            fireBtn.hidden = false;
+            const def = WEAPON_DEFS[S.player.weaponType] || WEAPON_DEFS.pistol;
+            if (weaponIconEl) weaponIconEl.textContent = def.icon;
+            fireBtn.textContent = def.icon;
+            let dots = '';
+            for (let i = 0; i < n; i++) dots += '<span class="mc-ammo-dot mc-ammo-filled"></span>';
+            ammoDotsEl.innerHTML = dots;
+        } else if (queue.length){
+            // Out of ammo but a queued weapon is about to take over next
+            // shot — keep the HUD visible (empty dots) instead of hiding
+            // it, so it doesn't look like the gun vanished.
+            ammoEl.hidden = false;
+            fireBtn.hidden = true;
+            ammoDotsEl.innerHTML = '';
+        } else {
+            ammoEl.hidden = true;
+            fireBtn.hidden = true;
+        }
+    }
+    // Reflects the speed-boost / shield badges. Called every frame (cheap)
+    // plus immediately on pickup so the HUD never lags a frame behind.
+    function updatePowerUI(){
+        if (!S) return;
+        if (boostBadgeEl) boostBadgeEl.hidden = S.player.boostTimer <= 0;
+        if (shieldBadgeEl) shieldBadgeEl.hidden = !S.player.shieldActive;
+    }
+    // Fires one shot from the player toward the nearest monster within
+    // range (auto-aim, since the only other input is the move joystick),
+    // falling back to whichever way the player is currently facing.
+    // Behavior branches by the currently-held weapon type.
+    function fireWeapon(){
+        if (state !== 'playing' || !S || S.player.ammo <= 0) return;
+        const P = S.player;
+        const wtype = P.weaponType || 'pistol';
+        const wdef = WEAPON_DEFS[wtype] || WEAPON_DEFS.pistol;
+        let target = null, bestD = BULLET_RANGE_AIM;
+        S.monsters.forEach(function(M){
+            const d = Math.hypot(M.x - P.x, M.y - P.y);
+            if (d < bestD){ bestD = d; target = M; }
+        });
+        const ang = target ? Math.atan2(target.y - P.y, target.x - P.x) : P.facing;
+
+        if (wdef.pierce){
+            // Laser: an instant hit-scan beam, not a travelling projectile —
+            // it damages every monster it crosses along the line.
+            const ex = P.x + Math.cos(ang)*BULLET_RANGE_AIM, ey = P.y + Math.sin(ang)*BULLET_RANGE_AIM;
+            S.monsters.slice().forEach(function(M){
+                if (segCircleHit(P.x, P.y, ex, ey, M.x, M.y, M.r)){
+                    M.hp -= wdef.dmg; M.hitFlash = 0.2;
+                    addParticles(M.x, M.y, 10, ['#ff5cf0','#ffcf5c'], 170);
+                    sfxHit();
+                    if (M.hp <= 0) killMonster(M);
+                }
+            });
+            S.laserBeam = { x1: P.x, y1: P.y, x2: ex, y2: ey, age: 0 };
+            sfxLaser();
+        } else if (wdef.pellets){
+            // Shotgun: a spread of several short-range pellets from one shot.
+            const n = wdef.pellets, spread = wdef.spread;
+            for (let i = 0; i < n; i++){
+                const a = ang + (i - (n-1)/2) * (spread/(n-1||1));
+                S.bullets.push({ x: P.x + Math.cos(a)*(PLAYER_R+4), y: P.y + Math.sin(a)*(PLAYER_R+4),
+                    vx: Math.cos(a)*BULLET_SPEED, vy: Math.sin(a)*BULLET_SPEED, age: 0, dmg: wdef.dmg, color: wdef.color, life: BULLET_LIFE*0.65 });
+            }
+            addParticles(P.x + Math.cos(ang)*PLAYER_R, P.y + Math.sin(ang)*PLAYER_R, 8, [wdef.color,'#fff3c9'], 110);
+            sfxShoot();
+        } else {
+            // Pistol: a single auto-aimed round.
+            S.bullets.push({ x: P.x + Math.cos(ang)*(PLAYER_R+4), y: P.y + Math.sin(ang)*(PLAYER_R+4),
+                vx: Math.cos(ang)*BULLET_SPEED, vy: Math.sin(ang)*BULLET_SPEED, age: 0, dmg: 1, color: wdef.color, life: BULLET_LIFE });
+            addParticles(P.x + Math.cos(ang)*PLAYER_R, P.y + Math.sin(ang)*PLAYER_R, 5, ['#7cf6ff','#eafcff'], 90);
+            sfxShoot();
+        }
+        P.ammo--;
+        // Current gun just ran dry — if another weapon is queued up from
+        // an earlier pickup, auto-equip the next one in line so the
+        // player never has to manually swap.
+        if (P.ammo <= 0 && P.weaponQueue && P.weaponQueue.length){
+            const nextType = P.weaponQueue.shift();
+            const ndef = WEAPON_DEFS[nextType] || WEAPON_DEFS.pistol;
+            P.weaponType = nextType;
+            P.ammo = P.weaponAmmo[nextType] || 0;
+            P.weaponAmmo[nextType] = 0;
+            popup(ndef.icon + ' ' + (isFa() ? 'سلاح بعدی!' : 'NEXT WEAPON!'), P.x, P.y - 24, ndef.color);
+            sfxWeaponPickup();
+        }
+        updateAmmoUI();
+    }
+    // Shared kill/score/fx path for a monster reaching 0 HP, whichever
+    // weapon finished it off.
+    const COMBO_WINDOW = 4;       // seconds after a kill the streak stays alive
+    const COMBO_MAX_MULT = 3;     // cap so it doesn't spiral out of control
+    function killMonster(M){
+        const def = MONSTER_TYPES[M.type] || MONSTER_TYPES.stalker;
+        const idx = S.monsters.indexOf(M);
+        if (idx > -1) S.monsters.splice(idx, 1);
+        // Back-to-back kills within COMBO_WINDOW build a streak that
+        // multiplies score — resets if too much time passes between kills.
+        S.comboCount = (S.comboTimer > 0) ? S.comboCount + 1 : 1;
+        S.comboTimer = COMBO_WINDOW;
+        const mult = Math.min(COMBO_MAX_MULT, 1 + (S.comboCount - 1) * 0.25);
+        const gained = Math.round(def.score * mult);
+        S.score += gained;
+        const comboTag = S.comboCount > 1 ? '  x' + S.comboCount + ' COMBO' : '';
+        popup('+' + gained + ' 💀' + comboTag, M.x, M.y - 16, S.comboCount > 1 ? '#ffcf5c' : '#7cf6ff');
+        addParticles(M.x, M.y, 24, ['#ff5c6a','#ffcf5c','#7cf6ff', def.color], 230);
+        sfxMonsterDown();
+        S.shake = Math.max(S.shake, 0.4);
+        S.respawnQueue.push({ at: S.t + MONSTER_RESPAWN_DELAY });
+    }
+    function caught(){
+        state = 'over';
+        S.shake = 1;
+        S.player.ammo = 0; // the fire button/ammo HUD has no business showing on the game-over screen
+        sfxCaught();
+        const finalScore = Math.round(S.score);
+        const isNew = finalScore > best;
+        if (isNew){ best = finalScore; saveBest(); sfxRecord(); }
+        overScoreEl.textContent = finalScore;
+        overShardsEl.textContent = '💎 ' + S.shardCount + ' · ⏱ ' + S.t.toFixed(1) + 's';
+        overBestEl.textContent = 'BEST — ' + best;
+        newBestEl.hidden = !isNew;
+        startPanel.hidden = true;
+        overPanel.hidden = false;
+        updateAmmoUI();
+        updatePowerUI();
+    }
+
+    function showWarn(text){ S.warnText = text; S.warnTimer = 1.6; }
+
+    function update(dt){
+        if (state !== 'playing') return;
+        S.t += dt;
+        const P = S.player;
+        if (S.comboTimer > 0){
+            S.comboTimer -= dt;
+            if (S.comboTimer <= 0) S.comboCount = 0;
+        }
+
+        // pickup timers on the player
+        P.boostTimer = Math.max(0, P.boostTimer - dt);
+        P.invulnTimer = Math.max(0, P.invulnTimer - dt);
+        P.slowTimer = Math.max(0, P.slowTimer - dt);
+        let speedMult = 1;
+        if (P.boostTimer > 0) speedMult *= BOOST_SPEED_MULT;
+        if (P.slowTimer > 0) speedMult *= PLAYER_SLOW_MULT;
+
+        // player movement — virtual joystick (drag) or keyboard fallback
+        let ix = 0, iy = 0;
+        if (S.joyActive){ ix = S.joyVec.x; iy = S.joyVec.y; }
+        else { ix = (S.keyRight?1:0) - (S.keyLeft?1:0); iy = (S.keyDown?1:0) - (S.keyUp?1:0); }
+        const mag = Math.hypot(ix, iy);
+        const moveMag = Math.min(1, mag);
+        if (mag > 1){ ix /= mag; iy /= mag; }
+        if (moveMag > 0.02){
+            P.x += ix * PLAYER_SPEED * speedMult * moveMag * dt;
+            P.y += iy * PLAYER_SPEED * speedMult * moveMag * dt;
+            P.facing = Math.atan2(iy, ix);
+        }
+        resolveWalls(P, PLAYER_R);
+        resolveObstacles(P, PLAYER_R, S.obstacles);
+
+        // the pack grows over time — and gets weirder, since later slots
+        // roll from a wider, nastier species pool (see pickMonsterType)
+        while (S.nextMonsterIdx < MONSTER_SPAWN_TIMES.length && S.monsters.length < S.maxMonsters
+               && S.t >= MONSTER_SPAWN_TIMES[S.nextMonsterIdx]){
+            const type = addMonster();
+            sfxMonsterSpawn();
+            S.shake = Math.max(S.shake, 0.5);
+            showWarn(monsterJoinText(type));
+            S.nextMonsterIdx++;
+        }
+        // refill any slot emptied by a kill, after its short delay
+        for (let i = S.respawnQueue.length - 1; i >= 0; i--){
+            if (S.t >= S.respawnQueue[i].at && S.monsters.length < S.maxMonsters){
+                S.respawnQueue.splice(i, 1);
+                addMonster();
+                sfxMonsterSpawn();
+            }
+        }
+
+        // difficulty ramp — the pack gradually closes the speed gap
+        const diff = Math.min(1, S.t / MONSTER_RAMP_TIME);
+        const targetFactor = MONSTER_BASE_FACTOR + (MONSTER_MAX_FACTOR - MONSTER_BASE_FACTOR) * diff;
+
+        S.monsters.forEach(function(M){
+            const def = MONSTER_TYPES[M.type] || MONSTER_TYPES.stalker;
+            if (M.stunTimer > 0){ M.stunTimer = Math.max(0, M.stunTimer - dt); }
+            if (M.hitFlash > 0){ M.hitFlash = Math.max(0, M.hitFlash - dt); }
+
+            // wraiths flicker in and out of a "phased" state where they can
+            // shortcut straight through obstacles — unsettling and unfair-
+            // feeling on purpose, in a small, telegraphed dose
+            if (def.phase){
+                M.phaseTimer -= dt;
+                if (M.phaseTimer <= 0){
+                    M.phaseActive = !M.phaseActive;
+                    M.phaseTimer = M.phaseActive ? 1.1 : (2.6 + Math.random()*2.6);
+                }
+            }
+
+            // line of sight decides chase vs. search vs. wander (phased
+            // wraiths effectively always "see" the player)
+            const los = hasLOS(M.x, M.y, P.x, P.y, S.obstacles) || M.phaseActive;
+            if (los){ M.mode = 'chase'; M.lastSeen = { x: P.x, y: P.y }; }
+            else if (M.mode === 'chase'){ M.mode = 'search'; }
+
+            let mvx = 0, mvy = 0;
+            let curSpeed = PLAYER_SPEED * targetFactor * def.speedFactor;
+            if (M.stunTimer > 0){
+                curSpeed *= 0.04; // nearly frozen while stunned by a flare
+            } else if (def.ranged && M.mode === 'chase'){
+                const dx = P.x - M.x, dy = P.y - M.y, d = Math.hypot(dx, dy) || 1;
+                if (d < def.keepDist){ mvx = -dx/d; mvy = -dy/d; curSpeed *= 0.8; } // kites away
+                else { mvx = dx/d; mvy = dy/d; curSpeed *= 0.55; } // closes in slowly if far
+                M.spitTimer -= dt;
+                if (M.spitTimer <= 0 && d < BULLET_RANGE_AIM){
+                    M.spitTimer = 2.1 + Math.random()*1.4;
+                    const a = Math.atan2(dy, dx);
+                    S.monsterShots.push({ x: M.x + Math.cos(a)*(M.r+4), y: M.y + Math.sin(a)*(M.r+4),
+                        vx: Math.cos(a)*SPIT_SPEED, vy: Math.sin(a)*SPIT_SPEED, age: 0, color: def.color, lethal: !!def.lethalShot });
+                }
+            } else if (M.mode === 'chase'){
+                const dx = P.x - M.x, dy = P.y - M.y, d = Math.hypot(dx, dy) || 1;
+                mvx = dx/d; mvy = dy/d;
+                if (def.erratic && Math.random() < 0.22){
+                    const jAng = (Math.random()-0.5)*1.3;
+                    const ca = Math.cos(jAng), sa = Math.sin(jAng);
+                    const nx = mvx*ca - mvy*sa, ny = mvx*sa + mvy*ca;
+                    mvx = nx; mvy = ny;
+                }
+            } else if (M.mode === 'search' && M.lastSeen){
+                const dx = M.lastSeen.x - M.x, dy = M.lastSeen.y - M.y, d = Math.hypot(dx, dy) || 1;
+                if (d < 18){ M.mode = 'wander'; M.wanderTimer = 1.4 + Math.random()*1.4; M.wanderDir = randomUnitVec(); }
+                else { mvx = dx/d; mvy = dy/d; curSpeed *= def.searchSpeedFactor; }
+            } else {
+                M.mode = 'wander';
+                M.wanderTimer -= dt;
+                if (M.wanderTimer <= 0){ M.wanderTimer = 1.2 + Math.random()*1.6; M.wanderDir = randomUnitVec(); }
+                mvx = M.wanderDir.x; mvy = M.wanderDir.y;
+                curSpeed *= def.wanderSpeedFactor;
+            }
+            if (mvx || mvy){
+                M.x += mvx * curSpeed * dt;
+                M.y += mvy * curSpeed * dt;
+                M.facing = Math.atan2(mvy, mvx);
+            }
+            resolveWalls(M, M.r);
+            if (!M.phaseActive) resolveObstacles(M, M.r, S.obstacles);
+        });
+
+        // shards
+        for (let i = S.shards.length - 1; i >= 0; i--){
+            const s = S.shards[i];
+            if (Math.hypot(P.x - s.x, P.y - s.y) < PLAYER_R + SHARD_R + 2){
+                S.shards.splice(i, 1);
+                S.score += SHARD_SCORE;
+                S.shardCount++;
+                addParticles(s.x, s.y, 10, ['#7cffa0','#ffe27a'], 150);
+                popup('+' + SHARD_SCORE, s.x, s.y - 12, '#ffe27a');
+                sfxShard();
+                spawnShard();
+            }
+        }
+        S.score += dt * 4; // small trickle just for staying alive
+
+        // flare — stuns every monster currently alive
+        if (S.flare && Math.hypot(P.x - S.flare.x, P.y - S.flare.y) < PLAYER_R + 10){
+            S.monsters.forEach(function(M){ M.stunTimer = FLARE_STUN_TIME; });
+            S.score += 30;
+            addParticles(S.flare.x, S.flare.y, 22, ['#ffe27a','#ff8a3d'], 220);
+            popup('+30 ⚡', S.flare.x, S.flare.y - 14, '#ff8a3d');
+            sfxFlare();
+            S.flare = null;
+            S.flareSpawnTimer = 12 + Math.random()*8;
+        }
+        if (!S.flare){
+            S.flareSpawnTimer -= dt;
+            if (S.flareSpawnTimer <= 0) spawnFlare();
+        }
+
+        // temporary weapon crate on the ground — pick it up to arm/reload the
+        // fire button. Ammo is ADDED to whatever that weapon type already
+        // has stashed (never overwritten), and any ammo left in the weapon
+        // you were currently holding is stashed away instead of lost, so
+        // switching back to it later still has everything you'd found.
+        if (S.weapon && Math.hypot(P.x - S.weapon.x, P.y - S.weapon.y) < PLAYER_R + WEAPON_R + 2){
+            const wdef = WEAPON_DEFS[S.weapon.type] || WEAPON_DEFS.pistol;
+            const gained = wdef.ammoMin + Math.floor(Math.random()*(wdef.ammoMax - wdef.ammoMin + 1));
+            if (!P.weaponAmmo) P.weaponAmmo = { pistol: 0, shotgun: 0, laser: 0 };
+            if (!P.weaponQueue) P.weaponQueue = [];
+            let label;
+            if (S.weapon.type === P.weaponType){
+                // Same gun you're already holding — just tops up the
+                // clip, no switching involved.
+                P.ammo += gained;
+                label = wdef.icon + ' +' + gained;
+            } else if (P.ammo <= 0){
+                // Not currently holding a loaded weapon (or just fired
+                // your last round) — arm this one right away.
+                P.weaponType = S.weapon.type;
+                P.ammo = (P.weaponAmmo[S.weapon.type] || 0) + gained;
+                P.weaponAmmo[S.weapon.type] = 0;
+                label = wdef.icon + ' ' + (isFa() ? 'سلاح!' : 'WEAPON!');
+            } else {
+                // A different weapon while the current one still has
+                // ammo — stash it in the queue; it takes over the
+                // instant the current gun runs dry (see fireWeapon()).
+                P.weaponAmmo[S.weapon.type] = (P.weaponAmmo[S.weapon.type] || 0) + gained;
+                if (P.weaponQueue.indexOf(S.weapon.type) === -1) P.weaponQueue.push(S.weapon.type);
+                label = wdef.icon + ' ' + (isFa() ? 'ذخیره شد' : 'STORED');
+            }
+            addParticles(S.weapon.x, S.weapon.y, 16, [wdef.color,'#eafcff'], 200);
+            popup(label, S.weapon.x, S.weapon.y - 14, wdef.color);
+            sfxWeaponPickup();
+            S.weapon = null;
+            S.weaponSpawnTimer = WEAPON_SPAWN_MIN + Math.random()*(WEAPON_SPAWN_MAX - WEAPON_SPAWN_MIN);
+            updateAmmoUI();
+        }
+        if (!S.weapon){
+            S.weaponSpawnTimer -= dt;
+            if (S.weaponSpawnTimer <= 0) spawnWeapon();
+        }
+
+        // speed-boost pickup — a short, strong burst of speed
+        if (S.boost && Math.hypot(P.x - S.boost.x, P.y - S.boost.y) < PLAYER_R + BOOST_R + 2){
+            P.boostTimer = BOOST_DURATION;
+            S.score += 15;
+            addParticles(S.boost.x, S.boost.y, 18, ['#ffe27a','#7cf6ff'], 210);
+            popup('⚡ ' + (isFa() ? 'سرعت!' : 'SPEED!'), S.boost.x, S.boost.y - 14, '#ffe27a');
+            sfxBoost();
+            S.boost = null;
+            S.boostSpawnTimer = BOOST_SPAWN_MIN + Math.random()*(BOOST_SPAWN_MAX - BOOST_SPAWN_MIN);
+        }
+        if (!S.boost){
+            S.boostSpawnTimer -= dt;
+            if (S.boostSpawnTimer <= 0) spawnBoost();
+        }
+
+        // shield pickup — absorbs the next monster catch instead of ending the run
+        if (S.shield && !P.shieldActive && Math.hypot(P.x - S.shield.x, P.y - S.shield.y) < PLAYER_R + SHIELD_R + 2){
+            P.shieldActive = true;
+            S.score += 20;
+            addParticles(S.shield.x, S.shield.y, 18, ['#9bd3ff','#eafcff'], 200);
+            popup('🛡 ' + (isFa() ? 'سپر!' : 'SHIELD!'), S.shield.x, S.shield.y - 14, '#9bd3ff');
+            sfxShield();
+            S.shield = null;
+            S.shieldSpawnTimer = SHIELD_SPAWN_MIN + Math.random()*(SHIELD_SPAWN_MAX - SHIELD_SPAWN_MIN);
+        }
+        if (!S.shield){
+            S.shieldSpawnTimer -= dt;
+            if (S.shieldSpawnTimer <= 0 && !P.shieldActive) spawnShieldItem();
+        }
+
+        // bullets — limited-life shots fired from the fire button
+        for (let i = S.bullets.length - 1; i >= 0; i--){
+            const b = S.bullets[i];
+            b.age += dt;
+            b.x += b.vx*dt; b.y += b.vy*dt;
+            let gone = b.age >= (b.life || BULLET_LIFE) || b.x < 0 || b.y < 0 || b.x > world.w || b.y > world.h;
+            if (!gone && circleHitsObstacles(b.x, b.y, BULLET_R, S.obstacles)){
+                gone = true;
+                addParticles(b.x, b.y, 6, [b.color || '#7cf6ff'], 120);
+            }
+            if (!gone){
+                for (const M of S.monsters){
+                    if (Math.hypot(b.x - M.x, b.y - M.y) < BULLET_R + M.r){
+                        M.hp -= (b.dmg || 1); M.hitFlash = 0.18;
+                        addParticles(b.x, b.y, 10, ['#ff5c6a','#ffcf5c'], 170);
+                        sfxHit();
+                        gone = true;
+                        if (M.hp <= 0) killMonster(M);
+                        break;
+                    }
+                }
+            }
+            if (gone) S.bullets.splice(i, 1);
+        }
+        // laser beam fade
+        if (S.laserBeam){ S.laserBeam.age += dt; if (S.laserBeam.age > 0.15) S.laserBeam = null; }
+
+        // monster projectiles — a lethal shot (the shooter-type monster)
+        // ends the run outright unless an active shield absorbs it, exactly
+        // like a body-collision; a non-lethal shot (e.g. the spitter) just
+        // slows the player down, as before. Either way, dodging it entirely
+        // avoids any effect.
+        for (let i = S.monsterShots.length - 1; i >= 0; i--){
+            const sp = S.monsterShots[i];
+            sp.age += dt; sp.x += sp.vx*dt; sp.y += sp.vy*dt;
+            let gone = sp.age >= SPIT_LIFE || sp.x < 0 || sp.y < 0 || sp.x > world.w || sp.y > world.h;
+            if (!gone && circleHitsObstacles(sp.x, sp.y, 5, S.obstacles)){ gone = true; addParticles(sp.x, sp.y, 6, [sp.color], 120); }
+            if (!gone && Math.hypot(sp.x - P.x, sp.y - P.y) < PLAYER_R + 6){
+                gone = true;
+                if (P.invulnTimer <= 0){
+                    if (sp.lethal){
+                        if (P.shieldActive){
+                            P.shieldActive = false;
+                            P.invulnTimer = 0.9;
+                            addParticles(P.x, P.y, 18, ['#9bd3ff','#eafcff'], 210);
+                            popup(isFa() ? '🛡 سپر شلیک رو خنثی کرد!' : '🛡 Shield blocked the shot!', P.x, P.y - 24, '#9bd3ff');
+                            sfxShieldBreak();
+                            updatePowerUI();
+                        } else {
+                            S.monsterShots.splice(i, 1);
+                            caught();
+                            return;
+                        }
+                    } else if (P.slowTimer <= 0){
+                        P.slowTimer = PLAYER_SLOW_TIME;
+                        addParticles(sp.x, sp.y, 10, [sp.color, '#8cf0ff'], 150);
+                        popup(isFa() ? '😵 کند شدی!' : '😵 Slowed!', P.x, P.y - 24, sp.color);
+                        sfxSlow();
+                    }
+                }
+            }
+            if (gone) S.monsterShots.splice(i, 1);
+        }
+
+        // particles
+        for (let i = S.particles.length - 1; i >= 0; i--){
+            const p = S.particles[i]; p.age += dt;
+            if (p.age >= p.life){ S.particles.splice(i, 1); continue; }
+            if (!p.isText){ p.x += p.vx*dt; p.y += p.vy*dt; p.vy += 260*dt; }
+            else { p.y += p.vy*dt; }
+        }
+        if (S.shake > 0) S.shake = Math.max(0, S.shake - dt*2.2);
+        if (S.warnTimer > 0) S.warnTimer = Math.max(0, S.warnTimer - dt);
+
+        // catch check — any monster that isn't stunned ends the run, unless
+        // an active shield absorbs the hit (consuming it + a brief i-frame
+        // and a small knockback) instead
+        for (const M of S.monsters){
+            const distPM = Math.hypot(P.x - M.x, P.y - M.y);
+            if (distPM < PLAYER_R + M.r - 4 && M.stunTimer <= 0){
+                if (P.invulnTimer > 0) continue;
+                if (P.shieldActive){
+                    P.shieldActive = false;
+                    P.invulnTimer = 0.9;
+                    const pushAng = Math.atan2(P.y - M.y, P.x - M.x) || Math.random()*Math.PI*2;
+                    P.x += Math.cos(pushAng)*44; P.y += Math.sin(pushAng)*44;
+                    resolveWalls(P, PLAYER_R);
+                    addParticles(P.x, P.y, 20, ['#9bd3ff','#eafcff'], 210);
+                    popup(isFa() ? '🛡 سپر شکست!' : '🛡 Shield broke!', P.x, P.y - 22, '#9bd3ff');
+                    sfxShieldBreak();
+                    updatePowerUI();
+                    continue;
+                }
+                caught(); return;
+            }
+        }
+
+        const anyStunned = S.monsters.some(function(M){ return M.stunTimer > 0; });
+        scoreEl.textContent = Math.round(S.score);
+        centerEl.textContent = (anyStunned ? '⚡ ' : '⏱ ') + S.t.toFixed(1) + 's';
+        centerEl.classList.toggle('mc-stun', anyStunned);
+        if (warnEl){
+            if (S.warnTimer > 0){ warnEl.textContent = S.warnText; warnEl.classList.add('mc-warn-show'); }
+            else warnEl.classList.remove('mc-warn-show');
+        }
+        updatePowerUI();
+        updateCamera();
+    }
+
+    // ------------------------------------------------------------- render
+    // The deeper into a run, the weirder the world itself should feel —
+    // this drifts the background/vignette palette from a calm green-black
+    // toward a sicklier, more alien purple/magenta the longer you survive.
+    function weirdness(){ return S ? Math.min(1, S.t / 220) : 0; }
+    function drawBackground(){
+        const w = weirdness();
+        const g = ctx.createRadialGradient(world.w/2, world.h/2, 10, world.w/2, world.h/2, Math.max(world.w, world.h)*0.75);
+        const c0 = shadeColor('#0c1710', w*10 - w*4);
+        g.addColorStop(0, w > 0.5 ? mixHex('#0c1710', '#22102a', (w-0.5)*2) : '#0c1710');
+        g.addColorStop(0.6, w > 0.5 ? mixHex('#070d09', '#160a1c', (w-0.5)*2) : '#070d09');
+        g.addColorStop(1, '#020403');
+        ctx.fillStyle = g; ctx.fillRect(0, 0, world.w, world.h);
+        if (!S) return;
+        S.fireflies.forEach(function(f){
+            const tw = 0.5 + 0.5*Math.sin(f.tw + S.t*1.6);
+            ctx.globalAlpha = tw * 0.7;
+            ctx.fillStyle = w > 0.6 ? '#e8bfff' : '#bfffcf';
+            ctx.beginPath(); ctx.arc(f.x*world.w, f.y*world.h, f.r, 0, Math.PI*2); ctx.fill();
+        });
+        ctx.globalAlpha = 1;
+    }
+    function mixHex(a, b, t){
+        const ca = hexToRgb(a), cb = hexToRgb(b);
+        const r = Math.round(ca.r + (cb.r-ca.r)*t), g = Math.round(ca.g + (cb.g-ca.g)*t), bl = Math.round(ca.b + (cb.b-ca.b)*t);
+        return 'rgb(' + r + ',' + g + ',' + bl + ')';
+    }
+    // Faint boundary around the whole arena, since it's now bigger than the
+    // screen — without this, hitting the world edge felt like an invisible
+    // wall with no visual cue.
+    function drawWorldBounds(){
+        ctx.save();
+        ctx.strokeStyle = 'rgba(124,255,160,.22)';
+        ctx.lineWidth = 6;
+        ctx.strokeRect(3, 3, world.w - 6, world.h - 6);
+        ctx.restore();
+    }
+    // Small arrow pinned to the screen edge, pointing toward the nearest
+    // monster that's currently off-screen — otherwise, with an arena
+    // bigger than one screen and a whole pack of different monsters, one
+    // could vanish off-screen with zero warning.
+    function drawMonsterPing(){
+        if (!S || (state !== 'playing' && state !== 'over')) return;
+        let nearest = null, nearestD = Infinity;
+        S.monsters.forEach(function(M){
+            const sx = M.x - cam.x, sy = M.y - cam.y;
+            if (sx > -M.r && sx < view.w + M.r && sy > -M.r && sy < view.h + M.r) return;
+            const d = Math.hypot(M.x - S.player.x, M.y - S.player.y);
+            if (d < nearestD){ nearestD = d; nearest = M; }
+        });
+        if (!nearest) return;
+        const def = MONSTER_TYPES[nearest.type] || MONSTER_TYPES.stalker;
+        const sx = nearest.x - cam.x, sy = nearest.y - cam.y;
+        const cx = view.w/2, cy = view.h/2;
+        const ang = Math.atan2(sy - cy, sx - cx);
+        const halfW = Math.max(10, view.w/2 - 30), halfH = Math.max(10, view.h/2 - 30);
+        const dx = Math.cos(ang), dy = Math.sin(ang);
+        let scale = Infinity;
+        if (dx) scale = Math.min(scale, Math.abs(halfW/dx));
+        if (dy) scale = Math.min(scale, Math.abs(halfH/dy));
+        const ex = cx + dx*scale, ey = cy + dy*scale;
+        const stunned = nearest.stunTimer > 0;
+        ctx.save();
+        ctx.translate(ex, ey);
+        ctx.rotate(ang);
+        ctx.beginPath();
+        ctx.moveTo(11, 0); ctx.lineTo(-7, -7); ctx.lineTo(-7, 7); ctx.closePath();
+        ctx.fillStyle = stunned ? 'rgba(255,207,92,.85)' : hexToRgba(def.color, 0.85);
+        ctx.shadowColor = ctx.fillStyle; ctx.shadowBlur = 9;
+        ctx.fill();
+        ctx.restore();
+        ctx.shadowBlur = 0;
+    }
+    function drawObstacles(){
+        S.obstacles.forEach(function(o){
+            ctx.beginPath(); ctx.arc(o.x, o.y, o.r, 0, Math.PI*2);
+            const g = ctx.createRadialGradient(o.x - o.r*0.3, o.y - o.r*0.3, 2, o.x, o.y, o.r);
+            g.addColorStop(0, '#2a2420'); g.addColorStop(1, '#0e0c0a');
+            ctx.fillStyle = g; ctx.fill();
+            ctx.strokeStyle = 'rgba(124,255,160,.12)'; ctx.lineWidth = 1.5; ctx.stroke();
+        });
+    }
+    function drawShards(){
+        S.shards.forEach(function(s){
+            const bob = Math.sin(S.t*3 + s.phase) * 3;
+            ctx.save();
+            ctx.translate(s.x, s.y + bob);
+            ctx.rotate(S.t*1.4 + s.phase);
+            ctx.beginPath();
+            ctx.moveTo(0, -SHARD_R); ctx.lineTo(SHARD_R*0.75, 0); ctx.lineTo(0, SHARD_R); ctx.lineTo(-SHARD_R*0.75, 0); ctx.closePath();
+            const g = ctx.createLinearGradient(0, -SHARD_R, 0, SHARD_R);
+            g.addColorStop(0, '#bfffe0'); g.addColorStop(1, '#38c98a');
+            ctx.fillStyle = g;
+            ctx.shadowColor = 'rgba(124,255,160,.9)'; ctx.shadowBlur = 12;
+            ctx.fill();
+            ctx.restore();
+        });
+        ctx.shadowBlur = 0;
+    }
+    function drawFlare(){
+        if (!S.flare) return;
+        const f = S.flare;
+        const pulse = 0.7 + 0.3*Math.sin(S.t*5);
+        ctx.beginPath(); ctx.arc(f.x, f.y, 14*pulse, 0, Math.PI*2);
+        ctx.fillStyle = 'rgba(255,180,60,.25)'; ctx.fill();
+        ctx.beginPath(); ctx.arc(f.x, f.y, 7, 0, Math.PI*2);
+        ctx.fillStyle = '#ffcf5c';
+        ctx.shadowColor = 'rgba(255,207,92,.9)'; ctx.shadowBlur = 16;
+        ctx.fill();
+        ctx.shadowBlur = 0;
+    }
+    // Temporary weapon crate lying on the ground — its glow color and icon
+    // shape now reflect which of the three weapon types it actually is.
+    function drawWeapon(){
+        if (!S.weapon) return;
+        const w = S.weapon;
+        const def = WEAPON_DEFS[w.type] || WEAPON_DEFS.pistol;
+        const pulse = 0.7 + 0.3*Math.sin(S.t*4.2);
+        ctx.save();
+        ctx.translate(w.x, w.y + Math.sin(S.t*2.6)*2.5);
+        ctx.beginPath(); ctx.arc(0, 0, 15*pulse, 0, Math.PI*2);
+        ctx.fillStyle = hexToRgba(def.color, 0.22); ctx.fill();
+        ctx.rotate(-0.5);
+        ctx.fillStyle = '#eafcff';
+        ctx.shadowColor = hexToRgba(def.color, 0.95); ctx.shadowBlur = 14;
+        ctx.fillRect(-WEAPON_R, -3, WEAPON_R*1.7, 5);
+        ctx.fillRect(-WEAPON_R*0.4, -3, 5, 8);
+        if (def.pellets){ ctx.fillRect(WEAPON_R*0.5, -6, 4, 12); }
+        if (def.pierce){ ctx.beginPath(); ctx.arc(WEAPON_R*0.4, 0, 4, 0, Math.PI*2); ctx.fillStyle = def.color; ctx.fill(); }
+        ctx.shadowBlur = 0;
+        ctx.restore();
+    }
+    // Speed-boost pickup: a small glowing lightning bolt.
+    function drawBoostItem(){
+        if (!S.boost) return;
+        const b = S.boost;
+        const pulse = 0.7 + 0.3*Math.sin(S.t*5.4);
+        ctx.save();
+        ctx.translate(b.x, b.y + Math.sin(S.t*3)*2.5);
+        ctx.beginPath(); ctx.arc(0, 0, 15*pulse, 0, Math.PI*2);
+        ctx.fillStyle = 'rgba(255,226,122,.22)'; ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(-3, -11); ctx.lineTo(4, -2); ctx.lineTo(-1, -2); ctx.lineTo(4, 11); ctx.lineTo(-5, 1); ctx.lineTo(1, 1); ctx.closePath();
+        ctx.fillStyle = '#ffe27a';
+        ctx.shadowColor = 'rgba(255,226,122,.9)'; ctx.shadowBlur = 14;
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.restore();
+    }
+    // Shield pickup: a small glowing shield outline.
+    function drawShieldItem(){
+        if (!S.shield) return;
+        const sh = S.shield;
+        const pulse = 0.7 + 0.3*Math.sin(S.t*4.6);
+        ctx.save();
+        ctx.translate(sh.x, sh.y + Math.sin(S.t*2.8)*2.5);
+        ctx.beginPath(); ctx.arc(0, 0, 15*pulse, 0, Math.PI*2);
+        ctx.fillStyle = 'rgba(155,211,255,.22)'; ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(0, -10); ctx.lineTo(8, -5); ctx.lineTo(8, 3); ctx.lineTo(0, 11); ctx.lineTo(-8, 3); ctx.lineTo(-8, -5); ctx.closePath();
+        ctx.fillStyle = '#9bd3ff';
+        ctx.shadowColor = 'rgba(155,211,255,.9)'; ctx.shadowBlur = 14;
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.restore();
+    }
+    function drawBullets(){
+        S.bullets.forEach(function(b){
+            ctx.save();
+            ctx.translate(b.x, b.y);
+            ctx.rotate(Math.atan2(b.vy, b.vx));
+            const col = b.color || '#eafcff';
+            const g = ctx.createLinearGradient(-10, 0, 4, 0);
+            g.addColorStop(0, 'rgba(124,246,255,0)'); g.addColorStop(1, col);
+            ctx.strokeStyle = g; ctx.lineWidth = BULLET_R;
+            ctx.beginPath(); ctx.moveTo(-10, 0); ctx.lineTo(2, 0); ctx.stroke();
+            ctx.beginPath(); ctx.arc(2, 0, BULLET_R*0.7, 0, Math.PI*2);
+            ctx.fillStyle = col; ctx.shadowColor = hexToRgba(col.charAt(0)==='#'?col:'#eafcff', 0.9); ctx.shadowBlur = 10; ctx.fill();
+            ctx.restore();
+        });
+        ctx.shadowBlur = 0;
+    }
+    function drawLaserBeam(){
+        if (!S.laserBeam) return;
+        const b = S.laserBeam;
+        const a = Math.max(0, 1 - b.age/0.15);
+        ctx.save();
+        ctx.globalAlpha = a;
+        ctx.strokeStyle = '#ff5cf0';
+        ctx.lineWidth = 5;
+        ctx.shadowColor = 'rgba(255,92,240,.9)'; ctx.shadowBlur = 18;
+        ctx.beginPath(); ctx.moveTo(b.x1, b.y1); ctx.lineTo(b.x2, b.y2); ctx.stroke();
+        ctx.lineWidth = 2; ctx.strokeStyle = '#ffe6fb';
+        ctx.beginPath(); ctx.moveTo(b.x1, b.y1); ctx.lineTo(b.x2, b.y2); ctx.stroke();
+        ctx.shadowBlur = 0;
+        ctx.restore();
+    }
+    function drawMonsterShots(){
+        S.monsterShots.forEach(function(sp){
+            const pulse = 0.7 + 0.3*Math.sin(S.t*10 + sp.age*20);
+            ctx.beginPath(); ctx.arc(sp.x, sp.y, 6*pulse, 0, Math.PI*2);
+            ctx.fillStyle = hexToRgba(sp.color, 0.9);
+            ctx.shadowColor = hexToRgba(sp.color, 0.9); ctx.shadowBlur = 12;
+            ctx.fill();
+        });
+        ctx.shadowBlur = 0;
+    }
+    function drawPlayer(){
+        const P = S.player;
+        ctx.save();
+        ctx.translate(P.x, P.y);
+        const boosting = P.boostTimer > 0;
+        ctx.beginPath(); ctx.arc(0, 0, PLAYER_R + (boosting ? 10 : 6), 0, Math.PI*2);
+        ctx.fillStyle = boosting ? 'rgba(255,226,122,.18)' : 'rgba(124,255,160,.12)'; ctx.fill();
+        if (P.shieldActive){
+            ctx.beginPath(); ctx.arc(0, 0, PLAYER_R + 8, 0, Math.PI*2);
+            ctx.strokeStyle = 'rgba(155,211,255,.75)'; ctx.lineWidth = 2.5;
+            ctx.shadowColor = 'rgba(155,211,255,.7)'; ctx.shadowBlur = 10;
+            ctx.stroke(); ctx.shadowBlur = 0;
+        }
+        if (P.invulnTimer > 0 && Math.floor(S.t*14) % 2 === 0) ctx.globalAlpha = 0.4;
+        ctx.rotate(P.facing);
+        ctx.beginPath(); ctx.arc(0, 0, PLAYER_R, 0, Math.PI*2);
+        const g = ctx.createRadialGradient(-4, -4, 2, 0, 0, PLAYER_R);
+        g.addColorStop(0, '#eafff0'); g.addColorStop(1, boosting ? '#ffcf5c' : '#4fe08a');
+        ctx.fillStyle = g;
+        ctx.shadowColor = boosting ? 'rgba(255,226,122,.8)' : 'rgba(124,255,160,.8)'; ctx.shadowBlur = 14;
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.beginPath();
+        ctx.moveTo(PLAYER_R - 2, 0); ctx.lineTo(PLAYER_R - 10, -5); ctx.lineTo(PLAYER_R - 10, 5); ctx.closePath();
+        ctx.fillStyle = '#0c3a1e'; ctx.fill();
+        ctx.restore();
+        ctx.globalAlpha = 1;
+    }
+    // General-purpose monster renderer, driven entirely by MONSTER_TYPES —
+    // color, spike count and a couple of per-species flourishes (a
+    // flickering translucency for phasing wraiths, orbiting "charge" dots
+    // for ranged spitters) so each species reads as visually distinct at a
+    // glance, not just "the same blob, recolored".
+    function drawMonster(M){
+        const def = MONSTER_TYPES[M.type] || MONSTER_TYPES.stalker;
+        const stunned = M.stunTimer > 0;
+        const hit = M.hitFlash > 0;
+        ctx.save();
+        if (def.phase) ctx.globalAlpha = M.phaseActive ? 0.35 : 1;
+        ctx.translate(M.x, M.y);
+        ctx.beginPath(); ctx.arc(0, 0, M.r + 9, 0, Math.PI*2);
+        ctx.fillStyle = stunned ? 'rgba(255,207,92,.2)' : hexToRgba(def.color, 0.15);
+        ctx.fill();
+        // low-hp warning ring — a visual cue that one more shot finishes it
+        if (M.hp < M.maxHp){
+            ctx.beginPath(); ctx.arc(0, 0, M.r + 5, 0, Math.PI*2);
+            ctx.strokeStyle = 'rgba(124,246,255,.6)'; ctx.lineWidth = 2; ctx.stroke();
+        }
+        if (def.ranged){
+            const orbR = M.r + 13;
+            for (let i = 0; i < 3; i++){
+                const a = S.t*2.2 + i*(Math.PI*2/3);
+                ctx.beginPath(); ctx.arc(Math.cos(a)*orbR, Math.sin(a)*orbR, 3, 0, Math.PI*2);
+                ctx.fillStyle = hexToRgba(def.color, 0.85); ctx.fill();
+            }
+        }
+        ctx.save();
+        ctx.rotate(M.facing);
+        ctx.beginPath(); ctx.arc(0, 0, M.r, 0, Math.PI*2);
+        const g = ctx.createRadialGradient(-5, -5, 3, 0, 0, M.r);
+        if (hit){ g.addColorStop(0, '#7cf6ff'); g.addColorStop(1, '#0d2a30'); }
+        else { g.addColorStop(0, shadeColor(def.color, -78)); g.addColorStop(1, '#040203'); }
+        ctx.fillStyle = g; ctx.fill();
+        ctx.strokeStyle = hexToRgba(def.color, 0.5); ctx.lineWidth = 1.5; ctx.stroke();
+        // jagged spikes around the body — count/spacing differ per species
+        const spikes = def.spikes || 8;
+        ctx.beginPath();
+        for (let i = 0; i < spikes; i++){
+            const a = (i/spikes) * Math.PI*2;
+            const r1 = M.r, r2 = M.r + 6 + (i%2===0 ? 3 : 0);
+            ctx.moveTo(Math.cos(a)*r1, Math.sin(a)*r1);
+            ctx.lineTo(Math.cos(a)*r2, Math.sin(a)*r2);
+        }
+        ctx.strokeStyle = hexToRgba(def.color, 0.4); ctx.lineWidth = 2; ctx.stroke();
+        const eyeFlicker = stunned ? (0.3 + 0.3*Math.sin(S.t*20)) : (0.75 + 0.25*Math.sin(S.t*6));
+        ctx.fillStyle = stunned ? ('rgba(255,207,92,' + eyeFlicker + ')') : hexToRgba(def.color, eyeFlicker);
+        ctx.shadowColor = stunned ? 'rgba(255,207,92,.9)' : hexToRgba(def.color, 0.9);
+        ctx.shadowBlur = 10;
+        ctx.beginPath(); ctx.arc(M.r*0.4, -M.r*0.32, 3, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(M.r*0.4,  M.r*0.32, 3, 0, Math.PI*2); ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.restore();
+        ctx.restore();
+        ctx.globalAlpha = 1;
+    }
+    function drawParticles(){
+        S.particles.forEach(function(p){
+            const a = 1 - (p.age / p.life);
+            ctx.globalAlpha = Math.max(0, a);
+            if (p.isText){
+                ctx.font = 'bold 13px "Share Tech Mono",monospace';
+                ctx.fillStyle = p.color || '#ffe27a';
+                ctx.textAlign = 'center';
+                ctx.fillText(p.text, p.x, p.y);
+            } else {
+                ctx.fillStyle = p.color;
+                ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI*2); ctx.fill();
+            }
+        });
+        ctx.globalAlpha = 1;
+    }
+    // Vignette color drifts along with the background/firefly palette —
+    // the deeper into the run, the more the edges feel like they're
+    // closing in with an unnatural violet tint rather than plain black.
+    function drawVignette(){
+        const w = weirdness();
+        const g = ctx.createRadialGradient(view.w/2, view.h/2, Math.min(view.w, view.h)*0.25, view.w/2, view.h/2, Math.max(view.w, view.h)*0.72);
+        g.addColorStop(0, 'rgba(0,0,0,0)');
+        g.addColorStop(1, w > 0.4 ? ('rgba(' + Math.round(20+40*w) + ',0,' + Math.round(10+30*w) + ',.6)') : 'rgba(0,0,0,.55)');
+        ctx.fillStyle = g; ctx.fillRect(0, 0, view.w, view.h);
+    }
+    function drawJoystick(){
+        if (!S || !S.joyActive) return;
+        const o = S.joyOrigin, k = S.joyKnob;
+        ctx.beginPath(); ctx.arc(o.x, o.y, JOY_MAX_R, 0, Math.PI*2);
+        ctx.strokeStyle = 'rgba(124,255,160,.35)'; ctx.lineWidth = 2; ctx.stroke();
+        ctx.beginPath(); ctx.arc(k.x, k.y, 20, 0, Math.PI*2);
+        ctx.fillStyle = 'rgba(124,255,160,.28)'; ctx.fill();
+        ctx.strokeStyle = 'rgba(124,255,160,.7)'; ctx.stroke();
+    }
+    function render(){
+        ctx.save();
+        ctx.clearRect(0, 0, view.w, view.h);
+        if (S && S.shake > 0){
+            const m = S.shake * 8;
+            ctx.translate((Math.random()*2-1)*m, (Math.random()*2-1)*m);
+        }
+        // World-space layer: everything here is drawn in arena coordinates,
+        // shifted into place by -cam so it lines up with the camera's
+        // current view of the (much bigger than screen) arena.
+        ctx.save();
+        ctx.translate(-cam.x, -cam.y);
+        drawBackground();
+        if (S){
+            drawWorldBounds();
+            drawFlare();
+            drawWeapon();
+            drawBoostItem();
+            drawShieldItem();
+            drawShards();
+            drawObstacles();
+            if (state === 'playing' || state === 'over'){
+                S.monsters.forEach(drawMonster);
+                drawMonsterShots();
+                drawBullets();
+                drawLaserBeam();
+                drawPlayer();
+            }
+            drawParticles();
+        }
+        ctx.restore();
+        // Screen-space layer: vignette, joystick and the off-screen monster
+        // arrow all stay pinned to the viewport, not the world.
+        drawVignette();
+        drawJoystick();
+        drawMonsterPing();
+        ctx.restore();
+    }
+
+    // --------------------------------------------------------------- loop
+    function loop(ts){
+        if (!lastT) lastT = ts;
+        const dt = Math.min(0.045, (ts - lastT) / 1000);
+        lastT = ts;
+        update(dt);
+        render();
+        raf = requestAnimationFrame(loop);
+    }
+    function startLoop(){ if (raf) return; lastT = 0; raf = requestAnimationFrame(loop); }
+    function stopLoop(){ if (raf){ cancelAnimationFrame(raf); raf = null; } lastT = 0; }
+    // Hides the game's own root element. Called by the shell (MU_Game)
+    // whenever the player leaves this game, so its canvas/panels never sit
+    // on top of, or intercept taps meant for, whatever's shown next.
+    function hide(){ if (root) root.hidden = true; }
+
+    // ------------------------------------------------------------ actions
+    function goStart(){
+        state = 'ready';
+        resetRun();
+        overPanel.hidden = true;
+        startPanel.hidden = false;
+        startBestEl.textContent = 'BEST — ' + best;
+        centerEl.textContent = '';
+        centerEl.classList.remove('mc-stun');
+    }
+    function beginPlay(){
+        sfxStart();
+        state = 'playing';
+        startPanel.hidden = true;
+        overPanel.hidden = true;
+    }
+    function updateHubBadge(){
+        try {
+            const chip = document.getElementById('mgCardMonsterHuntBest');
+            const val = document.getElementById('mgCardMonsterHuntBestVal');
+            if (chip && val){
+                if (best > 0){ val.textContent = best; chip.hidden = false; }
+                else { chip.hidden = true; }
+            }
+        } catch(_){}
+    }
+    function loadBest(){
+        try { best = parseInt(localStorage.getItem(BEST_KEY), 10) || 0; } catch(_) { best = 0; }
+        bestEl.textContent = best;
+        updateHubBadge();
+    }
+    function saveBest(){
+        bestEl.textContent = best;
+        try { localStorage.setItem(BEST_KEY, String(best)); } catch(_){}
+        updateHubBadge();
+    }
+    function loadMute(){
+        try { muted = localStorage.getItem(MUTE_KEY) === '1'; } catch(_) { muted = false; }
+        muteBtn.textContent = muted ? '🔇' : '🔊';
+    }
+    function toggleMute(){
+        muted = !muted;
+        muteBtn.textContent = muted ? '🔇' : '🔊';
+        try { localStorage.setItem(MUTE_KEY, muted ? '1' : '0'); } catch(_){}
+    }
+
+    // ------------------------------------------------------------- input
+    function localXY(ev){
+        const rect = canvas.getBoundingClientRect();
+        return { x: ev.clientX - rect.left, y: ev.clientY - rect.top };
+    }
+    function bindInput(){
+        function pointerDown(ev){
+            if (state !== 'playing') return;
+            const p = localXY(ev);
+            S.joyActive = true;
+            S.joyOrigin = { x: p.x, y: p.y };
+            S.joyKnob = { x: p.x, y: p.y };
+            S.joyVec = { x: 0, y: 0 };
+            try { canvas.setPointerCapture(ev.pointerId); } catch(_){}
+            if (ev.cancelable) ev.preventDefault();
+        }
+        function pointerMove(ev){
+            if (!S || !S.joyActive || state !== 'playing') return;
+            const p = localXY(ev);
+            const dx = p.x - S.joyOrigin.x, dy = p.y - S.joyOrigin.y;
+            const d = Math.hypot(dx, dy);
+            const clamped = Math.min(d, JOY_MAX_R);
+            const ang = Math.atan2(dy, dx);
+            S.joyKnob = { x: S.joyOrigin.x + Math.cos(ang)*clamped, y: S.joyOrigin.y + Math.sin(ang)*clamped };
+            S.joyVec = { x: (Math.cos(ang)*clamped)/JOY_MAX_R, y: (Math.sin(ang)*clamped)/JOY_MAX_R };
+            if (ev.cancelable) ev.preventDefault();
+        }
+        function pointerUp(){ if (S){ S.joyActive = false; S.joyVec = { x: 0, y: 0 }; } }
+
+        canvas.addEventListener('pointerdown', pointerDown);
+        canvas.addEventListener('pointermove', pointerMove, { passive: false });
+        canvas.addEventListener('pointerup', pointerUp);
+        canvas.addEventListener('pointercancel', pointerUp);
+        canvas.addEventListener('pointerleave', pointerUp);
+
+        window.addEventListener('keydown', function(ev){
+            if (!root || root.hidden || state !== 'playing' || !S) return;
+            if (ev.key === 'ArrowLeft' || ev.key === 'a' || ev.key === 'A') S.keyLeft = true;
+            if (ev.key === 'ArrowRight' || ev.key === 'd' || ev.key === 'D') S.keyRight = true;
+            if (ev.key === 'ArrowUp' || ev.key === 'w' || ev.key === 'W') S.keyUp = true;
+            if (ev.key === 'ArrowDown' || ev.key === 's' || ev.key === 'S') S.keyDown = true;
+        });
+        window.addEventListener('keyup', function(ev){
+            if (!S) return;
+            if (ev.key === 'ArrowLeft' || ev.key === 'a' || ev.key === 'A') S.keyLeft = false;
+            if (ev.key === 'ArrowRight' || ev.key === 'd' || ev.key === 'D') S.keyRight = false;
+            if (ev.key === 'ArrowUp' || ev.key === 'w' || ev.key === 'W') S.keyUp = false;
+            if (ev.key === 'ArrowDown' || ev.key === 's' || ev.key === 'S') S.keyDown = false;
+        });
+
+        startBtn.addEventListener('click', beginPlay);
+        retryBtn.addEventListener('click', function(){ resetRun(); beginPlay(); });
+        muteBtn.addEventListener('click', toggleMute);
+        if (fireBtn){
+            fireBtn.addEventListener('pointerdown', function(ev){ fireWeapon(); if (ev.cancelable) ev.preventDefault(); });
+        }
+
+        window.addEventListener('blur', function(){
+            if (!S) return;
+            S.joyActive = false; S.joyVec = { x: 0, y: 0 };
+            S.keyLeft = S.keyRight = S.keyUp = S.keyDown = false;
+        });
+        window.addEventListener('resize', function(){
+            if (!root.hidden){
+                fit();
+                if (S){ resolveWalls(S.player, PLAYER_R); S.monsters.forEach(function(M){ resolveWalls(M, M.r); }); updateCamera(); }
+            }
+        });
+        window.addEventListener('orientationchange', function(){
+            if (!root.hidden) setTimeout(function(){
+                fit();
+                if (S){ resolveWalls(S.player, PLAYER_R); S.monsters.forEach(function(M){ resolveWalls(M, M.r); }); updateCamera(); }
+            }, 60);
+        });
+
+        // Backgrounding the app/tab shouldn't let a huge, uncounted chunk of
+        // real time turn into a single giant simulated frame the instant
+        // it's foregrounded again. Only acts while this game is actually
+        // the one on screen (root not hidden); MU_Game's own pause()/hide()
+        // already cover the "left this game entirely" case.
+        document.addEventListener('visibilitychange', function(){
+            if (!root || root.hidden) return;
+            if (document.hidden) stopLoop(); else startLoop();
+        });
+    }
+
+    // -------------------------------------------------------------- build
+    function build(stage){
+        root = document.getElementById('mcRoot');
+        canvas = document.getElementById('mcCanvas');
+        ctx = canvas.getContext('2d');
+        scoreEl = document.getElementById('mcScoreVal');
+        bestEl = document.getElementById('mcBestVal');
+        centerEl = document.getElementById('mcCenter');
+        startPanel = document.getElementById('mcStartPanel');
+        overPanel = document.getElementById('mcOverPanel');
+        startBtn = document.getElementById('mcStartBtn');
+        retryBtn = document.getElementById('mcRetryBtn');
+        overScoreEl = document.getElementById('mcOverScore');
+        overShardsEl = document.getElementById('mcOverShards');
+        overBestEl = document.getElementById('mcOverBest');
+        newBestEl = document.getElementById('mcNewBest');
+        startBestEl = document.getElementById('mcStartBest');
+        muteBtn = document.getElementById('mcMuteBtn');
+        warnEl = document.getElementById('mcWarn');
+        ammoEl = document.getElementById('mcAmmo');
+        ammoDotsEl = document.getElementById('mcAmmoDots');
+        weaponIconEl = document.getElementById('mcWeaponIcon');
+        queueEl = document.getElementById('mcWeaponQueue');
+        fireBtn = document.getElementById('mcFireBtn');
+        boostBadgeEl = document.getElementById('mcBoostBadge');
+        shieldBadgeEl = document.getElementById('mcShieldBadge');
+
+        loadBest();
+        loadMute();
+        bindInput();
+        built = true;
+    }
+    function init(stage){
+        try {
+            if (!built) build(stage);
+            root.hidden = false;
+            fit();
+            goStart();
+            startLoop();
+        } catch(err){
+            try { console.error('MonsterHunt init failed', err); } catch(_){}
+        }
+    }
+    function pause(){
+        stopLoop();
+        try { if (actx && actx.state === 'running') actx.suspend(); } catch(_){}
+    }
+
+    return { init: init, pause: pause, hide: hide };
+})();
+
+(function(){
+    if (window.MU_Game && typeof window.MU_Game.register === 'function'){
+        window.MU_Game.register('monster-hunt', {
+            mount: function(stage){ window.MonsterHunt.init(stage); },
+            pause: function(){ window.MonsterHunt.pause(); },
+            hide: function(){ window.MonsterHunt.hide(); }
+        });
+    }
+})();
+
+/* -----------------------------------------------------------------------
+   Language toggle for Monster Hunt (hub card + in-game strings), chaining
+   onto applyLanguageUI the same way the Night Driver block above does.
+   ----------------------------------------------------------------------- */
+(function(){
+    const mu_monsterBaseApplyLanguageUI = window.applyLanguageUI;
+    window.applyLanguageUI = function(){
+        if (typeof mu_monsterBaseApplyLanguageUI === 'function') mu_monsterBaseApplyLanguageUI();
+        const fa = currentLang === 'fa';
+
+        const cardTitleFa = document.getElementById('mgCardMonsterHuntTitleFa');
+        if (cardTitleFa) cardTitleFa.style.display = fa ? '' : 'none';
+
+        const cardDesc = document.getElementById('mgCardMonsterHuntDesc');
+        if (cardDesc) cardDesc.textContent = fa
+            ? 'تو یه نقشه‌ی بزرگ، دسته‌ای از هیولاهای متفاوت — تک‌تیرانداز، غول‌پیکر، سایه‌ای، از راه دور — دنبالتن؛ فرار کن، جاخالی بده، بوت سرعت و سپر جمع کن، سلاح‌های مختلف پیدا کن و شلیک کن. هرچی جلوتر بری عجیب‌تر و ترسناک‌تر می‌شه!'
+            : 'A pack of different monsters — sharpshooters, hulking brutes, phasing wraiths, ranged spitters — is hunting you across a much bigger map. Run, dodge their shots, grab speed boosts and shields, find different weapons and shoot back. The further you get, the stranger and deadlier it gets!';
+
+        const cardPlay = document.getElementById('mgCardMonsterHuntPlay');
+        if (cardPlay) cardPlay.textContent = fa ? '👣 فرار کن' : '👣 Run For It';
+
+        const mcBack = document.getElementById('mcBackBtn');
+        if (mcBack) mcBack.title = fa ? 'بازگشت به فهرست بازی‌ها' : 'Back to game list';
+
+        const mcMute = document.getElementById('mcMuteBtn');
+        if (mcMute) mcMute.title = fa ? 'صدا' : 'Sound';
+
+        const mcStartSub = document.getElementById('mcStartSub');
+        if (mcStartSub) mcStartSub.innerHTML = fa
+            ? 'یه دسته هیولای عجیب‌وغریب — تک‌تیرانداز، غول‌پیکر، سایه‌ای و حتی از راه دور — تو یه نقشه‌ی بزرگ افتادن دنبالت 👹👹<br>انگشتتو روی صفحه بکش تا فرار کنی و جاخالی بدی، پشتِ تخته‌سنگ‌ها قایم شو، بلورهای درخشان جمع کن، بوت سرعت و سپر بردار، و اگه <b>سلاح 🔫💥🔴</b> پیدا کردی شلیک کن. هرچی جلوتر بری، هیولاها عجیب‌تر و خطرناک‌تر می‌شن!'
+            : 'A pack of strange monsters — sharpshooters, brutes, phasing wraiths, even ranged attackers — is hunting you across a much bigger map 👹👹<br>Drag anywhere on the screen to run and dodge, hide behind boulders, collect glowing shards, grab speed boosts and shields, and if you find a <b>weapon 🔫💥🔴</b>, shoot back. The further you get, the stranger and deadlier it gets!';
+
+        const mcHint = document.getElementById('mcHint');
+        if (mcHint) mcHint.textContent = fa
+            ? 'هر جای صفحه انگشتتو نگه‌دار و بکش تا حرکت کنی — اگه هیولا دیدت رو گم کنه، ردت رو هم گم می‌کنه! بعضی هیولاها از راه دور بهت شلیک می‌کنن؛ جاخالی بده، چون بدون سپر، هم شلیکشون و هم برخوردشون کارت رو می‌سازه. ⚡ بوت سرعت موقت می‌ده، 🛡 سپر یه ضربه یا شلیک رو خنثی می‌کنه. سلاح که پیدا کردی، دکمه‌ی شلیک رو بزن.'
+            : 'Hold anywhere on screen and drag to move — lose a monster\'s sight and it loses your trail too! Some monsters shoot from range — dodge their shots, because without a shield either a shot or a collision finishes you off. ⚡ gives temporary speed, 🛡 absorbs one hit or shot. Grab a weapon, then tap fire.';
+
+        const mcCaught = document.getElementById('mcCaughtMsg');
+        if (mcCaught) mcCaught.textContent = fa ? '😱 یه هیولا گرفتت!' : '😱 A monster got you!';
+
+        const mcRetry = document.getElementById('mcRetryBtn');
+        if (mcRetry) mcRetry.textContent = fa ? '🔁 دوباره فرار کن' : '🔁 Run Again';
+    };
+})();
+</script>
+
 
 
 <!-- =========================================================================
