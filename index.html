@@ -14246,6 +14246,25 @@ window.mu_syncHtmlBg = function(){
                 `<button type="button" class="mc-ref-item" onclick="morseToolAppendCode('${v}')"><b>${k}</b><span dir="ltr">${v}</span></button>`
             ).join('');
         }
+        function morseToolBuildTextRefGrid(){
+            return Object.entries(MORSE_MAP).filter(([k])=>/^[A-Z0-9]$/.test(k)).map(([k,v])=>
+                `<button type="button" class="mc-ref-item" onmousedown="event.preventDefault()" onclick="morseToolInsertChar('${k}')"><b>${k}</b><span dir="ltr">${v}</span></button>`
+            ).join('');
+        }
+        function morseToolInsertChar(ch){
+            const ta=document.getElementById('morseTextIn'); if(!ta) return;
+            const start = (typeof ta.selectionStart==='number') ? ta.selectionStart : ta.value.length;
+            const end = (typeof ta.selectionEnd==='number') ? ta.selectionEnd : ta.value.length;
+            ta.setRangeText(ch, start, end, 'end');
+            morseToolTextToMorse();
+        }
+        function morseToolTextBackspace(){
+            const ta=document.getElementById('morseTextIn'); if(!ta) return;
+            const start=ta.selectionStart, end=ta.selectionEnd;
+            if(start!==end){ ta.setRangeText('', start, end, 'end'); }
+            else if(start>0){ ta.setRangeText('', start-1, start, 'end'); }
+            morseToolTextToMorse();
+        }
         function openMorseTool(){
             const fa = currentLang==='fa';
             morseToolBuffer = '';
@@ -14257,12 +14276,20 @@ window.mu_syncHtmlBg = function(){
                 </div>
                 <div id="morseTabText" class="mc-tool-tab-panel">
                     <p class="mc-tool-hint">${fa?'متن انگلیسی را وارد کن؛ به‌صورت خودکار به کد مورس تبدیل می‌شود.':'Type English text — it converts to Morse code automatically.'}</p>
-                    <textarea id="morseTextIn" class="mc-tool-textarea" placeholder="${fa?'مثلاً: HELLO WORLD':'e.g. HELLO WORLD'}" oninput="morseToolTextToMorse()"></textarea>
+                    <textarea id="morseTextIn" class="mc-tool-textarea" dir="ltr" lang="en" spellcheck="false" autocapitalize="characters" autocomplete="off" placeholder="HELLO WORLD 123" oninput="morseToolTextToMorse()"></textarea>
                     <div class="mc-tool-result-box" id="morseTextOut" dir="ltr"></div>
                     <div class="mc-tool-actions">
                         <button type="button" class="btn-main" onclick="specialToolsCopyText('morseTextOut')">📋 ${fa?'کپی':'Copy'}</button>
                         <button type="button" class="btn-main" onclick="document.getElementById('morseTextIn').value='';morseToolTextToMorse();">🗑️ ${fa?'پاک کردن':'Clear'}</button>
                     </div>
+                    <details class="mc-tool-ref">
+                        <summary>📖 ${fa?'جدول مرجع کد مورس (برای تایپ حرف، لمس کن)':'Morse code reference table (tap to type the letter)'}</summary>
+                        <div class="mc-tool-actions">
+                            <button type="button" class="btn-main" onmousedown="event.preventDefault()" onclick="morseToolInsertChar(' ')">␣ ${fa?'فاصله':'Space'}</button>
+                            <button type="button" class="btn-main" onmousedown="event.preventDefault()" onclick="morseToolTextBackspace()">⌫</button>
+                        </div>
+                        <div class="mc-tool-ref-grid">${morseToolBuildTextRefGrid()}</div>
+                    </details>
                 </div>
                 <div id="morseTabMorse" class="mc-tool-tab-panel" style="display:none">
                     <p class="mc-tool-hint">${fa?'به‌جای تایپ، با دکمه‌های زیر یا جدول مرجع، کد مورس را بساز و در پایان تایید کن.':'Instead of typing, build the Morse code with the buttons below or the reference table, then confirm.'}</p>
@@ -14276,7 +14303,7 @@ window.mu_syncHtmlBg = function(){
                         <button type="button" class="btn-main" onclick="morseToolClearBuffer()">🗑️ ${fa?'پاک همه':'Clear all'}</button>
                     </div>
                     <button type="button" class="btn-main mc-confirm-btn" onclick="morseToolConfirmDecode()">✅ ${fa?'تایید و تبدیل به متن':'Confirm & Convert to Text'}</button>
-                    <div class="mc-tool-result-box" id="morseDecodeOut" dir="ltr"></div>
+                    <div class="mc-tool-result-box" id="morseDecodeOut" dir="auto"></div>
                     <div class="mc-tool-actions">
                         <button type="button" class="btn-main" onclick="specialToolsCopyText('morseDecodeOut')">📋 ${fa?'کپی نتیجه':'Copy result'}</button>
                     </div>
@@ -14323,6 +14350,78 @@ window.mu_syncHtmlBg = function(){
             try{ out.innerText = new TextDecoder().decode(new Uint8Array(bytes)); }
             catch(e){ out.innerText = fa?'⚠️ تبدیل ممکن نشد.':'⚠️ Could not convert.'; }
         }
+        /* ---- Binary reference table (tap to type char / append byte) ---- */
+        const BIN_REF_GROUPS = {
+            upper: {fa:'A–Z', en:'A–Z', chars:'ABCDEFGHIJKLMNOPQRSTUVWXYZ'},
+            lower: {fa:'a–z', en:'a–z', chars:'abcdefghijklmnopqrstuvwxyz'},
+            digit: {fa:'0–9', en:'0–9', chars:'0123456789'},
+            sym:   {fa:'علائم', en:'Symbols', chars:'.,?!\'"-_/\\()&:;=+@#$%*<>[]{}|~^`'}
+        };
+        function binToolByte(ch){ return ch.charCodeAt(0).toString(2).padStart(8,'0'); }
+        function binToolEsc(s){ return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+        function binToolRefGridHtml(mode, group){
+            const g = BIN_REF_GROUPS[group] || BIN_REF_GROUPS.upper;
+            return Array.from(g.chars).map(ch=>
+                `<button type="button" class="mc-ref-item" onmousedown="event.preventDefault()" onclick="binToolRefTap('${mode}',this)" data-ch="${binToolEsc(ch)}"><b>${binToolEsc(ch)}</b><span dir="ltr">${binToolByte(ch)}</span></button>`
+            ).join('');
+        }
+        function binToolRefShow(mode, group){
+            const grid=document.getElementById('binRefGrid_'+mode); if(!grid) return;
+            grid.innerHTML = binToolRefGridHtml(mode, group);
+            document.querySelectorAll('#binRefChips_'+mode+' .mc-tool-tab-btn').forEach(b=>b.classList.toggle('active', b.dataset.group===group));
+        }
+        function binToolBuildRef(mode){
+            const fa = currentLang==='fa';
+            const chips = Object.entries(BIN_REF_GROUPS).map(([k,g],i)=>
+                `<button type="button" class="mc-tool-tab-btn${i===0?' active':''}" data-group="${k}" onclick="binToolRefShow('${mode}','${k}')">${fa?g.fa:g.en}</button>`
+            ).join('');
+            const extra = mode==='text'
+                ? `<button type="button" class="btn-main" onmousedown="event.preventDefault()" onclick="binToolRefSpace('text')">␣ ${fa?'فاصله':'Space'}</button><button type="button" class="btn-main" onmousedown="event.preventDefault()" onclick="binToolRefBackspace('text')">⌫</button>`
+                : `<button type="button" class="btn-main" onmousedown="event.preventDefault()" onclick="binToolRefSpace('bin')">␣ ${fa?'فاصلهٔ بایت':'Byte gap'}</button><button type="button" class="btn-main" onmousedown="event.preventDefault()" onclick="binToolRefBackspace('bin')">⌫</button>`;
+            const label = mode==='text'
+                ? (fa?'جدول مرجع کد باینری (برای تایپ حرف، لمس کن)':'Binary reference table (tap to type the character)')
+                : (fa?'جدول مرجع کد باینری (برای افزودن بایت، لمس کن)':'Binary reference table (tap to add the byte)');
+            return `<details class="mc-tool-ref">
+                <summary>📖 ${label}</summary>
+                <div class="mc-tool-tabs bin-ref-chips" id="binRefChips_${mode}">${chips}</div>
+                <div class="mc-tool-actions">${extra}</div>
+                <div class="mc-tool-ref-grid bin-ref-grid" id="binRefGrid_${mode}">${binToolRefGridHtml(mode,'upper')}</div>
+            </details>`;
+        }
+        function binToolRefEls(mode){
+            return mode==='text'
+                ? {ta:document.getElementById('binTextIn'), run:binToolTextToBinary}
+                : {ta:document.getElementById('binBinaryIn'), run:binToolBinaryToText};
+        }
+        function binToolRefTap(mode, btn){
+            const {ta, run} = binToolRefEls(mode); if(!ta) return;
+            const ch = btn.dataset.ch;
+            const start = typeof ta.selectionStart==='number' ? ta.selectionStart : ta.value.length;
+            const end = typeof ta.selectionEnd==='number' ? ta.selectionEnd : ta.value.length;
+            if(mode==='text'){
+                ta.setRangeText(ch, start, end, 'end');
+            } else {
+                const before = ta.value.slice(0,start);
+                const after = ta.value.slice(end);
+                const lead = (before && !/\s$/.test(before)) ? ' ' : '';
+                const trail = (after && !/^\s/.test(after)) ? ' ' : ' ';
+                ta.setRangeText(lead + binToolByte(ch) + trail, start, end, 'end');
+            }
+            run();
+        }
+        function binToolRefSpace(mode){
+            const {ta, run} = binToolRefEls(mode); if(!ta) return;
+            if(mode==='bin' && (!ta.value || /\s$/.test(ta.value.slice(0, ta.selectionStart)))) return;
+            ta.setRangeText(' ', ta.selectionStart, ta.selectionEnd, 'end');
+            run();
+        }
+        function binToolRefBackspace(mode){
+            const {ta, run} = binToolRefEls(mode); if(!ta) return;
+            const st=ta.selectionStart, en=ta.selectionEnd;
+            if(st!==en) ta.setRangeText('', st, en, 'end');
+            else if(st>0) ta.setRangeText('', st-1, st, 'end');
+            run();
+        }
         function openBinaryTool(){
             const fa = currentLang==='fa';
             showAdvanced(`
@@ -14333,21 +14432,23 @@ window.mu_syncHtmlBg = function(){
                 </div>
                 <div id="binTabText" class="mc-tool-tab-panel">
                     <p class="mc-tool-hint">${fa?'متن انگلیسی را وارد کن؛ به‌صورت خودکار به کد باینری تبدیل می‌شود.':'Type English text — it converts to binary automatically.'}</p>
-                    <textarea id="binTextIn" class="mc-tool-textarea" placeholder="${fa?'مثلاً: HELLO':'e.g. HELLO'}" oninput="binToolTextToBinary()"></textarea>
+                    <textarea id="binTextIn" class="mc-tool-textarea" dir="auto" spellcheck="false" placeholder="${fa?'مثلاً: HELLO':'e.g. HELLO'}" oninput="binToolTextToBinary()"></textarea>
                     <div class="mc-tool-result-box" id="binTextOut" dir="ltr"></div>
                     <div class="mc-tool-actions">
                         <button type="button" class="btn-main" onclick="specialToolsCopyText('binTextOut')">📋 ${fa?'کپی':'Copy'}</button>
                         <button type="button" class="btn-main" onclick="document.getElementById('binTextIn').value='';binToolTextToBinary();">🗑️ ${fa?'پاک کردن':'Clear'}</button>
                     </div>
+                    ${binToolBuildRef('text')}
                 </div>
                 <div id="binTabBin" class="mc-tool-tab-panel" style="display:none">
                     <p class="mc-tool-hint">${fa?'کد باینری را وارد کن (هر بایت را با فاصله جدا کن، مثلاً 01001000 01000101).':'Enter binary code (separate each byte with a space, e.g. 01001000 01000101).'}</p>
                     <textarea id="binBinaryIn" class="mc-tool-textarea" dir="ltr" placeholder="01001000 01000101 01001100 01001100 01001111" oninput="binToolBinaryToText()"></textarea>
-                    <div class="mc-tool-result-box" id="binBinaryOut"></div>
+                    <div class="mc-tool-result-box" id="binBinaryOut" dir="auto"></div>
                     <div class="mc-tool-actions">
                         <button type="button" class="btn-main" onclick="specialToolsCopyText('binBinaryOut')">📋 ${fa?'کپی نتیجه':'Copy result'}</button>
                         <button type="button" class="btn-main" onclick="document.getElementById('binBinaryIn').value='';binToolBinaryToText();">🗑️ ${fa?'پاک کردن':'Clear'}</button>
                     </div>
+                    ${binToolBuildRef('bin')}
                 </div>
             `);
         }
@@ -14717,6 +14818,10 @@ window.mu_syncHtmlBg = function(){
 .mc-tool-hint{opacity:.65;font-size:11px;line-height:1.8;margin:0 0 10px}
 .mc-tool-textarea{width:100%;box-sizing:border-box;min-height:74px;padding:9px 10px;border-radius:10px;border:1px solid var(--panel-border);background:rgba(0,0,0,.25);color:var(--text-color);font-family:inherit;font-size:12px;resize:vertical;outline:none;line-height:1.7}
 .mc-tool-textarea:focus{border-color:var(--text-color)}
+.mc-tool-textarea[dir="ltr"],.mc-tool-result-box[dir="ltr"],.mc-tool-buffer-box[dir="ltr"]{direction:ltr;text-align:left;unicode-bidi:isolate}
+.mc-tool-textarea[dir="auto"],.mc-tool-result-box[dir="auto"]{unicode-bidi:plaintext;text-align:start}
+.mc-tool-buffer-box[dir="ltr"]{text-align:center}
+.mc-ref-item,.mc-ref-item b,.mc-ref-item span{direction:ltr;unicode-bidi:isolate}
 .mc-tool-result-box{margin-top:9px;min-height:44px;padding:10px 11px;border-radius:10px;border:1px dashed var(--panel-border);background:rgba(0,0,0,.18);font-size:12px;line-height:1.8;word-break:break-word;white-space:pre-wrap}
 .mc-tool-buffer-box{margin:0 0 10px;min-height:40px;padding:10px 11px;border-radius:10px;border:1px solid var(--panel-border);background:rgba(0,0,0,.28);font-size:15px;letter-spacing:1px;text-align:center;word-break:break-all}
 .mc-tool-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:9px}
@@ -14725,8 +14830,16 @@ window.mu_syncHtmlBg = function(){
 .mc-tool-keypad .btn-main{padding:10px 6px;font-size:11px}
 .mc-key-dot,.mc-key-dash{font-size:19px!important;font-weight:800;padding:6px!important}
 .mc-confirm-btn{width:100%;background:rgba(72,202,228,.16);border-color:var(--text-color);font-weight:700}
-.mc-tool-ref{margin-top:12px;border-top:1px solid var(--panel-border);padding-top:9px}
-.mc-tool-ref summary{cursor:pointer;font-size:11px;opacity:.75;user-select:none}
+.mc-tool-ref{margin-top:14px}
+.mc-tool-ref summary{cursor:pointer;font-size:14px;font-weight:800;opacity:1;user-select:none;list-style:none;display:flex;align-items:center;justify-content:center;gap:8px;padding:13px 14px;border-radius:12px;border:1px solid var(--text-color);background:rgba(72,202,228,.16);text-align:center;line-height:1.6;transition:var(--transition-smooth)}
+.mc-tool-ref summary::-webkit-details-marker{display:none}
+.mc-tool-ref summary::after{content:"▾";font-size:16px;transition:transform .2s}
+.mc-tool-ref[open] summary::after{transform:rotate(180deg)}
+.mc-tool-ref summary:hover,.mc-tool-ref summary:active{background:rgba(72,202,228,.28)}
+.bin-ref-chips{margin:10px 0 0;padding-bottom:0;border-bottom:0}
+.bin-ref-chips .mc-tool-tab-btn{font-size:12px;padding:8px 4px}
+.mc-tool-ref-grid.bin-ref-grid{grid-template-columns:repeat(auto-fill,minmax(80px,1fr))}
+.bin-ref-grid .mc-ref-item span{font-size:10px;letter-spacing:.3px}
 .mc-tool-ref-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(52px,1fr));gap:6px;margin-top:10px}
 .mc-ref-item{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:6px 3px;border-radius:8px;border:1px solid var(--panel-border);background:rgba(0,0,0,.2);color:var(--text-color);cursor:pointer;transition:var(--transition-smooth)}
 .mc-ref-item:hover,.mc-ref-item:active{background:rgba(72,202,228,.18);border-color:var(--text-color)}
