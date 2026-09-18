@@ -15855,7 +15855,7 @@ if(textEl && textEl.innerHTML.indexOf('[[')!==-1){textEl.querySelectorAll('a[dat
    toggle next to the sort-order picker (off by default). */
 .note-btn-wrap .custom-btn{flex:1;width:100%;max-width:100%;flex-direction:column;align-items:stretch;justify-content:center;text-align:center;gap:5px;padding:11px 14px;font-size:13px;min-height:46px;box-sizing:border-box}
 .note-item-title{display:block;min-width:0;width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;line-height:1.35}
-.note-item-meta{display:block;min-width:0;width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;font-weight:400;line-height:1.35;color:rgba(255,255,255,.52);letter-spacing:.1px}
+.note-item-meta{display:block;min-width:0;width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;unicode-bidi:plaintext;font-size:11px;font-weight:400;line-height:1.35;color:rgba(255,255,255,.52);letter-spacing:.1px}
 .custom-btn.active-btn .note-item-meta{color:rgba(255,255,255,.68)}
 /* Dragging item: left behind in the flow as a dimmed "hole" placeholder —
    the actual floating visual is the .markhin-float-ghost clone below,
@@ -16209,7 +16209,11 @@ function mu_notePreviewSnippet(item){
     });
     const text = (tmp.textContent || '').replace(/\s+/g, ' ').trim();
     if (!text) return '';
-    return text.length > 64 ? text.slice(0, 64).trim() + '…' : text;
+    // Direction fix: no manual '…' here anymore. A literal '…' appended to a
+    // mixed fa/en string lands on the wrong visual side. The span has dir="auto"
+    // and CSS text-overflow draws the ellipsis at the correct end.
+    const chars = Array.from(text);
+    return chars.length > 120 ? chars.slice(0, 120).join('').trim() : text;
 }
 function mu_noteMetaLine(item){
     return mu_getNotePreviewEnabled() ? mu_notePreviewSnippet(item) : '';
@@ -16279,7 +16283,7 @@ window.renderButtons = function(filtered){
         const titleHtml = escapeHtml((isNoteLocked(item)?'🔒 ':'')+(item.pinned?'📌 ':'')+(item.favorite?'⭐ ':'')+(item.fakeContent?'🎭 ':'')+String(item.name||''));
         const metaText = mu_noteMetaLine(item);
         const wantHtml = '<span class="note-item-title">'+titleHtml+'</span>'
-            + (metaText ? '<span class="note-item-meta">'+escapeHtml(metaText)+'</span>' : '');
+            + (metaText ? '<span class="note-item-meta" dir="auto">'+escapeHtml(metaText)+'</span>' : '');
         if(b.innerHTML !== wantHtml) b.innerHTML = wantHtml;
         b.onclick = ()=>{
             if(searching){ mu_openAndHighlight(item.id, mu_queryTerms(rawQuery)); }
