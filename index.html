@@ -18839,6 +18839,14 @@ window.attachWrapperEvents = function(categoryId){
       </div>
     </div>
 
+    <div class="co-panel" id="coPickPanel" hidden>
+      <div class="co-panel-in co-pick-in">
+        <h2 class="co-title" id="coPickTitle">🃏 CHAOS CARD</h2>
+        <div class="co-sub" id="coPickSub"></div>
+        <div class="co-pick-row" id="coPickRow"></div>
+      </div>
+    </div>
+
     <div class="co-panel" id="coOverPanel" hidden>
       <div class="co-panel-in">
         <div class="co-sub" id="coCrashMsg" dir="auto" style="opacity:1;color:#ff9ad6">💥 آشوب بلعیدت!</div>
@@ -22144,10 +22152,27 @@ window.MonsterHunt = (function(){
 .co-btn:active{transform:scale(.95)}
 .co-btn.co-ghost{background:rgba(255,255,255,.05);border-color:rgba(255,255,255,.25);box-shadow:none;font-size:13px;padding:9px 20px}
 .co-hint{font-size:11px;line-height:1.8;opacity:.55;margin-top:2px;max-width:300px}
+.co-pick-in{width:100%;max-width:340px}
+.co-pick-row{display:flex;flex-direction:column;gap:10px;width:100%;margin-top:4px}
+.co-pick{display:flex;align-items:center;gap:12px;width:100%;box-sizing:border-box;padding:12px 14px;border-radius:14px;border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.06);color:#fff0fb;font-family:inherit;text-align:start;cursor:pointer;pointer-events:auto;transition:transform .12s ease;animation:coPickIn .35s ease-out both}
+.co-pick:nth-child(2){animation-delay:.07s}
+.co-pick:nth-child(3){animation-delay:.14s}
+.co-pick:active{transform:scale(.96)}
+.co-pick i{font-style:normal;font-size:30px;line-height:1;flex:none}
+.co-pick-main{display:flex;flex-direction:column;gap:3px;flex:1;min-width:0}
+.co-pick b{font-size:14px;line-height:1.6}
+.co-pick-tag{font-size:11px;letter-spacing:.5px;opacity:.9}
+.co-pick small{font-size:11px;opacity:.6;flex:none;direction:ltr}
+.co-pick.co-pk-good{border-color:rgba(124,255,176,.55);box-shadow:0 0 16px rgba(124,255,176,.18)}
+.co-pick.co-pk-wild{border-color:rgba(255,124,232,.55);box-shadow:0 0 16px rgba(255,124,232,.2)}
+.co-pick.co-pk-bad{border-color:rgba(255,177,74,.6);box-shadow:0 0 16px rgba(255,120,60,.22)}
+.co-pick.co-pk-weapon{border-color:rgba(255,92,106,.65);box-shadow:0 0 16px rgba(255,92,106,.25)}
+.co-pick:nth-child(4){animation-delay:.21s}
+@keyframes coPickIn{from{opacity:0;transform:translateY(10px) scale(.96)}to{opacity:1;transform:none}}
 .co-card-art{background:linear-gradient(135deg,#160a26,#050107);position:relative}
 .co-card-swirl{position:absolute;inset:-30%;background:conic-gradient(from 0deg,rgba(255,124,232,.35),rgba(124,246,255,.25),rgba(255,226,122,.3),rgba(255,124,232,.35));filter:blur(10px);animation:coSwirl 5s linear infinite;opacity:.55}
 @keyframes coSwirl{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
-@media (prefers-reduced-motion:reduce){.co-title,.co-card-swirl,.co-newbest{animation:none}}
+@media (prefers-reduced-motion:reduce){.co-title,.co-card-swirl,.co-newbest,.co-pick{animation:none}}
 </style>
 <script>
 window.ChaosOrb = (function(){
@@ -22173,7 +22198,7 @@ window.ChaosOrb = (function(){
     let root, canvas, ctx, scoreEl, bestEl, eventEl, toastEl, levelEl, comboEl, chipsEl,
         startPanel, overPanel, pausePanel, startBtn, retryBtn, resumeBtn, restartBtn,
         overScoreEl, overShardsEl, overBestEl, newBestEl, startBestEl, muteBtn, pauseBtn,
-        crashMsgEl, causeEl, rankEl, overStatsEl, startStatsEl;
+        crashMsgEl, causeEl, rankEl, overStatsEl, startStatsEl, pickPanel, pickRowEl, pickTitleEl, pickSubEl;
 
     const view = { w: 0, h: 0, dpr: 1 };
     const Perf = window.MU_Perf || null;
@@ -22182,7 +22207,7 @@ window.ChaosOrb = (function(){
     const DPR_BY_TIER = [2, 1.5, 1.25, 1];
     let meter = null;   // adaptive-quality frame monitor (see MU_Perf)
     let stars = [];
-    let state = 'idle'; // idle | ready | playing | paused | dying | over
+    let state = 'idle'; // idle | ready | playing | paused | card | dying | over
     let S = null;       // run state
     let M = null;       // per-frame modifiers (recomputed from active rules)
 
@@ -22284,6 +22309,7 @@ window.ChaosOrb = (function(){
     function sfxPower(){ [660, 880, 1320].forEach(function(f, i){ tone(f, 0.1, 'sine', 0.14, i * 0.05); }); }
     function sfxShield(){ tone(220, 0.25, 'sawtooth', 0.14, 0, 90); noise(0.18, 0.16, 0, 1500); }
     function sfxNova(){ noise(0.5, 0.3, 0, 200); tone(140, 0.5, 'sawtooth', 0.2, 0, 40); tone(70, 0.6, 'sine', 0.2, 0, 30); }
+    function sfxZap(){ tone(950, 0.05, 'square', 0.12); tone(1500, 0.04, 'sine', 0.09, 0.015); }
     function sfxWarn(){ tone(1000, 0.06, 'square', 0.07); }
     function sfxLaser(){ noise(0.3, 0.16, 0, 800); tone(1800, 0.3, 'sawtooth', 0.09, 0, 200); }
     function sfxBoss(){ [0, 0.3, 0.6].forEach(function(d){ tone(110, 0.25, 'sawtooth', 0.18, d, 70); tone(165, 0.25, 'square', 0.1, d, 105); }); }
@@ -22344,7 +22370,8 @@ window.ChaosOrb = (function(){
         nova:    { e: '💣', c: 'orange', fa: 'نوا!',         en: 'NOVA!',     w: 12 },
         phase:   { e: '👻', c: 'violet', fa: 'روح‌شدن',      en: 'PHASE',     w: 12 },
         x2:      { e: '✖2', c: 'gold',   fa: 'دو برابر',     en: 'DOUBLE',    w: 14 },
-        mystery: { e: '🎲', c: 'green',  fa: 'شانسی!',       en: 'MYSTERY',   w: 12 }
+        mystery: { e: '🎲', c: 'green',  fa: 'شانسی!',       en: 'MYSTERY',   w: 12 },
+        weapon:  { e: '🔫', c: 'red',    fa: 'اسلحه',        en: 'WEAPON',    w: 20 }
     };
     const CAUSE = {
         tri: { fa: 'تیغه', en: 'a blade' }, orb: { fa: 'گلوله‌ی سرخ', en: 'a red orb' }, bar: { fa: 'میله', en: 'a bar' },
@@ -22354,7 +22381,8 @@ window.ChaosOrb = (function(){
         bullet: { fa: 'گلوله', en: 'a bullet' }, guard: { fa: 'نگهبان بلور', en: 'a shard guard' },
         ring: { fa: 'موج شوک', en: 'a shockwave' }, wall: { fa: 'دیوار', en: 'a wall' }, laser: { fa: 'لیزر', en: 'a laser' },
         boss: { fa: 'باس', en: 'the boss' }, vortex: { fa: 'سیاه‌چاله', en: 'the black hole' },
-        shard: { fa: 'یه بلور خائن', en: 'a treacherous shard' }
+        shard: { fa: 'یه بلور خائن', en: 'a treacherous shard' },
+        blast: { fa: 'انفجار شمارش معکوس', en: 'the countdown blast' }
     };
     const TAUNT = {
         fa: ['💥 آشوب بلعیدت!', '🌀 آشوب برنده شد!', '😵 قانون بعدی رو ندیدی...', '🫠 گوی ذوب شد!', '⚡ جهان پسِت زد!', '🎲 شانس این دفعه باهات نبود'],
@@ -22374,7 +22402,12 @@ window.ChaosOrb = (function(){
     const BOSSES = [
         { id: 'eye',     fa: 'چشم آشوب',    en: 'CHAOS EYE',   c: 'pink',   pats: ['ring', 'aimed', 'fan', 'aimed'], sx: 0.75, amp: 0.30 },
         { id: 'spinner', fa: 'چرخنده',       en: 'THE SPINNER', c: 'cyan',   pats: ['spiral', 'ring', 'spiral'],      sx: 0.45, amp: 0.10 },
-        { id: 'storm',   fa: 'سازنده‌ی طوفان', en: 'STORM MAKER', c: 'orange', pats: ['rain', 'curtain', 'aimed'],      sx: 0.60, amp: 0.34 }
+        { id: 'storm',   fa: 'سازنده‌ی طوفان', en: 'STORM MAKER', c: 'orange', pats: ['rain', 'curtain', 'aimed'],      sx: 0.60, amp: 0.34 },
+        // Steals up to 3 nearby ordinary hazards (never mines/walls/lasers/rings — those stay put), holds
+        // them in plain sight for a beat so you see it coming, then hurls them at wherever you are. Net
+        // effect: it temporarily *clears* a bit of the field before turning what it cleared into bullets,
+        // so it's a fair, readable trade rather than pure extra danger.
+        { id: 'devourer', fa: 'بلعنده',      en: 'THE DEVOURER', c: 'gold',   pats: ['steal', 'ring', 'aimed'],        sx: 0.55, amp: 0.22 }
     ];
 
     // ================================================================ CHAOS RULES
@@ -22390,7 +22423,7 @@ window.ChaosOrb = (function(){
     function eT(r){ return r.dur - r.t; } // seconds since the rule started
 
     // -- control scramblers
-    def('invert',  { e: '🙃', fa: 'کنترل‌ها وارونه شد!', en: 'CONTROLS INVERTED!', k: 'bad', g: 'ctrl', lv: 1, d: [4, 6], noCrowd: true, // never started while the screen is crowded
+    def('invert',  { e: '🙃', fa: 'کنترل‌ها وارونه شد!', en: 'CONTROLS INVERTED!', k: 'bad', g: 'ctrl', lv: 1, maxLv: 3, d: [4, 6], noCrowd: true, // never started while the screen is crowded; stops appearing from level 4 on
         mod: function(m){ m.invX = !m.invX; m.invY = !m.invY; } });
     def('voidEyes', { e: '👁️', fa: 'چشم‌های آشوب دارن نگات می‌کنن...', en: 'THE EYES OF CHAOS ARE WATCHING...', k: 'wild', g: 'omen', lv: 2, d: [4, 6],
         start: function(r){ r.beat = 0.3; },
@@ -22399,15 +22432,11 @@ window.ChaosOrb = (function(){
             if (r.beat <= 0){ r.beat = rand(0.5, 0.9); tone(64, 0.16, 'sine', 0.1); }
         },
         mod: function(m, r){ m.filters.push('contrast(1.32) saturate(0.55) sepia(0.22)'); m.shake = Math.max(m.shake, 2 + 2 * Math.sin(eT(r) * 2.4)); } });
-    def('twist',   { e: '🔀', fa: 'کنترل‌ها چرخید!', en: 'CONTROLS TWISTED!', k: 'bad', g: 'ctrl', lv: 2, d: [4.5, 6.5],
-        start: function(r){ r.a = pick([Math.PI / 2, -Math.PI / 2, Math.PI * 0.75, -Math.PI * 0.75, Math.PI / 3]); },
-        mod: function(m, r){ m.twist += r.a; } });
+    // (the 'twist' rule — controls rotated by a random angle — was removed on purpose)
 
     // -- physics of the orb itself
     def('drunk',   { e: '🥴', fa: 'گوی مست کرد!', en: 'ORB IS DRUNK!', k: 'bad', g: 'phys', lv: 2, d: [4.5, 6.5],
         mod: function(m){ m.drunk = true; m.filters.push('blur(1.1px)'); } });
-    def('ice',     { e: '🧊', fa: 'زمین یخ زد!', en: 'ICE RINK!', k: 'bad', g: 'phys', lv: 3, d: [4.5, 6.5],
-        mod: function(m){ m.ice = true; } });
     def('honey',   { e: '🍯', fa: 'عسل! سنگین شدی!', en: 'HONEY! SO HEAVY!', k: 'bad', g: 'phys', lv: 3, d: [4, 5.5],
         mod: function(m){ m.honey = true; } });
     def('lag',     { e: '📡', fa: 'لگ! کنترل دیر می‌رسه!', en: 'LAG SPIKE!', k: 'bad', g: 'phys', lv: 3, d: [4, 5.5],
@@ -22602,6 +22631,79 @@ window.ChaosOrb = (function(){
         start: function(r){ r.t2 = 0.8; },
         update: function(r, dt){ r.t2 -= dt; if (r.t2 <= 0){ r.t2 = rand(2.2, 3.2); spawnRing(); } } });
 
+    // Yanks the orb — and every hazard on screen — 2 seconds into the past. Uses the rolling
+    // history buffers (S.buf for the orb, S.rwHist for hazards, both fed every frame above) to
+    // restore exact positions/state from ~2s ago. Score and shards are never touched: only the
+    // world layout rewinds, not what the player has already earned.
+    def('timeRewind', { e: '⏪', fa: 'برگشت زمان! ۲ ثانیه به عقب پرت شدی', en: 'TIME REWIND! YANKED 2 SECONDS INTO THE PAST', k: 'wild', g: 'time', lv: 3, d: [0.8, 1], nochip: true,
+        start: function(){
+            const target = S.elapsed - 2;
+            let px = null, py = null;
+            for (let i = 0; i < S.buf.length; i++){ if (S.buf[i].t <= target){ px = S.buf[i].x; py = S.buf[i].y; } else break; }
+            if (px === null && S.buf.length){ px = S.buf[0].x; py = S.buf[0].y; }
+            let hzSnap = null;
+            for (let i = 0; i < S.rwHist.length; i++){ if (S.rwHist[i].t <= target) hzSnap = S.rwHist[i]; else break; }
+            if (px !== null){
+                S.px = S.rx = S.tx = px; S.py = S.ry = S.ty = py; S.pvx = S.pvy = 0;
+                S.buf.length = 0; S.trail.length = 0;
+            }
+            if (hzSnap) S.hz = hzSnap.hz.map(function(h){ return Object.assign({}, h); });
+            S.invuln = Math.max(S.invuln, 0.8);   // a short breather so a hazard that's now back on top of you isn't an instant, unfair death
+            flash(0.4, 'violet'); S.trauma = Math.max(S.trauma, 0.5);
+            ring(S.px, S.py, 'violet', Math.max(view.w, view.h) * 0.5, 0.6, 3);
+            sfxTele(); buzz('heavy');
+        } });
+
+    // Drops a countdown number inside a green safe circle somewhere on screen. Every hazard is
+    // continuously shoved back out the moment it touches the circle — only the orb is allowed
+    // inside. A loud warning fires shortly before zero; at zero the whole screen detonates and
+    // kills the orb (same shield/invuln rules as any other hit) unless it's inside the circle.
+    def('safeCountdown', { e: '🧨', fa: 'شمارش معکوس امن! برو تو دایره‌ی سبز!', en: 'SAFE COUNTDOWN! GET IN THE GREEN CIRCLE!', k: 'bad', g: 'haz', lv: 3, d: [5, 6], nochip: true,
+        start: function(r){
+            const margin = 90;
+            let x, y, tries = 0;
+            do { x = rand(margin, view.w - margin); y = rand(margin, view.h - margin); tries++; }
+            while (Math.hypot(x - S.px, y - S.py) < 150 && tries < 12);
+            S.safeZone = { x: x, y: y, r: Math.max(64, S.pr * 5), count: Math.ceil(r.t) };
+            r.warned = false;
+        },
+        update: function(r, dt){
+            if (!S.safeZone) return;
+            const sz = S.safeZone;
+            sz.count = Math.max(0, Math.ceil(r.t));
+            if (!r.warned && r.t <= 1.4){
+                r.warned = true;
+                showBanner('⚠️ ' + (isFa() ? 'الان می‌ترکه! برو تو دایره!' : "IT'S ABOUT TO BLOW! GET IN THE CIRCLE!"), 'bad');
+                sfxWarn(); buzz('heavy'); flash(0.3, 'red');
+            }
+            // keep every hazard pushed out of the safe circle — only the orb is allowed inside it
+            for (let i = 0; i < S.hz.length; i++){
+                const h = S.hz[i];
+                const dx = h.x - sz.x, dy = h.y - sz.y, d = Math.hypot(dx, dy);
+                const minD = sz.r + (h.r || 14) + 4;
+                if (d < minD){
+                    const nx = d > 0.001 ? dx / d : 1, ny = d > 0.001 ? dy / d : 0, push = (minD - d) + 1;
+                    h.x += nx * push; h.y += ny * push;
+                    const dot = h.vx * nx + h.vy * ny;
+                    if (dot < 0){ h.vx -= 2 * dot * nx; h.vy -= 2 * dot * ny; }
+                }
+            }
+        },
+        end: function(){
+            const sz = S.safeZone; S.safeZone = null;
+            if (!sz) return;
+            const safe = Math.hypot(S.px - sz.x, S.py - sz.y) + S.pr <= sz.r;
+            flash(0.9, 'red'); S.trauma = 1;
+            ring(sz.x, sz.y, 'red', Math.max(view.w, view.h), 0.6, 6);
+            sfxNova(); buzz('heavy');
+            if (safe){
+                addScore(80 + S.level * 10, S.px, S.py - S.pr - 14, { color: 'green', size: 16, noMult: true });
+                burst(sz.x, sz.y, 'green', 22, 220, 3);
+            } else {
+                onHit({ kind: 'blast' }, S.px, S.py);
+            }
+        } });
+
     // ============================================================ RULE ENGINE
     const WK = { good: 0.85, wild: 1.1, bad: 1.2 };
     function maxActive(){ return 1 + (S.level >= 2 ? 1 : 0) + (S.level >= 4 ? 1 : 0) + (S.level >= 6 ? 1 : 0); }
@@ -22614,26 +22716,43 @@ window.ChaosOrb = (function(){
         return active > CROWDED_HZ;
     }
 
+    // Rule pairs that must never run at the same time even though they're in different groups —
+    // e.g. inverted controls stacked on top of the world already being flipped/warped gets
+    // disorienting to the point of feeling unfair, so each pair blocks the other from starting
+    // while it's active (checked both directions).
+    const NO_COEXIST = {
+        invert: ['meteors', 'upside', 'teleport', 'drunk'],
+        meteors: ['invert'],
+        upside: ['invert'],
+        teleport: ['invert'],
+        drunk: ['invert']
+    };
     function pickEvents(n, opts){
         opts = opts || {};
         const out = [], busy = {};
         const crowded = isCrowded();
         S.active.forEach(function(r){ busy[EV[r.id].g] = true; });
+        const have = {};   // rule ids running now (or already picked in this call)
+        S.active.forEach(function(r){ have[r.id] = true; });
+        if (opts.exclude) opts.exclude.forEach(function(id){ busy[EV[id].g] = true; have[id] = true; });
         for (let i = 0; i < n; i++){
             const cand = [];
             for (const id in EV){
                 const e = EV[id];
-                if (e.lv > S.level || busy[e.g]) continue;
+                if (e.lv > S.level || (e.maxLv && S.level > e.maxLv) || busy[e.g]) continue;
                 if (opts.skipMeta && e.g === 'meta') continue;
+                if (opts.kind && e.k !== opts.kind) continue;
                 if (S.boss && e.g === 'haz') continue;
                 if (S.recent.indexOf(id) >= 0) continue;
                 if (e.noCrowd && crowded) continue; // e.g. inverted controls on a packed screen
+                // no inverted controls together with a meteor shower, a flipped screen, or wild teleports (and vice versa)
+                if (NO_COEXIST[id] && NO_COEXIST[id].some(function(x){ return have[x]; })) continue;
                 cand.push({ id: id, w: (e.w || WK[e.k]) + (e.k === 'bad' ? S.level * 0.05 : 0) + (e.k === 'wild' ? S.level * 0.06 : 0) });
             }
             if (!cand.length) break;
             const c = wpick(cand);
-            out.push(c.id); busy[EV[c.id].g] = true;
-            S.recent.push(c.id); if (S.recent.length > 5) S.recent.shift();
+            out.push(c.id); busy[EV[c.id].g] = true; have[c.id] = true;
+            if (!opts.noRecent){ S.recent.push(c.id); if (S.recent.length > 5) S.recent.shift(); }
         }
         return out;
     }
@@ -22645,9 +22764,9 @@ window.ChaosOrb = (function(){
         const rec = { id: id, t: dur, dur: dur, silent: false, ann: null };
         const lieK = 0.16 + (S.lieBoost || 0) * 0.24, silentK = 0.09 + (S.lieBoost || 0) * 0.16;
         if (!opts.noLie && !e.nochip && dur >= 3 && S.level >= 2 && chance(lieK)){
-            const others = Object.keys(EV).filter(function(k){ return k !== id && !EV[k].nochip && EV[k].lv <= S.level && EV[k].d[0] >= 3; });
+            const others = Object.keys(EV).filter(function(k){ return k !== id && !EV[k].nochip && EV[k].lv <= S.level && !(EV[k].maxLv && S.level > EV[k].maxLv) && EV[k].d[0] >= 3 && !(id === 'invert' && k === 'meteors'); });
             if (others.length) rec.ann = pick(others);
-        } else if (!opts.noBanner && S.level >= 2 && dur >= 3 && chance(silentK)){
+        } else if (!opts.noBanner && !opts.noSilent && S.level >= 2 && dur >= 3 && chance(silentK)){
             rec.silent = true; // a rule that arrives with no warning at all
         }
         S.active.push(rec);
@@ -22680,14 +22799,14 @@ window.ChaosOrb = (function(){
     }
     function newMods(){
         return { gx: 0, gy: 0, invX: false, invY: false, twist: 0, time: 1, size: 1, shake: 0, filters: [], wrap: false, trails: false,
-                 blackout: false, glitch: false, hudGlitch: false, upside: false, twins: null, lag: 0, ice: false, honey: false,
+                 blackout: false, glitch: false, hudGlitch: false, upside: false, twins: null, lag: 0, honey: false,
                  drunk: false, predator: false, swap: false, magnet: false, mirage: false, rainbow: false };
     }
     function computeMods(){
         const m = M;
         m.gx = 0; m.gy = 0; m.invX = false; m.invY = false; m.twist = 0; m.time = 1; m.size = 1; m.shake = 0; m.filters.length = 0;
         m.wrap = false; m.trails = false; m.blackout = false; m.glitch = false; m.hudGlitch = false; m.upside = false;
-        m.twins = null; m.lag = 0; m.ice = false; m.honey = false; m.drunk = false; m.predator = false; m.swap = false;
+        m.twins = null; m.lag = 0; m.honey = false; m.drunk = false; m.predator = false; m.swap = false;
         m.magnet = false; m.mirage = false; m.rainbow = false;
         for (let i = 0; i < S.active.length; i++){ const e = EV[S.active[i].id]; if (e.mod) e.mod(m, S.active[i]); }
         if (S.freezeT > 0) m.time = 0;
@@ -22713,6 +22832,7 @@ window.ChaosOrb = (function(){
         }
         S.cooldown -= dt;
         if (S.cooldown <= 0){
+            if (S.cardT <= 0 && S.level >= 2 && !S.boss){ S.cooldown = 0.5; return; }   // a Chaos Card is due: let the running rules finish first
             if (S.active.length >= maxActive()){ S.cooldown = 1.0; return; }
             let n = 1;
             if (S.level >= 6 && chance(0.4)) n = 4;
@@ -22739,12 +22859,14 @@ window.ChaosOrb = (function(){
             elapsed: 0, level: 1, score: 0, shards: 0, grazes: 0, grazeCount: 0, maxCombo: 0, eventsSurvived: 0, eaten: 0, uid: 0,
             px: px, py: py, rx: px, ry: py, tx: px, ty: py, pvx: 0, pvy: 0, pr: br,
             pts: [{ x: px, y: py }, { x: px, y: py }, { x: px, y: py }, { x: px, y: py }], np: 1,
-            hz: [], shardsArr: [], pups: [], parts: [], pops: [], trail: [], buf: [],
+            hz: [], shardsArr: [], pups: [], parts: [], pops: [], trail: [], buf: [], wbeams: [],
             active: [], recent: [], cooldown: rand(4.5, 6.5), lieBoost: 0,
-            spawnT: 1.2, shardT: rand(0.8, 1.5), pupT: rand(9, 13), specialCd: 6,
-            combo: 0, comboT: 0, shield: 0, magnetT: 0, freezeT: 0, phaseT: 0, x2T: 0, invuln: 0.5,
+            spawnT: 1.2, shardT: rand(0.8, 1.5), pupT: rand(9, 13), specialCd: 6, firstPup: true,
+            combo: 0, comboT: 0, shield: 0, magnetT: 0, freezeT: 0, phaseT: 0, x2T: 0, weaponT: 0, weaponCd: 0, invuln: 0.5,
             eatChain: 0, eatT: 0, grazeSfxT: 0, trickle: 0,
             boss: null, nextBoss: rand(46, 58), vortex: null,
+            rwHist: [], rwSnapT: 0, safeZone: null,
+            cardT: rand(26, 34), cardOpts: null, cardAt: 0, cardsTaken: 0,
             flash: 0, flashCol: 'white', trauma: 0, camFlip: 0,
             beat: 0, beatT: 0.5, rootShift: 0, tele: 0,
             keyL: false, keyR: false, keyU: false, keyD: false,
@@ -22753,6 +22875,7 @@ window.ChaosOrb = (function(){
             look: { x: 0, y: 0 }, mood: 0
         };
         M = newMods();
+        if (pickPanel) pickPanel.hidden = true;
     }
 
     // ------------------------------------------------------------ fx helpers
@@ -22958,6 +23081,10 @@ window.ChaosOrb = (function(){
     // When a blade (تیغه) or bar (میله) is sent straight AT the player (the "attack"), it flies a bit
     // slower so it doesn't rush in out of nowhere (1 = the old speed). Normal drifting ones are unchanged.
     const AIMED_BLADE_BAR_SPEED = 0.7;
+    // Comets move very fast, so they get a brief telegraph before launch: they
+    // sit still at their spawn point (like mines/blades already do via h.warn)
+    // while a dashed line is drawn along the exact path they're about to fly.
+    const COMET_WARN = 0.55;
     function spawnMover(kind, o){
         o = o || {};
         const p = edgePoint();
@@ -22966,7 +23093,7 @@ window.ChaosOrb = (function(){
         if (chance(0.28 + 0.12 * diff())){ ang = Math.atan2(S.py - p.y, S.px - p.x) + rand(-0.4, 0.4); aimed = true; }
         let sp = rand(75, 130) * (1 + diff() * 1.1);
         const h = { kind: kind, x: p.x, y: p.y, r: rand(13, 24), rot: rand(0, TAU), vrot: rand(-2.4, 2.4), fake: !!o.fake };
-        if (kind === 'comet'){ sp *= 2.1; h.r = rand(7, 10); }
+        if (kind === 'comet'){ sp *= 2.1; h.r = rand(7, 10); h.warn = COMET_WARN; }
         else if ((kind === 'tri' || kind === 'bar') && aimed){ sp *= AIMED_BLADE_BAR_SPEED; }
         else if (kind === 'sine'){ h.r = rand(11, 16); }
         else if (kind === 'splitter'){ h.r = rand(20, 27); sp *= 0.8; h.splitAt = rand(1.3, 2.3); }
@@ -22987,7 +23114,7 @@ window.ChaosOrb = (function(){
     }
     function spawnMeteor(){
         const x = rand(12, view.w - 12), ang = Math.PI / 2 + rand(-0.22, 0.22), sp = rand(260, 360);
-        return pushHz({ kind: 'comet', x: x, y: -24, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp, r: rand(9, 14), warn: 0.5, meteor: true });
+        return pushHz({ kind: 'comet', x: x, y: -24, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp, r: rand(9, 14), warn: COMET_WARN, meteor: true });
     }
     function spawnHoming(delay){
         const p = edgePoint(), sp = 100 + 40 * Math.min(1, diff());
@@ -23146,6 +23273,7 @@ window.ChaosOrb = (function(){
         else if (type === 'nova'){ nova(S.px, S.py, 99999, true); }
         else if (type === 'phase'){ S.phaseT = 5; }
         else if (type === 'x2'){ S.x2T = 10; }
+        else if (type === 'weapon'){ S.weaponT = Math.min(16, S.weaponT + 6); S.weaponCd = 0; }
         else if (type === 'mystery'){ mystery(x, y); }
     }
     function mystery(x, y){
@@ -23189,10 +23317,55 @@ window.ChaosOrb = (function(){
         buzz('heavy');
     }
 
+    // ---- weapon power-up: while active, auto-fires at the nearest hazard
+    // on a short cooldown and destroys it — a ground pickup, not an instant blast.
+    const WEAPON_CD = 0.32;
+    function fireWeapon(){
+        let best = null, bd = 1e9;
+        for (let i = 0; i < S.hz.length; i++){
+            const h = S.hz[i];
+            if (h.fake || h.warn > 0 || h.kind === 'wall' || h.kind === 'laser' || h.kind === 'ring' || h.kind === 'guard' || h.kind === 'bullet') continue;
+            const d = (h.x - S.px) * (h.x - S.px) + (h.y - S.py) * (h.y - S.py);
+            if (d < bd){ bd = d; best = h; }
+        }
+        if (!best) return;
+        S.wbeams.push({ x1: S.px, y1: S.py, x2: best.x, y2: best.y, t: 0.14, life: 0.14 });
+        burst(best.x, best.y, 'red', 6, 150, 2.4);
+        ring(best.x, best.y, 'red', 26, 0.3, 2);
+        const idx = S.hz.indexOf(best);
+        if (idx >= 0) S.hz.splice(idx, 1);
+        sfxZap();
+    }
+    function updateWeapon(dt){
+        if (S.weaponT > 0){
+            S.weaponT -= dt; S.weaponCd -= dt;
+            if (S.weaponCd <= 0){ S.weaponCd = WEAPON_CD; fireWeapon(); }
+        }
+        if (S.wbeams.length){
+            for (let i = S.wbeams.length - 1; i >= 0; i--){ S.wbeams[i].t -= dt; if (S.wbeams[i].t <= 0) S.wbeams.splice(i, 1); }
+        }
+    }
+
     // ============================================================ BOSS
     function startBoss(){
         const def_ = pick(BOSSES);
-        S.boss = { def: def_, x: view.w / 2, y: -60, r: 28, t: 0, dur: 14, phase: 'in', patT: 1.4, spiralLeft: 0, spiralT: 0, spiralA: rand(0, TAU) };
+        // 10 full seconds of the boss's own patterns to survive — this is the exact number
+        // the fight-phase timer bar (and the countdown drawn next to it) counts down from.
+        S.boss = { def: def_, x: view.w / 2, y: -60, r: 28, t: 0, dur: 10, phase: 'in', patT: 1.4, spiralLeft: 0, spiralT: 0, spiralA: rand(0, TAU), stolen: [] };
+        // Every ordinary obstacle flees the instant the boss shows up: the boss owns the
+        // screen alone for the whole fight, and normal hazards only start spawning again
+        // once endBoss() runs. Cleared instantly (with a little scatter-burst per hazard)
+        // rather than animated off-screen, since walls/rings/lasers each use a different
+        // coordinate system for their own movement and an animated flee could otherwise
+        // leave one of them stuck mid-screen, still able to hit the orb, or still blocking
+        // the safe-countdown circle — an instant, visible "poof" has none of those bugs.
+        for (let i = S.hz.length - 1; i >= 0; i--){
+            const h = S.hz[i];
+            burst(h.x, h.y, 'violet', 5, 130, 1.6);
+            dropHz(i, h);
+        }
+        S.safeZone = null;   // a safe-countdown circle mid-run wouldn't survive the boss's own patterns fairly — cancel it, no blast, no penalty
+        S.spawnT = Math.max(S.spawnT, 1.1); // don't let a queued spawn land the same frame the boss appears
         showToast('👁 ' + L(def_) + ' ' + (isFa() ? 'ظاهر شد!' : 'APPEARS!'), 'bad');
         sfxBoss(); flash(0.3, 'red'); S.trauma = Math.max(S.trauma, 0.5); buzz('heavy');
     }
@@ -23210,25 +23383,43 @@ window.ChaosOrb = (function(){
     }
     function firePattern(b){
         const p = pick(b.def.pats);
-        const sp = 125 + 35 * Math.min(diff(), 1.5), w = view.w;
+        // ~15-20% faster/denser than the old numbers across every pattern — the boss fight
+        // is meant to be the hardest 10 seconds of the run now, not just a breather.
+        const sp = 145 + 40 * Math.min(diff(), 1.5), w = view.w;
         if (p === 'ring'){
-            const n = 14 + Math.min(8, S.level * 2), off = rand(0, TAU);
+            const n = 16 + Math.min(10, S.level * 2), off = rand(0, TAU);
             for (let i = 0; i < n; i++) spawnBullet(b.x, b.y, off + i * TAU / n, sp * 0.95, { boss: true });
-            b.patT = rand(1.6, 2.2);
+            b.patT = rand(1.3, 1.8);
         } else if (p === 'aimed' || p === 'fan'){
             const a = Math.atan2(S.py - b.y, S.px - b.x), n = p === 'fan' ? 2 : 1;
             for (let k = -n; k <= n; k++) spawnBullet(b.x, b.y, a + k * (p === 'fan' ? 0.2 : 0.24), sp * 1.35, { boss: true });
-            b.patT = rand(1.0, 1.5);
+            b.patT = rand(0.75, 1.15);
         } else if (p === 'spiral'){
-            b.spiralLeft = 2.4; b.spiralT = 0; b.patT = rand(3.0, 3.6);
+            b.spiralLeft = 3.0; b.spiralT = 0; b.patT = rand(2.6, 3.1);
+        } else if (p === 'steal'){
+            const grabbed = [];
+            for (let i = S.hz.length - 1; i >= 0 && grabbed.length < 3; i--){
+                const h = S.hz[i];
+                if (h.fake || h.kind === 'wall' || h.kind === 'laser' || h.kind === 'ring' || h.kind === 'mine' || h.kind === 'bullet' || h.kind === 'guard') continue;
+                if (Math.hypot(h.x - b.x, h.y - b.y) > 320) continue;
+                grabbed.push(h);
+            }
+            if (grabbed.length){
+                grabbed.forEach(function(h, i){
+                    dropHz(S.hz.indexOf(h), h);
+                    b.stolen.push({ x: h.x, y: h.y, t: 0, hold: 0.55 + i * 0.14 });
+                });
+                sfxTele(); burst(b.x, b.y, 'gold', 10, 150);
+            }
+            b.patT = rand(1.4, 1.9);
         } else if (p === 'rain'){
-            const n = 10 + S.level;
+            const n = 13 + S.level;
             for (let i = 0; i < n; i++) spawnBullet(rand(10, w - 10), -8 - i * 14, Math.PI / 2 + rand(-0.08, 0.08), sp * 1.15 + rand(0, 60), { boss: true, r: 5 });
-            b.patT = rand(1.8, 2.4);
+            b.patT = rand(1.5, 2.0);
         } else { // curtain: a wall of bullets with one gap
             const cols = Math.floor(w / 26), gap = irand(2, Math.max(3, cols - 3));
             for (let i = 0; i < cols; i++){ if (Math.abs(i - gap) <= 1) continue; spawnBullet(13 + i * 26, b.y + 30, Math.PI / 2, sp * 0.9, { boss: true }); }
-            b.patT = rand(2.2, 2.8);
+            b.patT = rand(1.8, 2.4);
         }
         tone(180, 0.08, 'square', 0.06, 0, 90);
     }
@@ -23248,10 +23439,25 @@ window.ChaosOrb = (function(){
             if (b.spiralLeft > 0){
                 b.spiralLeft -= wdt; b.spiralT -= wdt;
                 if (b.spiralT <= 0){
-                    b.spiralT = 0.075; b.spiralA += 0.55;
-                    const sp = 120 + 30 * Math.min(diff(), 1.5);
+                    b.spiralT = 0.06; b.spiralA += 0.6;
+                    const sp = 140 + 35 * Math.min(diff(), 1.5);
                     spawnBullet(b.x, b.y, b.spiralA, sp, { boss: true });
                     spawnBullet(b.x, b.y, b.spiralA + Math.PI, sp, { boss: true });
+                }
+            }
+            if (b.stolen && b.stolen.length){
+                for (let i = b.stolen.length - 1; i >= 0; i--){
+                    const s = b.stolen[i];
+                    s.t += wdt;
+                    s.x += (b.x - s.x) * Math.min(1, wdt * 7);
+                    s.y += (b.y - s.y) * Math.min(1, wdt * 7);
+                    if (s.t >= s.hold){
+                        const a = Math.atan2(S.py - b.y, S.px - b.x);
+                        const sp = 165 + 40 * Math.min(diff(), 1.5);
+                        spawnBullet(b.x, b.y, a, sp, { boss: true, r: 8 });
+                        burst(b.x, b.y, 'gold', 6, 150);
+                        b.stolen.splice(i, 1);
+                    }
                 }
             }
             if (b.t >= b.dur){ b.phase = 'out'; b.t = 0; }
@@ -23302,6 +23508,14 @@ window.ChaosOrb = (function(){
     }
     function onHit(h, x, y){
         if (S.god || S.phaseT > 0 || S.invuln > 0 || state !== 'playing') return;
+        // Standing inside the safe-countdown's green circle makes the orb untouchable —
+        // no hazard, bullet, boss or anything else can kill it in there, no matter what
+        // grazed it on the way in. Only the countdown's own end-of-timer blast (which
+        // checks this same circle itself) is allowed to judge whether you were safe.
+        if (S.safeZone && h.kind !== 'blast'){
+            const sz = S.safeZone;
+            if ((x - sz.x) * (x - sz.x) + (y - sz.y) * (y - sz.y) <= sz.r * sz.r) return;
+        }
         if (S.shield > 0){
             S.shield--; S.invuln = 1.3;
             nova(x, y, 140, false);
@@ -23447,8 +23661,13 @@ window.ChaosOrb = (function(){
                     const pt = S.pts[p];
                     if (hzOverlap(h, pt.x, pt.y, S.pr, 0)){
                         if (edibleAll && EDIBLE[h.kind]){ eatHz(h); dead = true; break; }
-                        onHit(h, pt.x, pt.y);
-                        if (state !== 'playing') return;
+                        if (p === 0){
+                            onHit(h, pt.x, pt.y);
+                            if (state !== 'playing') return;
+                        } else {
+                            // the duplicate orb from the 'twins' rule is a ghost: it phases through hazards instead of dying — only the original (p===0) can lose
+                            burst(pt.x, pt.y, 'violet', 5, 110, 2);
+                        }
                         break;
                     } else if (!h.grazed && h.kind !== 'guard' && hzOverlap(h, pt.x, pt.y, S.pr, 15)){
                         h.grazed = true; graze(h, pt);
@@ -23460,10 +23679,11 @@ window.ChaosOrb = (function(){
     }
 
     // ============================================================ SHARDS + POWER-UPS
-    function collectShard(sh, idx, pt){
+    function collectShard(sh, idx, pt, ghost){
         S.shardsArr.splice(idx, 1); sh.dead = true;
         if (M.swap){
             burst(sh.x, sh.y, 'red', 10, 160);
+            if (ghost) return;   // twin orb from the 'twins' rule: shards biting it doesn't kill it either
             onHit({ kind: 'shard' }, pt.x, pt.y);
             return;
         }
@@ -23498,7 +23718,7 @@ window.ChaosOrb = (function(){
                 const k = 150 * dt / (nd || 1);
                 sh.x = clamp(sh.x + (sh.x - nx) * k, 20, W - 20); sh.y = clamp(sh.y + (sh.y - ny) * k, 60, H - 20);
             }
-            if (rangeMag && nd < rangeMag){
+            if (rangeMag && sh.type !== 'guarded' && nd < rangeMag){
                 const k = (0.35 + (1 - nd / rangeMag)) * 300 * dt / (nd || 1);
                 sh.x += (nx - sh.x) * k; sh.y += (ny - sh.y) * k;
             }
@@ -23511,7 +23731,7 @@ window.ChaosOrb = (function(){
             for (let p = 0; p < S.np; p++){
                 const pt = S.pts[p], rr = sh.r + S.pr + 2;
                 const dx = pt.x - sh.x, dy = pt.y - sh.y;
-                if (dx * dx + dy * dy < rr * rr){ collectShard(sh, i, pt); break; }
+                if (dx * dx + dy * dy < rr * rr){ collectShard(sh, i, pt, p > 0); break; }
             }
             if (state !== 'playing') return;
         }
@@ -23553,7 +23773,7 @@ window.ChaosOrb = (function(){
         if (!M.wrap){ S.rx = clamp(S.rx, S.pr, W - S.pr); S.ry = clamp(S.ry, S.pr, H - S.pr); }
 
         S.buf.push({ t: S.elapsed, x: S.rx, y: S.ry });
-        while (S.buf.length > 1 && S.buf[0].t < S.elapsed - 1.2) S.buf.shift();
+        while (S.buf.length > 1 && S.buf[0].t < S.elapsed - 2.6) S.buf.shift(); // kept long enough to also serve the 2s rewind rule
         let tx = S.rx, ty = S.ry;
         if (M.lag > 0){
             const want = S.elapsed - M.lag; let e = S.buf[0];
@@ -23564,10 +23784,7 @@ window.ChaosOrb = (function(){
         if (!M.wrap){ tx = clamp(tx, S.pr, W - S.pr); ty = clamp(ty, S.pr, H - S.pr); }
         S.tx = tx; S.ty = ty;
 
-        if (M.ice){
-            S.pvx += ((tx - S.px) * 42 - S.pvx * 2.2) * dt; S.pvy += ((ty - S.py) * 42 - S.pvy * 2.2) * dt;
-            S.px += S.pvx * dt; S.py += S.pvy * dt;
-        } else {
+        {
             const rate = M.honey ? 3.0 : 11;
             S.pvx = S.pvy = 0;
             S.px += (tx - S.px) * Math.min(1, dt * rate); S.py += (ty - S.py) * Math.min(1, dt * rate);
@@ -23686,8 +23903,18 @@ window.ChaosOrb = (function(){
         S.trauma = Math.max(0, S.trauma - dt * 1.6);
         const wdt = dt * M.time;
 
+        // periodic snapshot of every hazard's full state, kept a few seconds deep — this is what
+        // lets the 'timeRewind' rule below drag the obstacles back in time along with the player
+        S.rwSnapT -= dt;
+        if (S.rwSnapT <= 0){
+            S.rwSnapT = 0.15;
+            S.rwHist.push({ t: S.elapsed, hz: S.hz.map(function(h){ return Object.assign({}, h); }) });
+            while (S.rwHist.length > 1 && S.rwHist[0].t < S.elapsed - 3) S.rwHist.shift();
+        }
+
         tickEvents(dt);
         if (state !== 'playing') return;
+        if (tickCard(dt)) return;   // Chaos Card: the pick screen just opened (state 'card') — freeze the rest of this frame
 
         if (!S.boss && S.level >= 3 && S.elapsed >= S.nextBoss) startBoss();
         if (S.boss){
@@ -23695,7 +23922,11 @@ window.ChaosOrb = (function(){
             if (S.boss && S.boss.phase === 'fight'){
                 for (let p = 0; p < S.np; p++){
                     const pt = S.pts[p], rr = S.boss.r + S.pr;
-                    if ((pt.x - S.boss.x) * (pt.x - S.boss.x) + (pt.y - S.boss.y) * (pt.y - S.boss.y) < rr * rr){ onHit({ kind: 'boss' }, pt.x, pt.y); break; }
+                    if ((pt.x - S.boss.x) * (pt.x - S.boss.x) + (pt.y - S.boss.y) * (pt.y - S.boss.y) < rr * rr){
+                        if (p === 0) onHit({ kind: 'boss' }, pt.x, pt.y);
+                        else burst(pt.x, pt.y, 'violet', 5, 110, 2);   // ghost twin: touching the boss doesn't kill it
+                        break;
+                    }
                 }
                 if (state !== 'playing') return;
             }
@@ -23703,9 +23934,13 @@ window.ChaosOrb = (function(){
 
         S.spawnT -= wdt;
         if (S.spawnT <= 0){
-            spawnHazard();
-            if (S.level >= 5 && chance(0.25)) spawnHazard();
-            if (M.mirage){ spawnMover(pick(['tri', 'orb', 'bar', 'sine']), { fake: true }); spawnMover(pick(['tri', 'orb', 'bar']), { fake: true }); }
+            // no ordinary obstacle spawns while the boss owns the screen — they only
+            // resume once endBoss() clears S.boss, right after the boss flies off
+            if (!S.boss){
+                spawnHazard();
+                if (S.level >= 5 && chance(0.25)) spawnHazard();
+                if (M.mirage){ spawnMover(pick(['tri', 'orb', 'bar', 'sine']), { fake: true }); spawnMover(pick(['tri', 'orb', 'bar']), { fake: true }); }
+            }
             S.spawnT = spawnInterval();
         }
         updateHazards(dt, wdt, true);
@@ -23716,8 +23951,9 @@ window.ChaosOrb = (function(){
         updateShards(dt);
         if (state !== 'playing') return;
         S.pupT -= dt;
-        if (S.pupT <= 0){ spawnPower(); S.pupT = rand(11, 17); }
+        if (S.pupT <= 0){ spawnPower(S.firstPup ? 'weapon' : null); S.firstPup = false; S.pupT = rand(11, 17); }
         updatePups(dt);
+        updateWeapon(dt);
 
         S.trickle += dt * 10 * (1 + 0.15 * (S.level - 1)) * (S.x2T > 0 ? 2 : 1);
         const whole = Math.floor(S.trickle); S.trickle -= whole; S.score += whole;
@@ -23802,6 +24038,18 @@ window.ChaosOrb = (function(){
         if (h.kind === 'ring'){
             ctx.save(); ctx.globalAlpha = blink; ctx.strokeStyle = rgb('pink'); ctx.lineWidth = 2; ctx.setLineDash([3, 5]);
             ctx.beginPath(); ctx.arc(h.x, h.y, 14 + (1 - h.warn / 0.6) * 18, 0, TAU); ctx.stroke(); ctx.restore(); return;
+        }
+        if (h.kind === 'comet'){
+            const k = 1 - h.warn / COMET_WARN; // 0 → 1 as the warning ticks down
+            const ang = Math.atan2(h.vy, h.vx), len = Math.max(view.w, view.h) * 1.3;
+            ctx.save();
+            ctx.strokeStyle = rgb('red'); ctx.lineWidth = 1.6; ctx.setLineDash([9, 7]); ctx.lineDashOffset = -clock * 26;
+            ctx.globalAlpha = 0.2 + 0.35 * k;
+            ctx.beginPath(); ctx.moveTo(h.x, h.y); ctx.lineTo(h.x + Math.cos(ang) * len, h.y + Math.sin(ang) * len); ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.globalAlpha = blink; ctx.fillStyle = rgb('red');
+            ctx.beginPath(); ctx.arc(h.x, h.y, 5 + 3 * k, 0, TAU); ctx.fill();
+            ctx.restore(); return;
         }
         if (h.kind === 'wall'){
             ctx.save(); ctx.globalAlpha = blink * 0.8;
@@ -23973,6 +24221,14 @@ window.ChaosOrb = (function(){
             ctx.moveTo(-s * 0.6, s * 0.75); ctx.lineTo(-s * 0.6, -s * 0.1); ctx.arc(0, -s * 0.1, s * 0.6, Math.PI, 0); ctx.lineTo(s * 0.6, s * 0.75);
             ctx.lineTo(s * 0.3, s * 0.45); ctx.lineTo(0, s * 0.75); ctx.lineTo(-s * 0.3, s * 0.45); ctx.closePath(); ctx.stroke();
             ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(-s * 0.22, -s * 0.15, 1.8, 0, TAU); ctx.arc(s * 0.22, -s * 0.15, 1.8, 0, TAU); ctx.fill();
+        } else if (type === 'weapon'){
+            // a small bolt/blaster glyph: a stubby barrel + a spark, readable at icon size
+            ctx.lineWidth = 2.6;
+            ctx.moveTo(-s * 0.75, s * 0.15); ctx.lineTo(s * 0.15, s * 0.15); ctx.lineTo(s * 0.15, -s * 0.28); ctx.lineTo(s * 0.75, -s * 0.28);
+            ctx.lineTo(s * 0.75, s * 0.15); ctx.lineTo(s * 0.4, s * 0.15); ctx.lineTo(s * 0.4, s * 0.6); ctx.lineTo(-s * 0.75, s * 0.6); ctx.closePath();
+            ctx.fill(); ctx.stroke();
+            ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.6;
+            ctx.beginPath(); ctx.moveTo(s * 0.9, -s * 0.1); ctx.lineTo(s * 1.25, -s * 0.35); ctx.moveTo(s * 0.95, s * 0.05); ctx.lineTo(s * 1.3, s * 0.05); ctx.stroke();
         } else {
             ctx.font = 'bold ' + Math.round(s * (type === 'x2' ? 1.15 : 1.5)) + 'px Orbitron, sans-serif';
             ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
@@ -24013,6 +24269,23 @@ window.ChaosOrb = (function(){
             for (let i = 0; i < 16; i++){ const a = i * TAU / 16, rr = i % 2 ? r * 0.65 : r * 1.25; ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr); }
             ctx.closePath(); ctx.fill(); ctx.stroke();
             ctx.fillStyle = rgb(c); ctx.beginPath(); ctx.arc(0, 0, r * 0.32, 0, TAU); ctx.fill();
+        } else if (b.def.id === 'storm'){
+            ctx.beginPath();
+            const bumps = [[-0.7, 0.2, 0.55], [-0.25, -0.35, 0.65], [0.3, -0.3, 0.6], [0.72, 0.15, 0.5], [0, 0.25, 0.7]];
+            bumps.forEach(function(q){ ctx.moveTo(q[0] * r + q[2] * r, q[1] * r); ctx.arc(q[0] * r, q[1] * r, q[2] * r, 0, TAU); });
+            ctx.fill(); ctx.stroke();
+            ctx.strokeStyle = rgb('gold'); ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(-3, -4); ctx.lineTo(3, 3); ctx.lineTo(-2, 3); ctx.lineTo(4, 12); ctx.stroke();
+        } else if (b.def.id === 'devourer'){
+            const chomp = 0.5 + 0.5 * Math.sin(clock * 4), teeth = 10;
+            ctx.beginPath();
+            for (let i = 0; i < teeth; i++){
+                const a0 = i * TAU / teeth, a1 = a0 + TAU / teeth * 0.5, rr = r * (1 + 0.22 * chomp);
+                if (i === 0) ctx.moveTo(Math.cos(a0) * rr, Math.sin(a0) * rr); else ctx.lineTo(Math.cos(a0) * rr, Math.sin(a0) * rr);
+                ctx.lineTo(Math.cos(a1) * r * 0.78, Math.sin(a1) * r * 0.78);
+            }
+            ctx.closePath(); ctx.fill(); ctx.stroke();
+            ctx.fillStyle = rgb(c);
+            ctx.beginPath(); ctx.arc(0, 0, r * (0.42 + 0.1 * chomp), 0, TAU); ctx.fill();
         } else {
             ctx.beginPath();
             const bumps = [[-0.7, 0.2, 0.55], [-0.25, -0.35, 0.65], [0.3, -0.3, 0.6], [0.72, 0.15, 0.5], [0, 0.25, 0.7]];
@@ -24021,12 +24294,26 @@ window.ChaosOrb = (function(){
             ctx.strokeStyle = rgb('gold'); ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(-3, -4); ctx.lineTo(3, 3); ctx.lineTo(-2, 3); ctx.lineTo(4, 12); ctx.stroke();
         }
         ctx.restore();
+        if (b.stolen && b.stolen.length){
+            ctx.save(); ctx.globalCompositeOperation = 'lighter';
+            for (let i = 0; i < b.stolen.length; i++){
+                const s = b.stolen[i], k = clamp(s.t / s.hold, 0, 1);
+                glow('gold', s.x, s.y, 14 + 6 * Math.sin(clock * 10 + i), 0.5 + 0.35 * k);
+            }
+            ctx.globalCompositeOperation = 'source-over';
+            ctx.restore();
+        }
         ctx.save();
         ctx.textAlign = 'center'; ctx.font = 'bold 11px "Share Tech Mono", monospace'; ctx.fillStyle = rgb(c);
         ctx.fillText(L(b.def), b.x, b.y + r + 30);
         if (fight){
             ctx.fillStyle = 'rgba(255,255,255,.18)'; ctx.fillRect(b.x - 45, b.y + r + 12, 90, 4);
             ctx.fillStyle = rgb(c); ctx.fillRect(b.x - 45, b.y + r + 12, 90 * clamp(1 - b.t / b.dur, 0, 1), 4);
+            const left = Math.max(0, Math.ceil(b.dur - b.t));
+            ctx.font = 'bold 13px "Share Tech Mono", monospace'; ctx.fillStyle = '#fff';
+            ctx.shadowBlur = 10; ctx.shadowColor = rgb(c);
+            ctx.fillText((isFa() ? 'مقاومت: ' : 'SURVIVE: ') + left, b.x, b.y + r + 30 + 16);
+            ctx.shadowBlur = 0;
         }
         ctx.restore();
     }
@@ -24146,12 +24433,45 @@ window.ChaosOrb = (function(){
         }
         ctx.restore();
     }
+    function drawSafeZone(){
+        const z = S.safeZone; if (!z) return;
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        glow('green', z.x, z.y, z.r * 1.4, 0.32 + 0.14 * Math.sin(clock * 6));
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.strokeStyle = rgba('green', 0.9); ctx.lineWidth = 3;
+        ctx.setLineDash([10, 6]); ctx.lineDashOffset = -clock * 40;
+        ctx.beginPath(); ctx.arc(z.x, z.y, z.r, 0, TAU); ctx.stroke();
+        ctx.setLineDash([]);
+        if (z.count > 0){
+            ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.font = 'bold ' + Math.round(z.r * 0.85) + 'px "Share Tech Mono", monospace';
+            ctx.shadowBlur = 16; ctx.shadowColor = rgb('green');
+            ctx.fillText(String(z.count), z.x, z.y);
+            ctx.shadowBlur = 0;
+        }
+        ctx.restore();
+    }
+    function drawWeaponBeams(){
+        for (let i = 0; i < S.wbeams.length; i++){
+            const b = S.wbeams[i], k = clamp(b.t / b.life, 0, 1);
+            ctx.save();
+            ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = k; ctx.lineCap = 'round';
+            ctx.strokeStyle = rgba('red', 0.85); ctx.lineWidth = 4 * k + 1;
+            ctx.beginPath(); ctx.moveTo(b.x1, b.y1); ctx.lineTo(b.x2, b.y2); ctx.stroke();
+            ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.3 * k + 0.4;
+            ctx.beginPath(); ctx.moveTo(b.x1, b.y1); ctx.lineTo(b.x2, b.y2); ctx.stroke();
+            ctx.restore();
+        }
+    }
     function drawWorld(){
         if (S.vortex) drawVortex();
+        if (S.safeZone) drawSafeZone();
         for (let i = 0; i < S.shardsArr.length; i++) drawShard(S.shardsArr[i]);
         for (let i = 0; i < S.pups.length; i++) drawPower(S.pups[i]);
         for (let i = 0; i < S.hz.length; i++) drawHazard(S.hz[i]);
         if (S.boss) drawBoss();
+        if (S.wbeams.length) drawWeaponBeams();
         drawFx();
         if (M.blackout && state === 'playing'){
             drawBlackout();
@@ -24181,7 +24501,7 @@ window.ChaosOrb = (function(){
         }
         if (vigCv) ctx.drawImage(vigCv, 0, 0, view.w, view.h);
         ctx.restore();
-        const f = (M && (state === 'playing' || state === 'dying' || state === 'paused')) ? M.filters.join(' ') : '';
+        const f = (M && (state === 'playing' || state === 'dying' || state === 'paused' || state === 'card')) ? M.filters.join(' ') : '';
         if (f !== lastFilter){ canvas.style.filter = f; lastFilter = f; }
     }
 
@@ -24200,7 +24520,7 @@ window.ChaosOrb = (function(){
             h += '<span class="co-chip co-k-' + e.k + '"><i>' + e.e + '</i><b style="width:' + Math.max(0, Math.round(r.t / r.dur * 100)) + '%"></b></span>';
         });
         if (S.shield > 0) h += '<span class="co-chip co-k-good"><i>🛡️</i><em>×' + S.shield + '</em></span>';
-        [['magnetT', 'magnet', 7], ['freezeT', 'freeze', 3.2], ['phaseT', 'phase', 5], ['x2T', 'x2', 10]].forEach(function(q){
+        [['magnetT', 'magnet', 7], ['freezeT', 'freeze', 3.2], ['phaseT', 'phase', 5], ['x2T', 'x2', 10], ['weaponT', 'weapon', 6]].forEach(function(q){
             if (S[q[0]] > 0) h += '<span class="co-chip co-k-good"><i>' + POWER[q[1]].e + '</i><b style="width:' + Math.round(clamp(S[q[0]] / q[2], 0, 1) * 100) + '%"></b></span>';
         });
         return h;
@@ -24270,6 +24590,108 @@ window.ChaosOrb = (function(){
         state = 'playing'; pausePanel.hidden = true; pauseBtn.textContent = '⏸'; lastT = 0;
         if (meter) meter.reset();
     }
+    // ---------------------------------------------------------------- CHAOS CARD
+    // Every ~40 s (from chaos level 2) the game freezes and offers 3 rules — one easy, one wild,
+    // one risky. The player picks one; the riskier the card, the more bonus points it pays.
+    const CARD_BONUS = { good: 0, wild: 60, bad: 120 };
+    // Not every Chaos Card gets a 4th slot — only sometimes, as a bonus option
+    // alongside the usual 3 chaos rules, offering the weapon power-up directly.
+    const WEAPON_CARD_CHANCE = 0.3;
+    function sfxCard(){ [440, 554, 659, 880].forEach(function(f, i){ tone(f, 0.12, 'triangle', 0.12, i * 0.06); }); }
+    function pickCardRules(){
+        const ids = [];
+        ['good', 'wild', 'bad'].forEach(function(k){
+            const got = pickEvents(1, { skipMeta: true, noRecent: true, kind: k, exclude: ids });
+            if (got.length) ids.push(got[0]);
+        });
+        while (ids.length < 3){   // a kind had nothing to offer: fill up with anything that fits
+            const got = pickEvents(1, { skipMeta: true, noRecent: true, exclude: ids });
+            if (!got.length) break;
+            ids.push(got[0]);
+        }
+        for (let i = ids.length - 1; i > 0; i--){ const j = irand(0, i), t = ids[i]; ids[i] = ids[j]; ids[j] = t; }
+        return ids.map(function(id){
+            const e = EV[id];
+            return { id: id, kind: e.k, dur: Math.max(3, Math.round((e.d[0] + e.d[1]) / 2)), bonus: CARD_BONUS[e.k] || 0 };
+        });
+    }
+    function tickCard(dt){
+        if (S.cardT > 0){ S.cardT -= dt; return false; }
+        if (S.level < 2 || S.boss || S.active.length >= maxActive()) return false;
+        return openCard();
+    }
+    function openCard(){
+        const opts = pickCardRules();
+        if (opts.length < 2){ S.cardT = 8; return false; }
+        if (chance(WEAPON_CARD_CHANCE)) opts.push({ special: 'weapon' });
+        S.cardOpts = opts; S.cardAt = clock;
+        state = 'card';
+        S.keyL = S.keyR = S.keyU = S.keyD = false;
+        renderCard(opts);
+        if (pickPanel) pickPanel.hidden = false;
+        if (pauseBtn) pauseBtn.hidden = true;
+        sfxCard(); buzz('light');
+        return true;
+    }
+    function renderCard(opts){
+        if (!pickRowEl) return;
+        const fa = isFa();
+        pickTitleEl.textContent = '🃏 CHAOS CARD';
+        pickSubEl.textContent = fa ? 'یکی رو انتخاب کن — ریسک یا پاداش!' : 'Pick one — risk or reward!';
+        pickRowEl.textContent = '';
+        const TAG = {
+            good: fa ? '🟢 آسون' : '🟢 EASY',
+            wild: fa ? '🟣 وحشی' : '🟣 WILD',
+            bad:  fa ? '🔴 ریسکی' : '🔴 RISKY'
+        };
+        opts.forEach(function(o, i){
+            const b = document.createElement('button'); b.type = 'button';
+            const ic = document.createElement('i');
+            const main = document.createElement('span'); main.className = 'co-pick-main';
+            const nm = document.createElement('b');
+            const tg = document.createElement('span'); tg.className = 'co-pick-tag';
+            const du = document.createElement('small');
+            if (o.special === 'weapon'){
+                b.className = 'co-pick co-pk-weapon';
+                ic.textContent = POWER.weapon.e;
+                nm.textContent = L(POWER.weapon);
+                tg.textContent = fa ? '🔵 ویژه' : '🔵 SPECIAL';
+                du.textContent = '~6s';
+            } else {
+                const e = EV[o.id];
+                b.className = 'co-pick co-pk-' + o.kind;
+                ic.textContent = e.e;
+                nm.textContent = L(e);
+                tg.textContent = TAG[o.kind] + (o.bonus ? '  ·  +' + o.bonus : '');
+                du.textContent = '~' + o.dur + 's';
+            }
+            main.appendChild(nm); main.appendChild(tg);
+            b.appendChild(ic); b.appendChild(main); b.appendChild(du);
+            b.addEventListener('click', function(){ pickCard(i); });
+            pickRowEl.appendChild(b);
+        });
+    }
+    function pickCard(i){
+        if (state !== 'card' || !S || !S.cardOpts) return;
+        if (clock - S.cardAt < 0.35) return;   // ignore a tap that was already in progress when the cards popped up
+        const o = S.cardOpts[i]; if (!o) return;
+        S.cardOpts = null;
+        if (pickPanel) pickPanel.hidden = true;
+        if (pauseBtn) pauseBtn.hidden = false;
+        state = 'playing';
+        S.cardT = rand(40, 55); S.cardsTaken++;
+        S.invuln = Math.max(S.invuln, 1.2);          // a short breather after the screen comes back
+        S.cooldown = Math.max(S.cooldown, 4);        // the chosen rule gets the stage to itself for a moment
+        lastT = 0; if (meter) meter.reset();
+        if (o.special === 'weapon'){
+            applyPower('weapon', S.px, S.py);
+        } else {
+            startEvent(o.id, { dur: o.dur, noLie: true, noSilent: true });
+            if (o.bonus) addScore(o.bonus, S.px, S.py - S.pr - 16, { color: 'gold', size: 16, noMult: true });
+        }
+        buzz('light');
+    }
+
     function finalizeRun(){
         S.isNew = S.score > best;
         if (S.isNew){ best = S.score; saveBest(); }
@@ -24404,6 +24826,7 @@ window.ChaosOrb = (function(){
                 if (state === 'playing') pauseGame(); else if (state === 'paused') resumeGame();
                 return;
             }
+            if (state === 'card' && (ev.key === '1' || ev.key === '2' || ev.key === '3')){ pickCard(+ev.key - 1); return; }
             if (state === 'playing') keyFlag(ev, true);
         });
         window.addEventListener('keyup', function(ev){ keyFlag(ev, false); });
@@ -24485,8 +24908,8 @@ window.ChaosOrb = (function(){
 
     // ================================================================ LANGUAGE
     const LEGEND = {
-        fa: '<span>💎 بلور</span><span>🌟 طلایی</span><span>💜 نفرین‌شده = آشوب!</span><span>🛡️ سپر</span><span>🧲 آهنربا</span><span>⏳ توقف زمان</span><span>💣 بمب</span><span>👻 روح</span><span>✖۲ دو برابر</span><span>🎲 شانسی</span>',
-        en: '<span>💎 shard</span><span>🌟 golden</span><span>💜 cursed = chaos!</span><span>🛡️ shield</span><span>🧲 magnet</span><span>⏳ time stop</span><span>💣 nova</span><span>👻 phase</span><span>✖2 double</span><span>🎲 mystery</span>'
+        fa: '<span>💎 بلور</span><span>🌟 طلایی</span><span>💜 نفرین‌شده = آشوب!</span><span>🛡️ سپر</span><span>🧲 آهنربا</span><span>⏳ توقف زمان</span><span>💣 بمب</span><span>👻 روح</span><span>✖۲ دو برابر</span><span>🎲 شانسی</span><span>🔫 اسلحه</span>',
+        en: '<span>💎 shard</span><span>🌟 golden</span><span>💜 cursed = chaos!</span><span>🛡️ shield</span><span>🧲 magnet</span><span>⏳ time stop</span><span>💣 nova</span><span>👻 phase</span><span>✖2 double</span><span>🎲 mystery</span><span>🔫 weapon</span>'
     };
     function applyLang(){
         const fa = isFa();
@@ -24532,6 +24955,8 @@ window.ChaosOrb = (function(){
         muteBtn = document.getElementById('coMuteBtn'); pauseBtn = document.getElementById('coPauseBtn');
         crashMsgEl = document.getElementById('coCrashMsg'); causeEl = document.getElementById('coCause');
         rankEl = document.getElementById('coRank'); overStatsEl = document.getElementById('coOverStats');
+        pickPanel = document.getElementById('coPickPanel'); pickRowEl = document.getElementById('coPickRow');
+        pickTitleEl = document.getElementById('coPickTitle'); pickSubEl = document.getElementById('coPickSub');
         loadBest(); loadStats(); loadMute();
         if (Perf) meter = Perf.monitor(function(){ fit(); });   // slow device -> lower tier -> smaller backing store
         bindInput();
@@ -24570,7 +24995,9 @@ window.ChaosOrb = (function(){
         give: function(t){ applyPower(t, S.px, S.py); },
         set: function(k, v){ S[k] = v; },
         level: function(l){ S.elapsed = LEVEL_T[l - 1]; S.level = l; },
-        events: EV
+        events: EV,
+        card: function(){ return openCard(); },
+        pickCard: function(i){ if (S) S.cardAt = -9; pickCard(i); }
     };
 
     return { init: init, pause: pause, hide: hide, applyLang: applyLang, _dbg: _dbg };
